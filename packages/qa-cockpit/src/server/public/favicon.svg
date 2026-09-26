@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="7 8.5 50 50">
+  <!-- The same octopus cut for 16 to 32 px: no band, no shine, thicker
+       straight legs and bigger eyes, since anything under four units of
+       this grid is less than a pixel there. No tile, like the logo. -->
+  <g transform="translate(0 -1.5)">
+  <g fill="none" stroke-width="8" stroke-linecap="round">
+    <path d="M21 38 L15.5 54" stroke="#fbbf24"/>
+    <path d="M28.5 40 L27 56" stroke="#34d399"/>
+    <path d="M35.5 40 L37 56" stroke="#38bdf8"/>
+    <path d="M43 38 L48.5 54" stroke="#a78bfa"/>
+  </g>
+  <path d="M14 28 A18 18 0 0 1 50 28 V36 A5 5 0 0 1 45 41 H19 A5 5 0 0 1 14 36 Z" fill="#e11d48"/>
+  <circle cx="24.8" cy="28.5" r="7.2" fill="#f4f4f6"/>
+  <circle cx="39.2" cy="28.5" r="7.2" fill="#f4f4f6"/>
+  <circle cx="24.8" cy="28.5" r="3.6" fill="#1b1c22"/>
+  <circle cx="39.2" cy="28.5" r="3.6" fill="#1b1c22"/>
+  </g>
+</svg>

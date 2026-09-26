@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="8 9.5 48 48" role="img" aria-label="QA Cockpit">
+  <!-- QA Cockpit: an octopus in flying goggles, one leg per person of the
+       cast (it was born beside CritKeep's own octopus). Built on a 64 grid: the head is a circle of 16 over a
+       rounded box, the legs mirror in pairs around x = 32, the outer
+       pair curled, the inner pair straight so the middle stays open. No
+       tile: it breathes on whatever it sits on (Iban, 2026-09-26); the
+       viewBox is cut to the octopus itself. -->
+  <defs>
+    <clipPath id="head">
+      <path d="M16 28 A16 16 0 0 1 48 28 V35.5 A4.5 4.5 0 0 1 43.5 40 H20.5 A4.5 4.5 0 0 1 16 35.5 Z"/>
+    </clipPath>
+  </defs>
+  <g transform="translate(0 -1.5)">
+  <g fill="none" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M22 37 C22 45 13 44 13 51 C13 54 16 55.5 18 53.5" stroke="#fbbf24"/>
+    <path d="M28.5 38 C28.5 46 26 49 26 55" stroke="#34d399"/>
+    <path d="M35.5 38 C35.5 46 38 49 38 55" stroke="#38bdf8"/>
+    <path d="M42 37 C42 45 51 44 51 51 C51 54 48 55.5 46 53.5" stroke="#a78bfa"/>
+  </g>
+  <g clip-path="url(#head)">
+    <rect x="16" y="12" width="32" height="28" fill="#e11d48"/>
+    <rect x="16" y="36.5" width="32" height="4" fill="#be123c"/>
+    <rect x="16" y="24.5" width="32" height="7" fill="#881337"/>
+  </g>
+  <path d="M21.5 19.5 A13 13 0 0 1 28 14" fill="none" stroke="#fb7185" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="25.2" cy="28" r="6.8" fill="#f4f4f6"/>
+  <circle cx="38.8" cy="28" r="6.8" fill="#f4f4f6"/>
+  <circle cx="25.2" cy="28" r="4.4" fill="#1b1c22"/>
+  <circle cx="38.8" cy="28" r="4.4" fill="#1b1c22"/>
+  <circle cx="26.8" cy="26.4" r="1.5" fill="#f4f4f6"/>
+  <circle cx="40.4" cy="26.4" r="1.5" fill="#f4f4f6"/>
+  </g>
+</svg>

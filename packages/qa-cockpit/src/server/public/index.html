@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>QA Cockpit</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="cockpit.css">
+</head>
+<body>
+  <header class="panel bar">
+    <div class="brand">
+      <img class="mark" src="logo.svg" alt="" width="36" height="36">
+      <div>
+        <h1>QA Cockpit <span id="stackChip" class="chip"><span class="dot"></span><span data-i18n="stack.checking"></span></span><span id="busyChip" class="chip warn" tabindex="0" data-tip-kind="busy" hidden></span></h1>
+        <div class="sub" id="stackSub"></div>
+      </div>
+    </div>
+    <div class="controls">
+      <div class="picker" id="picker">
+        <button class="picker-btn" id="pickerBtn" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="pickerPop">
+          <span class="picker-label" data-i18n="suite.label"></span>
+          <span class="sdot" id="pickerDot"></span>
+          <span class="picker-name" id="pickerName"></span>
+          <span id="pickerChev"></span>
+        </button>
+        <div class="picker-pop" id="pickerPop" hidden>
+          <input class="picker-search" id="pickerSearch" type="search" autocomplete="off" data-i18n-placeholder="picker.search" data-i18n-aria="picker.search">
+          <label class="picker-filter"><input type="checkbox" id="pickerHide"> <span data-i18n="picker.hide_nosetup"></span></label>
+          <div class="picker-list" id="pickerList" role="listbox" data-i18n-aria="suite.label"></div>
+        </div>
+      </div>
+      <button id="btnReset" class="btn danger-ghost"></button>
+      <span class="sep" aria-hidden="true"></span>
+      <button id="btnSetup" class="btn"></button>
+      <button id="btnReplay" class="btn"></button>
+      <button id="btnFull" class="btn primary"></button>
+      <button id="btnStop" class="btn primary" hidden></button>
+      <details class="opts" id="opts">
+        <summary class="btn icon" data-i18n-aria="opts.title" data-i18n-title="opts.title"></summary>
+        <div class="menu">
+          <label class="opt"><input type="checkbox" id="optHeaded"><div><b data-i18n="opts.headed"></b><span data-i18n="opts.headed_hint"></span></div></label>
+          <label class="opt"><input type="checkbox" id="optDocker"><div><b data-i18n="opts.docker"></b><span data-i18n="opts.docker_hint"></span></div></label>
+        </div>
+      </details>
+      <details class="opts lang" id="lang">
+        <summary class="btn" id="langBtn" data-i18n-title="lang.label"></summary>
+        <div class="menu lang-menu" id="langMenu"></div>
+      </details>
+    </div>
+  </header>
+
+  <div id="banner" class="banner warn" role="status" hidden></div>
+
+  <div id="offline" class="todo offline" role="alert" hidden>
+    <span id="offlineIcon"></span>
+    <div class="todo-body">
+      <b id="offlineTitle"></b><span id="offlineLead" class="todo-lead"></span>
+      <div class="todo-ask"><code id="offlineCmd"></code><button class="btn" id="offlineCopy" type="button"></button></div>
+      <p id="offlineAfter"></p>
+    </div>
+    <button class="btn icon ghost x" id="offlineClose" type="button"></button>
+  </div>
+
+  <section class="panel suite" id="suitePanel" aria-labelledby="suiteTitle">
+    <div class="suite-main">
+      <div class="suite-head">
+        <h2 id="suiteTitle"></h2>
+        <span id="suiteStatus" class="tags"></span>
+        <span id="suiteBrief" class="faint suite-brief"></span>
+      </div>
+      <p id="suiteSummary"></p>
+      <p id="suiteWhy" class="suite-why"></p>
+      <div class="todo" id="suiteTodo" role="note" hidden>
+        <span id="suiteTodoIcon"></span>
+        <div class="todo-body">
+          <b id="suiteTodoTitle"></b><span id="suiteTodoLead" class="todo-lead"></span>
+          <details class="todo-more" id="suiteTodoMore">
+            <summary id="suiteTodoMoreSum"></summary>
+            <ul id="suiteTodoList"></ul>
+            <p id="suiteTodoOff"></p>
+            <p id="suiteTodoAsk"></p>
+            <div class="todo-ask"><code id="suiteTodoPrompt"></code><button class="btn" id="suiteTodoCopy" type="button"></button></div>
+          </details>
+        </div>
+      </div>
+    </div>
+    <div class="suite-side">
+      <div id="suiteTests" class="suite-tests"></div>
+      <div class="suite-who"><span class="faint" data-i18n="suite.who"></span><span id="suiteCast" class="suite-cast"></span></div>
+      <div id="suiteLast" class="faint"></div>
+      <div id="suiteRun" class="faint"></div>
+    </div>
+    <button class="btn icon ghost suite-fold" id="suiteFold" type="button" aria-controls="suitePanel" aria-expanded="true"></button>
+  </section>
+
+  <section class="panel status" data-i18n-aria="run.label">
+    <div class="now">
+      <div class="line1">
+        <div class="run-picker" id="runPicker">
+          <button class="picker-btn run-btn" id="runBtn" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="runPop">
+            <span class="picker-label" data-i18n="run.label"></span>
+            <span id="runFace" class="run-face"></span>
+            <span id="runChev" class="run-chev"></span>
+          </button>
+          <div class="picker-pop run-pop" id="runPop" role="listbox" tabindex="-1" data-i18n-aria="run.label" hidden></div>
+        </div>
+        <span id="runWhen" class="faint mono"></span>
+        <button class="btn icon ghost" id="runReport" type="button" hidden></button>
+        <button class="btn pill" id="elsewhere" hidden></button>
+      </div>
+      <div class="line2" id="nowText"></div>
+    </div>
+    <div class="progress">
+      <div class="meta"><span id="phaseText"></span><span id="progressText">0%</span></div>
+      <div class="track"><div id="progressBar"></div></div>
+    </div>
+  </section>
+
+  <section class="panel table" data-i18n-aria="table.title">
+    <div class="table-head">
+      <h2 data-i18n="table.title"></h2>
+      <div class="scrub">
+        <button class="btn icon ghost" id="tFirst" data-i18n-aria="step.first"></button>
+        <button class="btn icon ghost" id="tPrev" data-i18n-aria="step.prev"></button>
+        <input type="range" id="tRange" min="0" max="0" value="0" step="1" data-i18n-aria="step.moment">
+        <button class="btn icon ghost" id="tNext" data-i18n-aria="step.next"></button>
+        <button class="btn icon ghost" id="tLast" data-i18n-aria="step.last"></button>
+      </div>
+      <span class="moment" id="tLabel"></span>
+      <button class="btn pill" id="tLive" hidden></button>
+    </div>
+    <p class="muted never" id="tableNever" hidden></p>
+    <div class="cast" id="cast"></div>
+  </section>
+
+  <section class="panel log" id="log" data-i18n-aria="log.toggle">
+    <div class="log-head">
+      <button class="btn ghost" id="logToggle" aria-expanded="true" aria-controls="logBox"></button>
+      <span id="logWhat" class="faint log-what"></span>
+      <span class="tools">
+        <label><input type="checkbox" id="logErrors"> <span data-i18n="log.errors"></span></label>
+        <button class="btn ghost" id="logDownload" style="height:26px"></button>
+      </span>
+    </div>
+    <div id="logBox" aria-live="off"></div>
+  </section>
+
+  <dialog id="inspector" aria-labelledby="insName">
+    <div class="ins">
+      <div class="ins-head">
+        <div class="left">
+          <div class="avatar" id="insAvatar"></div>
+          <div class="who"><b id="insName"></b><span id="insSub"></span></div>
+          <span id="insChip" class="chip"></span>
+          <span id="insState" class="chip" hidden></span>
+        </div>
+        <div class="right">
+          <button class="btn icon" id="insTrace" data-i18n-aria="ins.trace"></button>
+          <button class="btn icon" id="insDownload" data-i18n-aria="ins.download" data-i18n-title="ins.download"></button>
+          <button class="btn" id="insPlayAs"></button>
+          <button class="btn icon ghost" id="insClose" data-i18n-aria="ins.close" data-i18n-title="ins.close"></button>
+        </div>
+      </div>
+      <div class="ins-body">
+        <nav class="steps" id="insSteps" data-i18n-aria="ins.steps"></nav>
+        <div class="stage">
+          <div class="errbox" id="insError" hidden><div id="insErrorText" style="flex:1"></div><button class="btn" id="insCopy"></button></div>
+          <div class="view" id="insView">
+            <div class="sheet" id="insSheet">
+              <img id="insImg" alt="">
+              <div class="seen" id="insSeen" hidden></div>
+              <div class="marks" id="insMarks"></div>
+            </div>
+            <img id="insLive" alt="" hidden>
+            <div class="empty" id="insEmpty" hidden></div>
+          </div>
+          <div class="caption"><b id="insCap"></b><span class="where" id="insWhere"></span><span class="marks-list" id="insMarksList"></span></div>
+        </div>
+      </div>
+      <div class="ins-foot">
+        <div class="strip" id="insStrip"></div>
+        <div class="transport">
+          <div class="grp">
+            <button class="btn icon ghost" id="pFirst" data-i18n-aria="step.first"></button>
+            <button class="btn icon ghost" id="pPrev" data-i18n-aria="step.prev"></button>
+            <button class="btn icon" id="pPlay"></button>
+            <button class="btn icon ghost" id="pNext" data-i18n-aria="step.next"></button>
+            <button class="btn icon ghost" id="pLast" data-i18n-aria="step.last"></button>
+            <span class="count" id="pCount">0 / 0</span>
+          </div>
+          <span class="kbd" data-i18n="ins.keys"></span>
+          <div class="grp">
+            <button class="btn pill" id="pLive" hidden></button>
+            <label class="toggle" data-i18n-title="ins.marks_title"><input type="checkbox" id="optMarks"> <span data-i18n="ins.marks"></span></label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <div id="tip" role="tooltip" hidden></div>
+  <script src="cockpit.js" type="module"></script>
+</body>
+</html>

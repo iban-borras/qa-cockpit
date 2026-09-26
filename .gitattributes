@@ -1,0 +1,5 @@
+# One line ending everywhere: the code runs on Windows, macOS and Linux alike.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.zip binary

@@ -1,0 +1,5 @@
+node_modules/
+# Runs, photos, traces and saved sessions: never committed (sessions sign people in).
+.qa-cockpit/
+test-results/
+*.log

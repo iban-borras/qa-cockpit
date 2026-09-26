@@ -1,0 +1,54 @@
+{
+  "name": "qa-cockpit",
+  "version": "0.1.0",
+  "description": "Multi-person Playwright suites for collaborative web apps, watched live in a cockpit: one card per person, step by step, and runs from any agent or terminal in one place.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iban-borras/qa-cockpit.git",
+    "directory": "packages/qa-cockpit"
+  },
+  "homepage": "https://github.com/iban-borras/qa-cockpit#readme",
+  "bugs": {
+    "url": "https://github.com/iban-borras/qa-cockpit/issues"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "qa-cockpit": "bin/qa-cockpit.mjs"
+  },
+  "exports": {
+    ".": "./src/index.mjs",
+    "./fixtures": "./src/fixtures.mjs",
+    "./playwright": "./src/playwright.mjs",
+    "./reporter": "./src/reporter.mjs",
+    "./worker": "./src/worker.mjs",
+    "./compose": "./src/compose.mjs",
+    "./process": "./src/process.mjs",
+    "./sessions": "./src/sessions.mjs",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "bin",
+    "src",
+    "templates",
+    "docs",
+    "README.md",
+    "LICENSE"
+  ],
+  "peerDependencies": {
+    "@playwright/test": ">=1.50.0"
+  },
+  "keywords": [
+    "playwright",
+    "e2e",
+    "testing",
+    "multi-user",
+    "collaborative",
+    "qa",
+    "agents",
+    "dashboard"
+  ]
+}

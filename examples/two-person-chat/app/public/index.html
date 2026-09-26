@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Two-person chat</title>
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header id="bar" hidden>
+    <p id="whoami"></p>
+    <button id="signout" class="quiet" type="button">Sign out</button>
+  </header>
+  <main>
+    <section id="signin" class="card" hidden>
+      <h1>Sign in</h1>
+      <form id="signin-form" novalidate>
+        <label for="username">Username</label>
+        <input id="username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password">
+        <p id="signin-error" role="alert"></p>
+        <button type="submit">Sign in</button>
+      </form>
+    </section>
+    <div id="chat" hidden>
+      <div class="panes">
+        <div class="card">
+          <ul id="messages" aria-label="Messages"></ul>
+          <p id="empty">No messages yet.</p>
+        </div>
+        <section class="card" aria-label="Who is here">
+          <h2>Who is here</h2>
+          <ul id="people"></ul>
+        </section>
+      </div>
+      <form id="send-form" class="card" novalidate>
+        <label for="message">Message</label>
+        <textarea id="message" name="text" rows="2"></textarea>
+        <p id="send-error" role="alert"></p>
+        <button type="submit">Send</button>
+      </form>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "two-person-chat-qa",
+  "private": true,
+  "type": "module",
+  "description": "QA Cockpit for the two-person chat example: its suites, setups and recordings.",
+  "scripts": {
+    "qa": "qa-cockpit"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "qa-cockpit": "file:../../../packages/qa-cockpit"
+  }
+}
