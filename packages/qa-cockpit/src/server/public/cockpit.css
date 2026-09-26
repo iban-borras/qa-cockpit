@@ -197,16 +197,21 @@ select option { background: var(--panel-2); color: var(--text); }
 .card.failed { border-color: var(--err); }
 .card.dim { opacity: 0.55; }
 .card.here { border-color: var(--accent-text); }
-.card-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.card-head { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
 .avatar { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: 650; font-size: 13px; background: var(--panel-3); border: 1px solid var(--line-2); text-transform: uppercase; flex: none; }
 .who { min-width: 0; flex: 1; }
 .who b { display: block; font-size: 14px; text-transform: capitalize; line-height: 1.2; }
-.who span { display: block; font-size: 11.5px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.who > span, .who > span > .line { display: block; font-size: 11.5px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The device a person plays on: its kind as a small icon, and its name. */
+.dev { display: inline-flex; align-items: center; gap: 5px; vertical-align: -2px; }
+.dev svg.i { width: 12px; height: 12px; }
 .shot { display: block; width: 100%; padding: 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #0c0d10; aspect-ratio: 16 / 9; cursor: zoom-in; position: relative; }
 .shot img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+/* The person's own window, fitted and centred (cockpit.js, viewportStyle). */
+.shot img.vp { position: absolute; height: auto; max-width: none; object-fit: fill; }
 /* The acting person's screen as it moves, over the last photo until its
    first frame comes (cockpit.js, cardHtml). */
-.shot .live-shot { position: absolute; inset: 0; }
+.shot .live-shot { position: absolute; inset: 0; object-fit: contain; object-position: center; background: #0c0d10; }
 .shot .empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--faint); font-size: 12px; text-align: center; padding: 12px; }
 .card-cap { font-size: 12.5px; line-height: 1.4; min-height: 35px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .card-meta { min-width: 0; display: flex; justify-content: space-between; gap: 8px; font-size: 11.5px; color: var(--faint); font-family: var(--mono); }
@@ -264,7 +269,7 @@ dialog#inspector::backdrop { background: rgba(4, 4, 6, 0.72); }
    frame marks what the person had on screen; numbered dots, the clicks
    (accent) and the fields typed into (violet) of that step. */
 .view { position: relative; min-height: 0; border: 1px solid var(--line); border-radius: 10px; background: #0c0d10; overflow: auto; }
-.sheet { position: relative; width: 100%; }
+.sheet { position: relative; width: 100%; margin: 0 auto; }
 .sheet > img { display: block; width: 100%; height: auto; cursor: zoom-in; }
 .sheet.zoom { width: max-content; }
 .sheet.zoom > img { width: auto; max-width: none; cursor: zoom-out; }

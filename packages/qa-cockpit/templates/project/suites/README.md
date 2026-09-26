@@ -18,7 +18,9 @@ Each suite is one file in this folder, named after the piece it tests
 3. **Cast**: who plays. Always the same people, with the same names and the
    same accounts, in every suite (the config's `cast`), so a step can say
    «Alice» without explaining who Alice is. Each person in **bold**: that is
-   how the cockpit knows who plays in the suite.
+   how the cockpit knows who plays in the suite. When it matters, a
+   «Device» column says what each one plays on (a laptop, a phone...): the
+   recording follows it.
 4. **Setup**: the state that must exist before the first test (accounts,
    data, settings). Every row carries its own check: a setup done halfway
    gives tests that lie.

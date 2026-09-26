@@ -135,7 +135,10 @@ export function composeStack(opts) {
 
   /** A service's log since an ISO timestamp, as one string. */
   function logsSince(service, sinceIso) {
-    return run(['logs', '--no-log-prefix', '--since', sinceIso, service], { allowFail: true });
+    const args = ['logs', '--no-log-prefix'];
+    if (sinceIso) args.push('--since', sinceIso);
+    args.push(service);
+    return run(args, { allowFail: true });
   }
 
   /** "3100=frontend:3000,8100=backend:8000,...": every TCP port the stack publishes. */

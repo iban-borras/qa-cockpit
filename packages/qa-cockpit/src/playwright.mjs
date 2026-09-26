@@ -13,6 +13,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { resolveConfig } from './config.mjs';
+import { resolveDevice } from './devices.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -27,7 +28,6 @@ export function playwrightOf(config) {
  */
 export function playwrightConfig(rawConfig, overrides = {}) {
   const config = resolveConfig(rawConfig);
-  const { devices } = playwrightOf(config);
   const cockpit = Boolean(process.env.COCKPIT_URL);
   const reporters = [['list'], ['html', { open: 'never', outputFolder: path.join(config.paths.out, 'report') }]];
   if (cockpit) {
@@ -58,7 +58,9 @@ export function playwrightConfig(rawConfig, overrides = {}) {
     outputDir: process.env.QA_OUTPUT_DIR || path.join(config.paths.out, 'test-results'),
     reporter: reporters,
     use: {
-      ...devices['Desktop Chrome'],
+      // The config's device for any page a person does not own (a setup's
+      // `page`, a guest); each person's own comes from the fixtures.
+      ...resolveDevice(config).context,
       // Resolved from the running stack; refuses when it is down.
       baseURL: config.stack.urls().app,
       locale: config.browser.locale,

@@ -117,6 +117,8 @@ export async function photo(f) {
       scroll,
       marks: f.marks ?? [],
       requests: f.requests ?? [],
+      // The device the person plays on: its name and kind, for the card.
+      device: f.device ?? null,
       // The step's start and how long it took, the photo aside: where a
       // slow screen shows up.
       began: f.began ? new Date(f.began).toISOString() : null,
@@ -143,6 +145,7 @@ export async function stepEnded(s) {
       photo({
         actor,
         page: pages.get(actor).page,
+        device: pages.get(actor).device,
         // What this person clicked and typed since their last photo, and
         // the requests their page made meanwhile.
         marks: pages.get(actor).marks.splice(0),
@@ -217,10 +220,15 @@ function markScript() {
   );
 }
 
-/** A person's page exists: it can now be photographed, marked and watched. */
-export async function register(actor, page) {
+/**
+ * A person's page exists: it can now be photographed, marked and watched.
+ * @param {string} actor
+ * @param {any} page
+ * @param {{ name: string, kind: string, width?: number, height?: number } | null} [device]
+ */
+export async function register(actor, page, device = null) {
   if (!enabled) return;
-  const entry = { page, lastSent: 0, marks: [], requests: [] };
+  const entry = { page, device, lastSent: 0, marks: [], requests: [] };
   pages.set(actor, entry);
   // The page's own requests (the app's API calls and its page loads), with
   // how long each took: a step slow because of the app, not because of the

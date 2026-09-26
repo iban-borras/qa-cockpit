@@ -21,10 +21,11 @@ export default defineConfig({
 
   // The people of every suite, always the same, so a step can say «Alice»
   // without explaining who Alice is. Demo accounts of an app that only runs
-  // here: the password is public on purpose.
+  // here: the password is public on purpose. Each on their usual device:
+  // Alice at her laptop, Bob on his phone.
   cast: {
-    alice: { name: 'Alice', password: 'demo-pass-1' },
-    bob: { name: 'Bob', password: 'demo-pass-1' },
+    alice: { name: 'Alice', password: 'demo-pass-1', device: 'Desktop Chrome' },
+    bob: { name: 'Bob', password: 'demo-pass-1', device: 'iPhone 15' },
   },
 
   // The app is one Node process this config starts and stops. Its test hooks

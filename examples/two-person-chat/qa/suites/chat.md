@@ -9,10 +9,10 @@ room (there is one).
 
 ## Cast
 
-| Person | Username | Password |
-|--------|----------|----------|
-| **Alice** | `alice` | `demo-pass-1` |
-| **Bob** | `bob` | `demo-pass-1` |
+| Person | Username | Password | Device |
+|--------|----------|----------|--------|
+| **Alice** | `alice` | `demo-pass-1` | a laptop (`Desktop Chrome`) |
+| **Bob** | `bob` | `demo-pass-1` | a phone (`iPhone 15`) |
 
 ## Setup
 

@@ -78,7 +78,7 @@ everything says ok:
 2. **The cast:** the people every suite shares, the same names and
    accounts everywhere (`alice`, `bob`, an `admin` if the app has one).
    Fake accounts of the QA stack only; their passwords may sit in the
-   config.
+   config. Each may say their usual `device` (below).
 3. **`signIn({ page, person })`:** the app's real sign-in form, as the
    person would use it, ending when the app shows them signed in. The
    package saves the session and every fixture reuses it.
@@ -202,6 +202,27 @@ test('T1 · Bob sees Alice\'s message', async ({ alice, bob }) => {
   page must show, then check what it must not.
 - When you cannot tell when to act, wait for the text the suite quotes,
   never for time.
+
+### Devices
+
+Each person plays on a device: a name from Playwright's list
+(`'iPhone 15'`, `'Galaxy S24'`, `'iPad Pro 11 landscape'`, `'Desktop Chrome'`)
+or a size of the project's own (`{ name, viewport, deviceScaleFactor,
+isMobile, hasTouch }`). The nearest word wins:
+
+1. the recording's `test.use({ devices: { bob: 'iPhone 15' } })`, at the
+   top of the file (or of a `describe`);
+2. the person's `device` in the config's cast;
+3. the config's `browser.device` (`Desktop Chrome` when nothing says).
+
+The suite's cast table says each person's device (a «Device» column), and
+the recording follows it. A phone is another screen: menus fold, panes
+stack, a button may move. **Moving a person to another device means
+recording their steps again**; never change a device under a recording that
+passes. Every browser is Chromium: size, density, touch and the mobile flag
+are the device's, the engine is not. The cockpit shows each card's device
+(icon and name), photographs each person's own window, and «Play as» opens
+at that device's size.
 
 ## Files
 

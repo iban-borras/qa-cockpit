@@ -10,6 +10,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { resolveConfig } from './config.mjs';
+import { deviceFor, deviceLabel, resolveDevice } from './devices.mjs';
 import * as cockpit from './worker.mjs';
 
 /**
@@ -17,7 +18,7 @@ import * as cockpit from './worker.mjs';
  * @param {any} browser Playwright's `browser` fixture
  * @param {any} rawConfig the project's config
  * @param {string} id the person's cast id
- * @param {{ email?: string }} [override] for a person outside the cast
+ * @param {{ email?: string, device?: string | object }} [override] for a person outside the cast, or another device
  */
 export async function saveSession(browser, rawConfig, id, override = {}) {
   const config = resolveConfig(rawConfig);
@@ -27,7 +28,10 @@ export async function saveSession(browser, rawConfig, id, override = {}) {
   }
   const known = config.cast.find((p) => p.id === id);
   const person = { ...(known ?? { id, name: id, email: null, badge: null }), ...override };
-  const context = await browser.newContext();
+  // Signed in on the person's own device: some apps sign a phone in
+  // through another screen.
+  const device = override.device ? resolveDevice(config, override.device) : deviceFor(config, id);
+  const context = await browser.newContext(device.context);
   const page = await context.newPage();
   try {
     await config.signIn({ page, person, config });
@@ -38,7 +42,7 @@ export async function saveSession(browser, rawConfig, id, override = {}) {
     // project says its page has settled.
     if (cockpit.enabled) {
       await config.raw.sessions?.settled?.({ page, person })?.catch?.(() => {});
-      await cockpit.photo({ actor: id, page, step: 'Session saved', status: 'passed', test: 'Sessions' });
+      await cockpit.photo({ actor: id, page, device: deviceLabel(device), step: 'Session saved', status: 'passed', test: 'Sessions' });
     }
   } finally {
     await context.close();

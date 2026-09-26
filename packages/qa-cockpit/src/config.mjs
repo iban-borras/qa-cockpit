@@ -95,6 +95,8 @@ export function resolveConfig(raw, file) {
     },
     helpers: raw.helpers ?? {},
     browser: {
+      // Everybody's device unless the cast or a test says another (devices.mjs).
+      device: raw.browser?.device ?? null,
       locale: raw.browser?.locale ?? 'en-GB',
       timezoneId: raw.browser?.timezoneId ?? undefined,
       reducedMotion: raw.browser?.reducedMotion ?? 'reduce',

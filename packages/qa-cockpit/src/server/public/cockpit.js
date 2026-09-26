@@ -18,6 +18,12 @@ const $ = (id) => document.getElementById(id);
 
 // Lucide icons, inlined: no emoji, no CDN.
 const ICONS = {
+  // The kinds of device a person plays on (devices.mjs): an allegory on the
+  // card, never the device's outline (Iban, 2026-09-26).
+  dev_phone: '<rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/>',
+  dev_tablet: '<rect width="16" height="20" x="4" y="2" rx="2" ry="2"/><line x1="12" x2="12.01" y1="18" y2="18"/>',
+  dev_laptop: '<path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/>',
+  dev_desktop: '<rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/>',
   play: '<polygon points="6 3 20 12 6 21 6 3"/>',
   pause: '<rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/>',
   stop: '<rect width="14" height="14" x="5" y="5" rx="2"/>',
@@ -72,6 +78,48 @@ const stepShort = (s) => {
 const frameLabel = (f) => [testShort(f.test), stepShort(f.step)].filter(Boolean).join('·');
 const stepText = (f) => (stepShort(f.step) ? f.step.slice(f.step.indexOf(' · ') + 3) : f.step);
 const frameUrl = (f) => `/out/${f.file}`;
+
+// A person's device: the one of the photo on screen (a suite may put them on
+// another than their usual one), else the usual one the config gives them.
+const deviceOf = (p, f) => f?.device ?? p?.device ?? null;
+const deviceHtml = (d) =>
+  d
+    ? `<span class="dev" data-tip="${esc(`${d.name}${d.width ? ` · ${d.width}×${d.height}` : ''}`)}">${icon(`dev_${d.kind}` in ICONS ? `dev_${d.kind}` : 'dev_desktop', 'sm')}${esc(d.name)}</span>`
+    : '';
+const lastDeviceOf = (actor) => S.frames.findLast((f) => f.actor === actor && f.device)?.device ?? S.state?.cast.find((c) => c.id === actor)?.device ?? null;
+
+/** Under a card's name: the device on a line of its own, then the badge and
+ *  the email (Iban, 2026-09-26: no line starting with a separator). */
+function whoLines(p, f) {
+  const d = deviceOf(p, f);
+  const rest = [p.badge, p.email].filter(Boolean).map(esc).join(' · ');
+  return `${d ? `<span>${deviceHtml(d)}</span>` : ''}${rest ? `<span>${rest}</span>` : ''}`;
+}
+
+/** The inspector's subtitle: the device on a line of its own, then the
+ *  suite and the badge. Never a line that starts with a separator. */
+function insSubHtml(actor) {
+  const p = S.state.cast.find((c) => c.id === actor);
+  const d = lastDeviceOf(actor);
+  const rest = [S.run?.suite ?? S.suite ?? '', p?.badge ?? ''].filter(Boolean).map(esc).join(' · ');
+  return `${d ? `<span class="line">${deviceHtml(d)}</span>` : ''}${rest ? `<span class="line">${rest}</span>` : ''}`;
+}
+
+// The card shows what the person had on screen: their whole viewport, fitted
+// into the card (16:9) and centred, so a laptop fills it and a phone stands
+// in the middle, every card the same size. The photo is the whole page (at
+// CSS scale), so it is scaled and moved to that window; the page's width is
+// taken as the viewport's.
+function viewportStyle(f) {
+  const vp = f.viewport;
+  if (!vp?.width || !vp?.height) return '';
+  const k = Math.min(1 / vp.width, 0.5625 / vp.height); // the card's width is 1
+  const sx = f.scroll?.x ?? 0;
+  const sy = f.scroll?.y ?? 0;
+  const left = ((1 - vp.width * k) / 2 - sx * k) * 100;
+  const top = ((1 - (vp.height * k) / 0.5625) / 2 - (sy * k) / 0.5625) * 100;
+  return `width:${(vp.width * k * 100).toFixed(3)}%;left:${left.toFixed(3)}%;top:${top.toFixed(3)}%`;
+}
 
 /** A duration as a person reads it: «0,4 s», «12 s», «2 min 05 s». */
 function fmtDur(ms) {
@@ -307,7 +355,7 @@ function changeLang(next) {
   renderAll();
   if (S.ins) {
     const p = S.state.cast.find((c) => c.id === S.ins.actor);
-    $('insSub').textContent = [S.run?.suite ?? S.suite ?? '', p?.badge].filter(Boolean).join(' · ');
+    $('insSub').innerHTML = insSubHtml(S.ins.actor);
     withIcon($('insPlayAs'), 'external', t('card.play_as', { name: cap(S.ins.actor) }));
   }
 }
@@ -520,9 +568,61 @@ function isRunning() {
 
 // ---------------------------------------------------------------- header, status
 
+// THE FAVICON WAVES WHILE A RUN GOES (Iban, 2026-09-26: «en un navegador
+// multipestanya es podria saber quan està executant-se un test»). Four
+// frames of the favicon's octopus, each leg rising in turn after the one
+// before it, swapped while the cockpit runs or follows a run; the still
+// favicon.svg otherwise. The frames are made from favicon.svg itself, so a
+// new favicon waves too. The beat comes from a worker: a background tab's
+// own timers are slowed to a tick a second, and a background tab is the
+// very one whose favicon is being looked at.
+const WAVE_MS = 100;
+let waveFrames = null;
+let waveTimer = null; // the worker that beats while the favicon waves
+
+async function makeWaveFrames() {
+  const svg = await fetch('favicon.svg').then((r) => r.text());
+  const legs = [...svg.matchAll(/<path d="M([\d.]+) ([\d.]+) L([\d.]+) ([\d.]+)" stroke="(#[0-9a-fA-F]+)"\/>/g)];
+  if (legs.length === 0) return [];
+  return [0, 1, 2, 3].map((k) => {
+    let drawn = svg;
+    legs.forEach((m, i) => {
+      const [sx, sy, ex, ey] = m.slice(1, 5).map(Number);
+      const phase = (2 * Math.PI * (k - i)) / 4;
+      const lift = -2 * (1 - Math.cos(phase)); // 0 at rest, up to 4 units up
+      const bend = 3 * Math.sin(phase); // the leg sways as it rises
+      const cx = (sx + ex) / 2 + bend;
+      const cy = (sy + ey) / 2;
+      drawn = drawn.replace(m[0], `<path d="M${sx} ${sy} Q${cx.toFixed(2)} ${cy} ${(ex + bend / 2).toFixed(2)} ${(ey + lift).toFixed(2)}" stroke="${m[5]}"/>`);
+    });
+    return `data:image/svg+xml,${encodeURIComponent(drawn)}`;
+  });
+}
+
+async function waveFavicon(on) {
+  const link = document.querySelector('link[rel="icon"]');
+  if (!link) return;
+  if (on && !waveTimer) {
+    waveFrames ??= await makeWaveFrames().catch(() => []);
+    if (!waveFrames.length || waveTimer) return;
+    let k = 0;
+    const beat = new Blob([`setInterval(() => postMessage(0), ${WAVE_MS});`], { type: 'text/javascript' });
+    waveTimer = new Worker(URL.createObjectURL(beat));
+    waveTimer.onmessage = () => {
+      k = (k + 1) % waveFrames.length;
+      link.href = waveFrames[k];
+    };
+  } else if (!on && waveTimer) {
+    waveTimer.terminate();
+    waveTimer = null;
+    link.href = 'favicon.svg';
+  }
+}
+
 function renderHeader() {
   const st = S.state;
   if (!st) return;
+  void waveFavicon(Boolean(st.task));
   const chip = $('stackChip');
   chip.className = `chip ${st.stack.up ? 'ok' : 'err'}`;
   chip.innerHTML = `<span class="dot"></span>${esc(t(st.stack.up ? 'stack.up' : 'stack.down', { p: st.project }))}`;
@@ -945,11 +1045,11 @@ function cardHtml(p, moment, running) {
   const name = cap(p.id);
   return `<article class="${cls}" data-actor="${esc(p.id)}">
     <div class="card-head">
-      <div class="who"><b>${esc(p.name ?? p.id)}</b><span>${[p.badge, p.email].filter(Boolean).map(esc).join(' · ')}</span></div>
+      <div class="who"><b>${esc(p.name ?? p.id)}</b>${whoLines(p, f)}</div>
       <span class="chip ${chipCls}">${chipCls.includes('live') ? '<span class="dot"></span>' : ''}${esc(chipTxt)}</span>
     </div>
     <button class="shot" data-open="${esc(p.id)}" aria-label="${esc(t('card.inspect_aria', { name }))}">
-      ${f ? `<img src="${esc(frameUrl(f))}" alt="" loading="lazy">` : `<span class="empty">${esc(t('card.no_photos'))}</span>`}
+      ${f ? `<img src="${esc(frameUrl(f))}" alt="" loading="lazy"${f.viewport ? ` class="vp" style="${viewportStyle(f)}"` : ''}>` : `<span class="empty">${esc(t('card.no_photos'))}</span>`}
       ${liveShot ? `<img class="live-shot" src="/api/live/${encodeURIComponent(p.id)}" alt="">` : ''}
       ${watching && !acting ? `<span class="chip accent live" style="position:absolute;top:8px;left:8px"><span class="dot"></span>${esc(t('card.live'))}</span>` : ''}
     </button>
@@ -1039,9 +1139,8 @@ function openInspector(actor) {
   const list = S.frames.filter((f) => f.actor === actor);
   S.ins = { actor, idx: Math.max(0, list.length - 1), live: isRunning(), fresh: 0, timer: null, zoom: false };
   const p = S.state.cast.find((c) => c.id === actor);
-  $('insAvatar').textContent = actor[0];
   $('insName').textContent = cap(actor);
-  $('insSub').textContent = [S.run?.suite ?? S.suite ?? '', p?.badge].filter(Boolean).join(' · ');
+  $('insSub').innerHTML = insSubHtml(actor);
   $('insPlayAs').disabled = !S.state.sessions.includes(actor);
   withIcon($('insPlayAs'), 'external', t('card.play_as', { name: cap(actor) }));
   dlg.showModal();
@@ -1235,6 +1334,12 @@ function runReport() {
     `- Suite: \`${P.suites}/${r.suite}.md\`; recording: \`${P.recordings}/${r.suite}${S.state.recordingExt}\``,
     `- Run: ${kindLabel(r)}, ${r.status}, started ${r.startedAt}${r.endedAt ? `, took ${secs(Date.parse(r.endedAt) - t0)}` : ''}`,
     `- Log: \`${OUT}/cockpit/${r.id}/log.jsonl\`; photos and traces under \`${OUT}/\``,
+    `- People: ${[...new Set(S.frames.map((f) => f.actor))]
+      .map((a) => {
+        const d = lastDeviceOf(a);
+        return `${cap(a)}${d ? ` on ${d.name}${d.width ? ` (${d.kind}, ${d.width}×${d.height})` : ` (${d.kind})`}` : ''}`;
+      })
+      .join('; ')}`,
     '',
     'How to read it: one section per test, in the order they ran. A step\'s time runs from its start to its',
     'photo and includes the recording\'s own waits; the requests are the app\'s, with their own time, so a',
@@ -1396,6 +1501,9 @@ function placeOnSheet(f) {
   const W = img.naturalWidth;
   const H = img.naturalHeight;
   if (!W || !H || !S.ins) return;
+  // Never wider than the photo itself: a phone's page stands at its own
+  // size in the middle, instead of stretched and blurred to the pane's width.
+  $('insSheet').style.maxWidth = `${W}px`;
   const seen = $('insSeen');
   const vh = f.viewport?.height ?? H;
   const sy = f.scroll?.y ?? 0;
@@ -1632,6 +1740,7 @@ function connect() {
   });
   es.addEventListener('task', async (e) => {
     S.state.task = JSON.parse(e.data);
+    void waveFavicon(Boolean(S.state.task));
     if (!S.state.task) S.acting.clear();
     await refreshState();
   });

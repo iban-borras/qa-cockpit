@@ -13,9 +13,18 @@ every day, generalised behind one config file.
   inspector (photos, clicks, requests), traces, the run report, runs from
   any terminal followed live, the lock in the header; English, Catalan and
   Spanish.
+- The cockpit's favicon waves its legs while a run goes, so a tab in the
+  background says so too; still when nothing runs.
 - `composeStack` and `processStack` for the two usual ways an app starts.
+- Each person on their own device: a `device` per person in the cast, a
+  default in `browser.device`, and `test.use({ devices })` per recording.
+  The cockpit shows each card's device and fits each person's own window
+  into the card; «Play as» opens at the device's size.
 - `--in-docker` for a compose stack.
 - `init`: a project folder with a commented config, fixtures, the suites'
   guide, an example suite and setup, the agents' skill and a section in
   `AGENTS.md`.
-- An example project: a two-person chat with its suite, setup and recording.
+- The wordmark (the octopus and «QA Cockpit» in Sora), for dark and light
+  pages, in `assets/`.
+- An example project: a two-person chat with its suite, setup and recording,
+  Alice at a laptop and Bob on a phone.

@@ -5,12 +5,17 @@
 //
 //   QA_COCKPIT_CONFIG=<config file> FRONTEND_URL=<app> node open-browser.mjs <person>
 //
+// On the person's usual device, or the one QA_DEVICE names (the cockpit
+// passes the device they last played on). A desktop opens maximized; a phone
+// or a tablet opens at its own size, with touch and its density.
+//
 // Prints READY once the page has loaded, which is what the cockpit waits
 // for; the window then stays until somebody closes it. It appears on the
 // desktop of whoever started the process (see server/server.mjs).
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadConfig } from './config.mjs';
+import { deviceFor, resolveDevice } from './devices.mjs';
 import { playwrightOf } from './playwright.mjs';
 
 const person = process.argv[2];
@@ -27,11 +32,17 @@ try {
     process.exit(1);
   }
   const front = process.env.FRONTEND_URL || config.stack.urls().app;
+  const device = process.env.QA_DEVICE ? resolveDevice(config, process.env.QA_DEVICE) : deviceFor(config, person);
+  const big = device.kind === 'laptop' || device.kind === 'desktop';
   const { chromium } = playwrightOf(config);
-  const browser = await chromium.launch({ headless: false, args: ['--start-maximized'] });
+  const browser = await chromium.launch({ headless: false, args: big ? ['--start-maximized'] : [] });
+  // A computer's window is the person's own, maximized: no fixed size, and
+  // then Playwright takes no density, touch or mobile flag either (only the
+  // browser's name). A phone's or a tablet's window is the device's own.
+  const { viewport, screen, deviceScaleFactor, isMobile, hasTouch, ...rest } = device.context;
   const context = await browser.newContext({
+    ...(big ? { ...rest, viewport: null } : device.context),
     storageState: sessionFile,
-    viewport: null,
     locale: config.browser.locale,
     timezoneId: config.browser.timezoneId,
   });

@@ -8,6 +8,11 @@
 // project's helpers (config.helpers: a `db`, a `mail` reader...) are
 // fixtures too.
 //
+// Each person plays on their device (devices.mjs): the cast's, or the one a
+// suite's recording says for its tests:
+//
+//   test.use({ devices: { marta: 'iPad Pro 11 landscape', bernat: 'iPhone 15' } });
+//
 // The package never imports Playwright itself: two copies of @playwright/test
 // in one run make Playwright refuse to start. The project hands over its own
 // `test`, in its fixtures file:
@@ -20,6 +25,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { resolveConfig } from './config.mjs';
+import { deviceFor, deviceLabel } from './devices.mjs';
 import * as cockpit from './worker.mjs';
 
 /**
@@ -32,19 +38,20 @@ export function cockpitFixtures(base, rawConfig) {
 
   const statePath = (id) => path.join(config.paths.state, `${id}.json`);
 
-  async function contextFor(browser, id) {
+  async function contextFor(browser, id, device = deviceFor(config, id)) {
     const state = statePath(id);
     if (!fs.existsSync(state)) {
       throw new Error(`No saved session for ${id} (${state}). Run: ${config.cli} setup <suite>`);
     }
-    return browser.newContext({ storageState: state });
+    return browser.newContext({ ...device.context, storageState: state });
   }
 
   const person = (id) =>
-    async ({ browser }, use) => {
-      const context = await contextFor(browser, id);
+    async ({ browser, devices }, use) => {
+      const device = deviceFor(config, id, devices);
+      const context = await contextFor(browser, id, device);
       const page = await context.newPage();
-      await cockpit.register(id, page);
+      await cockpit.register(id, page, deviceLabel(device));
       try {
         await use(page);
       } finally {
@@ -53,7 +60,8 @@ export function cockpitFixtures(base, rawConfig) {
       }
     };
 
-  const fixtures = {};
+  // `devices`: a test's own devices, by person (an option, set with test.use).
+  const fixtures = { devices: [{}, { option: true }] };
   for (const p of config.cast) fixtures[p.id] = person(p.id);
   for (const [name, value] of Object.entries(config.helpers)) {
     // Playwright reads a fixture's dependencies from its first parameter,

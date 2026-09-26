@@ -1,6 +1,9 @@
-<p align="center"><img src="src/server/public/logo.svg" width="96" alt=""></p>
-
-# QA Cockpit
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/wordmark-dark.svg">
+    <img src="assets/wordmark-light.svg" alt="QA Cockpit" width="360">
+  </picture>
+</h1>
 
 **Multi-person Playwright suites for collaborative web apps, watched live:
 one card per person, step by step.**
@@ -23,6 +26,9 @@ the same cockpit for the people who watch.
 - **Suites in Markdown**, with a fixed cast, a setup with checks, and one
   step per person with the exact text they must see. Readable by people,
   playable by agents.
+- **Each person on their own device**: the host at a laptop, the players on
+  their phones (`device: 'iPhone 15'`, any of Playwright's profiles or a
+  size of your own), every card of the cockpit saying which.
 - **Recordings** that replay them, carrying the suite's hash: a suite that
   changed is never replayed from a stale recording (`decide` says REPLAY,
   GENERATE or ENV).
@@ -52,7 +58,7 @@ npm install
 npx playwright install chromium
 npx qa-cockpit up              # starts the app
 npx qa-cockpit setup chat      # a fresh app, Alice and Bob signed in
-npx qa-cockpit replay chat     # the recording: three tests, two people
+npx qa-cockpit replay chat     # the recording: three tests, Alice at a laptop, Bob on a phone
 npx qa-cockpit cockpit         # then press «Full run» and watch
 ```
 
@@ -74,12 +80,12 @@ The config is the whole contract between your app and the cockpit:
 | `base` | `import.meta.url`: paths in the config are relative to its file |
 | `name`, `root` | the app's name; the repo's root, for the paths shown to people and agents |
 | `paths` | where the suites, recordings, setups, output and saved sessions live |
-| `cast` | the people of every suite: `{ alice: { name, email, password, badge } }` |
+| `cast` | the people of every suite: `{ alice: { name, email, password, badge, device } }` |
 | `stack` | a copy of the app that tests may break: `composeStack(...)`, `processStack(...)`, or your own `urls()`, `up`, `down`, `reset`, `guard` |
 | `signIn({ page, person })` | the app's real sign-in; the package saves the session |
 | `sessions` | how long a saved session stays fresh; who has an account |
 | `helpers` | more fixtures for the recordings: a `db`, a `mail` reader... |
-| `browser` | locale, time zone, reduced motion, the page «Play as» opens |
+| `browser` | everybody's default device, locale, time zone, reduced motion, the page «Play as» opens |
 | `suites` | the headings the documents use, if not English (`Cast`, `Runs`) |
 | `cockpit`, `cli` | the cockpit's port and language; how the project runs the CLI |
 | `commands` | commands of your own, next to the built-in ones |

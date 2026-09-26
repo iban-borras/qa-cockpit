@@ -1,4 +1,4 @@
-// suite: chat.md sha256:63e0bd594e120f5c2a69661bd65110d078dee5b5f6c38866c3f678f11afce760
+// suite: chat.md sha256:fc5be4c2065b094bba03ec0be9ce82e2b0841b1a465e2c242ec06bb7cf2e7386
 // The recording of suites/chat.md: one test per test of the suite, one
 // `test.step` per row, named «n · Who: what they do». The people whose
 // screen must show something are on their page before the step that causes

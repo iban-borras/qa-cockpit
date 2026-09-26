@@ -25,6 +25,7 @@ import { fileURLToPath } from 'node:url';
 import { shown } from '../config.mjs';
 import { acquireLock, isAlive, lockFileOf, readLock, StackBusy } from '../lock.mjs';
 import { listSuites } from '../suites.mjs';
+import { deviceFor, deviceLabel } from '../devices.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(HERE, 'public');
@@ -597,6 +598,16 @@ function onFrame(f) {
       label: String(m.label ?? '').slice(0, 60),
       at: Number.isFinite(Number(m.at)) ? Number(m.at) : null,
     })),
+    // The device the person played on (devices.mjs): what it is, for the card.
+    device:
+      f.device && typeof f.device.name === 'string'
+        ? {
+            name: f.device.name.slice(0, 60),
+            kind: ['phone', 'tablet', 'laptop', 'desktop'].includes(f.device.kind) ? f.device.kind : 'desktop',
+            width: Number(f.device.width) || null,
+            height: Number(f.device.height) || null,
+          }
+        : null,
     requests: (Array.isArray(f.requests) ? f.requests : []).slice(0, 200).map((r) => ({
       kind: r.kind === 'page' ? 'page' : 'api',
       method: String(r.method ?? '').slice(0, 10),
@@ -629,11 +640,26 @@ function writePart(res, buf) {
 
 // ---------------------------------------------------------------- play as
 
+/** A person's usual device, as the cockpit shows it; never a failed page. */
+function usualDevice(id) {
+  try {
+    return deviceLabel(deviceFor(CFG, id));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * «Play as»: a window signed in as the person, on the device they last
+ * played on in the run on screen (a suite may put them on another than
+ * their usual one), or on their usual device.
+ */
 function playAs(actor) {
+  const last = run?.frames?.findLast?.((f) => f.actor === actor && f.device)?.device;
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [OPEN_BROWSER, actor], {
       cwd: CFG.paths.project,
-      env: { ...process.env, QA_COCKPIT_CONFIG: CFG.file, FRONTEND_URL: stack.front ?? '' },
+      env: { ...process.env, QA_COCKPIT_CONFIG: CFG.file, FRONTEND_URL: stack.front ?? '', ...(last ? { QA_DEVICE: last.name } : {}) },
       // Hides this node's console only; the browser it starts shows itself.
       windowsHide: true,
     });
@@ -730,7 +756,7 @@ function state() {
     lock: lockInfo(),
     suites: listSuites(CFG),
     sessions,
-    cast: CFG.cast.map((p) => ({ id: p.id, name: p.name, email: p.email, badge: p.badge })),
+    cast: CFG.cast.map((p) => ({ id: p.id, name: p.name, email: p.email, badge: p.badge, device: usualDevice(p.id) })),
     task: taskInfo(),
     run: summary(run),
     runs: runsIndex(),
