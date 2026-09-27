@@ -1,6 +1,9 @@
 # Changelog
 
-## 0.2.0 (unreleased)
+## 0.2.0 (2026-09-27)
+
+Built for agents, and now it says so first: the READMEs open with what QA
+Cockpit is for, how it goes in three steps, and the cockpit's screens.
 
 - Notes on the photos. In the inspector, a tack dragged onto a photo (or a
   click on the tack, then one on the photo) pins a note to the very point
@@ -11,6 +14,18 @@
   `qa-cockpit notes [run]` prints them for an agent: each pin's point in
   the page's own pixels, the action of the step it falls on, and a copy of
   the photo with the tacks drawn.
+- A replay that would not find its setup's data is asked about first. The
+  CLI writes what the stack's data is after every `reset`, `setup` and
+  `replay` (`<out>/stack-data.json`); the cockpit's Replay then asks,
+  with «Full run» as the answer Enter takes, and `replay` from a terminal
+  warns. A Replay after a Full run whose last test deleted an account no
+  longer waits four minutes for a person who is gone.
+- The run's report names the suite's own recording file (`.mjs`, `.ts`
+  or `.js`), not the first extension of the config.
+- Every file of the package ends its lines with LF. 0.1.0 shipped 21 with
+  CRLF (published from a Windows working copy): harmless to Node, but
+  `init` wrote its templates into projects that way. A check before every
+  publish (and in CI) now refuses it.
 
 ## 0.1.0 (2026-09-27)
 
