@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.0 (unreleased)
+## 0.3.0 (2026-09-27)
 
 - `cockpit --detach`: the cockpit started for a person, so that it outlives
   whoever asked for it (an agent's session) and opens its windows on the
