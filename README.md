@@ -16,6 +16,8 @@ Agents write and run the multi-user tests; people watch every screen and judge.<
 > developer do not write tests: they watch each person's screen, step by
 > step, and pin a note on whatever is wrong for the agent to fix.
 
+<p align="center"><img src="docs/images/cockpit-table.webp" alt="The cockpit after a run: one card per person, each with their own screen at the same moment of the story, and a timeline over every step" width="900"></p>
+
 **How it goes**
 
 1. **You describe the story** in a Markdown suite: who plays (a host, three
@@ -27,6 +29,8 @@ Agents write and run the multi-user tests; people watch every screen and judge.<
 3. **You watch and judge** in the cockpit: every person's screen at every
    step, with the clicks, the requests and the errors. A tack on the photo
    and a note, and the agent knows exactly what to change.
+
+<p align="center"><img src="docs/images/cockpit-note.webp" alt="The inspector: one person's screen at one step, the step's click numbered on it, and a note pinned where something should change" width="900"></p>
 
 Unit and API tests prove each piece on its own. What breaks in a
 collaborative app happens *between* people: Alice sends, Bob must see it
@@ -63,6 +67,8 @@ to agents.
   repo's `AGENTS.md` at it.
 - **`--in-docker`**: Playwright in the official image of the pinned version,
   the same browser and fonts on any machine.
+
+<p align="center"><img src="docs/images/cockpit-suites.webp" alt="The suite picker: every suite with where it stands, ready to run, needing a new recording, or with no setup yet" width="900"></p>
 
 ## Try it: the example
 
