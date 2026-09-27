@@ -13,8 +13,8 @@ every day, generalised behind one config file.
   inspector (photos, clicks, requests), traces, the run report, runs from
   any terminal followed live, the lock in the header; English, Catalan and
   Spanish.
-- The cockpit's favicon waves its legs while a run goes, so a tab in the
-  background says so too; still when nothing runs.
+- The octopus waves its legs while a run goes: the favicon, so a tab in the
+  background says so too, and the logo in the header. Still when nothing runs.
 - `composeStack` and `processStack` for the two usual ways an app starts.
 - Each person on their own device: a `device` per person in the cast, a
   default in `browser.device`, and `test.use({ devices })` per recording.

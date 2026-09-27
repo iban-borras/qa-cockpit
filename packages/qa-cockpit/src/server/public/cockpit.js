@@ -619,10 +619,38 @@ async function waveFavicon(on) {
   }
 }
 
+// THE LOGO WAVES TOO, on the favicon's beat. At 36 px there is room for a
+// smooth wave, so it is CSS (cockpit.css, «legWave»), not frames: each leg
+// swings from its root and rises into the head, a quarter of a beat after
+// the one before it, as the favicon's. The <img> becomes the SVG itself so
+// its legs can be reached; any logo whose legs are the paths of an unfilled
+// group waves.
+async function inlineLogo() {
+  const img = document.querySelector('img.mark');
+  const text = img && (await fetch(img.getAttribute('src')).then((r) => r.text()));
+  const svg = text && new DOMParser().parseFromString(text, 'image/svg+xml').documentElement;
+  if (svg?.nodeName !== 'svg') return;
+  svg.setAttribute('class', 'mark');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.style.setProperty('--beat', `${4 * WAVE_MS}ms`);
+  svg.querySelectorAll('g[fill="none"] > path').forEach((leg, i) => {
+    const root = /^M\s*([\d.]+)[ ,]+([\d.]+)/.exec(leg.getAttribute('d') ?? '');
+    if (!root) return;
+    leg.classList.add('leg');
+    leg.style.transformOrigin = `${root[1]}px ${root[2]}px`;
+    leg.style.animationDelay = `${(i - 4) * WAVE_MS}ms`;
+  });
+  img.replaceWith(document.importNode(svg, true));
+  waveLogo(Boolean(S.state?.task));
+}
+
+const waveLogo = (on) => document.querySelector('svg.mark')?.classList.toggle('waving', on);
+
 function renderHeader() {
   const st = S.state;
   if (!st) return;
   void waveFavicon(Boolean(st.task));
+  waveLogo(Boolean(st.task));
   const chip = $('stackChip');
   chip.className = `chip ${st.stack.up ? 'ok' : 'err'}`;
   chip.innerHTML = `<span class="dot"></span>${esc(t(st.stack.up ? 'stack.up' : 'stack.down', { p: st.project }))}`;
@@ -1973,4 +2001,5 @@ document.addEventListener('keydown', (e) => {
 });
 
 setInterval(tickElapsed, 1000);
+void inlineLogo().catch(() => {});
 connect();

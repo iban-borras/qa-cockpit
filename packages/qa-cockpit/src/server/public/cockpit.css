@@ -93,6 +93,22 @@ svg.i.lg { width: 18px; height: 18px; }
 /* The octopus in flying goggles, one leg per person of the cast (logo.svg;
    favicon.svg is its own cut for 16 to 32 px). */
 .mark { width: 36px; height: 36px; display: block; flex: none; }
+/* While a run goes it waves like the favicon (cockpit.js, inlineLogo): the
+   tip of each leg goes round a small circle, swinging from the root and
+   rising into the head, which hides the root. One turn a beat. */
+.mark .leg { transform-box: view-box; }
+.mark.waving .leg { animation: legWave var(--beat, 400ms) linear infinite; }
+@keyframes legWave {
+  0%, 100% { transform: none; }
+  12.5% { transform: translateY(-0.59px) rotate(-7.07deg); }
+  25% { transform: translateY(-2px) rotate(-10deg); }
+  37.5% { transform: translateY(-3.41px) rotate(-7.07deg); }
+  50% { transform: translateY(-4px); }
+  62.5% { transform: translateY(-3.41px) rotate(7.07deg); }
+  75% { transform: translateY(-2px) rotate(10deg); }
+  87.5% { transform: translateY(-0.59px) rotate(7.07deg); }
+}
+@media (prefers-reduced-motion: reduce) { .mark.waving .leg { animation: none; } }
 /* A flex row, so the chip sits on the title's middle and not on its
    baseline, where it hung 3.6 px low. */
 .brand h1 { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 17px; margin: 0; font-weight: 650; letter-spacing: -0.01em; }
