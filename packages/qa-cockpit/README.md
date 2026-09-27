@@ -5,21 +5,33 @@
   </picture>
 </h1>
 
-**Multi-person Playwright suites for collaborative web apps, watched live:
-one card per person, step by step.**
+<p align="center"><b>Vibe coding for your integration tests.<br>
+Agents write and run the multi-user tests; people watch every screen and judge.</b></p>
+
+> **QA Cockpit is built for coding agents.** Claude Code, Codex, OpenCode,
+> Gemini CLI or any agent in a terminal or an app turns a test written in
+> plain words into a complete integration test with several people at once,
+> runs it, and repairs it when the screen changes. The UX designer and the
+> developer do not write tests: they watch each person's screen, step by
+> step, and pin a note on whatever is wrong for the agent to fix.
+
+**How it goes**
+
+1. **You describe the story** in a Markdown suite: who plays (a host, three
+   players...), on which device, and what each one must see. Anybody could
+   play it by hand.
+2. **The agent makes it real**: a Playwright recording with one browser per
+   person, replayed after every change, repaired when a screen moves. The
+   skill that `init` writes tells it how.
+3. **You watch and judge** in the cockpit: every person's screen at every
+   step, with the clicks, the requests and the errors. A tack on the photo
+   and a note, and the agent knows exactly what to change.
 
 Unit and API tests prove each piece on its own. What breaks in a
 collaborative app happens *between* people: Alice sends, Bob must see it
-arrive; a host opens a session, three players must be let in. QA Cockpit
-runs those stories with one real browser per person, and shows every run in
-a local cockpit where you can follow each person's screen, step by step,
-with a photo of every step, the clicks, the requests and the errors.
-
-It is also built for the way tests get written now: by agents. A suite is a
-Markdown document a person could play by hand; an agent records it as a
-Playwright test (the *director*), repairs it when the screen changes (the
-*healer*), and every run, from any agent or any terminal, shows up live in
-the same cockpit for the people who watch.
+arrive; a host opens a session, three players must be let in. Those are the
+tests people used to click through by hand, and the ones QA Cockpit hands
+to agents.
 
 ## What you get
 

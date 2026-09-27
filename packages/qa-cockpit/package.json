@@ -1,7 +1,7 @@
 {
   "name": "qa-cockpit",
   "version": "0.1.0",
-  "description": "Multi-person Playwright suites for collaborative web apps, watched live in a cockpit: one card per person, step by step, and runs from any agent or terminal in one place.",
+  "description": "Vibe coding for integration tests: coding agents write and run multi-user Playwright suites, one browser per person; people watch every screen live in a cockpit and pin notes for the agent to fix.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -51,6 +51,10 @@
     "collaborative",
     "qa",
     "agents",
+    "ai-agents",
+    "vibe-coding",
+    "claude-code",
+    "codex",
     "dashboard"
   ]
 }
