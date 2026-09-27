@@ -4,9 +4,12 @@ Thank you for looking. QA Cockpit is small on purpose: a thin layer on
 Playwright for suites where several people act at once, and a cockpit to
 watch them.
 
-**Until 0.1.0 is published**, the maintainers mirror this repository from
-the project where QA Cockpit was born. Please open an issue before a pull
-request, so nothing you write gets lost in the mirror.
+Please open an issue before a pull request that changes what people see:
+a new command, a new key in the config, a new panel in the cockpit. A fix
+can come straight as a pull request.
+
+Working with a coding agent? Point it at [`AGENTS.md`](AGENTS.md): these
+rules, plus how to check a change without a person beside it.
 
 ## Running it
 

@@ -126,7 +126,8 @@ init [folder] [--claude]          a new project folder, from the templates
 | [`packages/qa-cockpit`](packages/qa-cockpit) | the npm package: the CLI, the cockpit, the fixtures and the reporter, `init` and its templates, the agents' skill |
 | [`examples/two-person-chat`](examples/two-person-chat) | a tiny chat app (`app/`) and its QA Cockpit project (`qa/`): a suite, its setup and its recording |
 
-How to work on it: [CONTRIBUTING.md](CONTRIBUTING.md).
+How to work on it: [CONTRIBUTING.md](CONTRIBUTING.md); for a coding agent,
+[AGENTS.md](AGENTS.md).
 
 ## Where it comes from
 
