@@ -13,6 +13,9 @@
     "url": "https://github.com/iban-borras/qa-cockpit/issues"
   },
   "type": "module",
+  "scripts": {
+    "prepublishOnly": "node scripts/check-eol.mjs"
+  },
   "engines": {
     "node": ">=20"
   },

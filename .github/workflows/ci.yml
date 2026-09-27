@@ -39,6 +39,10 @@ jobs:
         working-directory: packages/qa-cockpit
         run: find bin src templates -name '*.mjs' -o -name '*.js' | sort | xargs -n1 node --check
 
+      - name: Line endings
+        working-directory: packages/qa-cockpit
+        run: node scripts/check-eol.mjs
+
       # What npm ships: the files people need, and nothing of a run.
       - name: The tarball
         working-directory: packages/qa-cockpit
