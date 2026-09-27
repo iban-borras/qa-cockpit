@@ -14,8 +14,9 @@
 // <out>/cockpit/, the project's trace viewer and its own page, nothing else.
 //
 // A run of the cockpit lives in <out>/cockpit/<id>/: run.json, frames.jsonl
-// (one photo per line), frames/, traces/ and log.txt. The last `keepRuns`
-// stay; older ones are removed when a new one starts.
+// (one photo per line), frames/, traces/ and log.txt, and the notes left on
+// its photos (notes.mjs). The last `keepRuns` stay, and any run with notes;
+// older ones are removed when a new one starts.
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -26,6 +27,7 @@ import { shown } from '../config.mjs';
 import { acquireLock, isAlive, lockFileOf, readLock, StackBusy } from '../lock.mjs';
 import { listSuites } from '../suites.mjs';
 import { deviceFor, deviceLabel } from '../devices.mjs';
+import { cleanNote, notesMarkdown, pinnedFileOf, pinnedSeqs, readNotes, readRunFiles, writeNotes } from '../notes.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(HERE, 'public');
@@ -274,11 +276,7 @@ function saveRun(r) {
 function loadRun(id) {
   const dir = inside(COCKPIT_DIR, id);
   if (!dir || !fs.existsSync(path.join(dir, 'run.json'))) return null;
-  const meta = JSON.parse(fs.readFileSync(path.join(dir, 'run.json'), 'utf8'));
-  const framesFile = path.join(dir, 'frames.jsonl');
-  const frames = fs.existsSync(framesFile)
-    ? fs.readFileSync(framesFile, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l))
-    : [];
+  const { meta, frames } = readRunFiles(dir);
   // A run the server did not see finish (it was stopped) is not running now.
   if (meta.status === 'running') meta.status = 'interrupted';
   return { ...meta, dir, frames, closed: true };
@@ -294,8 +292,12 @@ function listRuns() {
     .reverse();
 }
 
+// A note nobody has written yet (the page keeps it until then) is not one.
+const noteCount = (dir) => readNotes(dir).filter((n) => n.text.trim()).length;
+
 function pruneRuns() {
   for (const id of listRuns().slice(KEEP_RUNS)) {
+    if (noteCount(path.join(COCKPIT_DIR, id))) continue;
     fs.rmSync(path.join(COCKPIT_DIR, id), { recursive: true, force: true });
   }
 }
@@ -316,7 +318,8 @@ function tallyOf(r) {
 
 function runsIndex() {
   return listRuns().map((id) => {
-    if (run && run.id === id) return summary(run);
+    const notes = noteCount(path.join(COCKPIT_DIR, id));
+    if (run && run.id === id) return { ...summary(run), notes };
     try {
       const meta = JSON.parse(fs.readFileSync(path.join(COCKPIT_DIR, id, 'run.json'), 'utf8'));
       return {
@@ -330,6 +333,7 @@ function runsIndex() {
         endedAt: meta.endedAt ?? null,
         status: meta.status === 'running' ? 'interrupted' : meta.status,
         tally: tallyOf(meta),
+        notes,
       };
     } catch {
       return { id };
@@ -834,6 +838,58 @@ async function handle(req, res) {
   }
   if (req.method === 'GET' && p === '/api/state') return send(res, 200, state());
   if (req.method === 'GET' && p === '/api/log') return send(res, 200, logRing);
+  // The notes on a run's photos (notes.mjs): one note at a time, and the
+  // copy of a photo with its pins drawn, which the page makes.
+  const notesPath = /^\/api\/runs\/([^/]+)\/(notes|pinned)\/([^/]+)$/.exec(p);
+  if (notesPath && (req.method === 'PUT' || req.method === 'DELETE')) {
+    const [, id, what, key] = notesPath.map(decodeURIComponent);
+    const r = run && run.id === id ? run : loadRun(id);
+    if (!r) return send(res, 404, { error: 'No such run' });
+    if (what === 'pinned') {
+      const seq = Number(key);
+      if (!r.frames.some((f) => f.seq === seq)) return send(res, 404, { error: 'No such photo' });
+      const file = pinnedFileOf(r.dir, seq);
+      if (req.method === 'DELETE') fs.rmSync(file, { force: true });
+      else {
+        const buf = await readBody(req, 40 * 1024 * 1024);
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(file, buf);
+      }
+      return send(res, 200, { ok: true });
+    }
+    const notes = readNotes(r.dir);
+    const at = notes.findIndex((n) => n.id === key);
+    // A tack that comes, goes or moves leaves the copy of its photo out of
+    // date: it goes, and a page draws it again. A note typed on does not.
+    let stale = null;
+    if (req.method === 'DELETE') {
+      if (at >= 0) stale = notes.splice(at, 1)[0].seq;
+    } else {
+      const note = cleanNote(key, await readJson(req), r.frames, notes[at]);
+      if (!note) return send(res, 400, { error: 'Not a note of this run' });
+      if (at < 0 || notes[at].x !== note.x || notes[at].y !== note.y) stale = note.seq;
+      if (at >= 0) notes[at] = note;
+      else notes.push(note);
+    }
+    writeNotes(r.dir, notes);
+    if (stale !== null) fs.rmSync(pinnedFileOf(r.dir, stale), { force: true });
+    broadcast('notes', { run: id, notes });
+    return send(res, 200, { ok: true, notes });
+  }
+  if (req.method === 'GET' && p.startsWith('/api/runs/') && p.endsWith('/notes.md')) {
+    const id = decodeURIComponent(p.slice('/api/runs/'.length, -'/notes.md'.length));
+    const r = run && run.id === id ? run : loadRun(id);
+    if (!r) return send(res, 404, { error: 'No such run' });
+    const md = notesMarkdown({
+      runId: id,
+      dir: r.dir,
+      frames: r.frames,
+      notes: readNotes(r.dir),
+      out: shown(CFG, CFG.paths.out),
+      project: shown(CFG, CFG.paths.project),
+    });
+    return send(res, 200, md, 'text/markdown; charset=utf-8');
+  }
   if (req.method === 'GET' && p.startsWith('/api/runs/') && p.endsWith('/log')) {
     const dir = inside(COCKPIT_DIR, decodeURIComponent(p.slice('/api/runs/'.length, -'/log'.length)));
     if (!dir || !fs.existsSync(path.join(dir, 'run.json'))) return send(res, 404, { error: 'No such run' });
@@ -843,7 +899,7 @@ async function handle(req, res) {
     const id = decodeURIComponent(p.slice('/api/runs/'.length));
     const r = run && run.id === id ? run : loadRun(id);
     if (!r) return send(res, 404, { error: 'No such run' });
-    return send(res, 200, { ...summary(r), frames: r.frames });
+    return send(res, 200, { ...summary(r), frames: r.frames, notes: readNotes(r.dir), pinned: pinnedSeqs(r.dir) });
   }
   if (req.method === 'GET' && p === '/api/watch') return send(res, 200, { actors: watchedActors() });
 

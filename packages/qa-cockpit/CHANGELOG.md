@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.0 (unreleased)
+
+- Notes on the photos. In the inspector, a tack dragged onto a photo (or a
+  click on the tack, then one on the photo) pins a note to the very point
+  it is about and opens a post-it to write it on, saved as it is typed.
+  Tacks move by dragging, post-its by their bar; a note is deleted after a
+  question. Notes live with their run (`notes.json`), and a run with notes
+  is kept past `keepRuns`. The run's report opens with them, and
+  `qa-cockpit notes [run]` prints them for an agent: each pin's point in
+  the page's own pixels, the action of the step it falls on, and a copy of
+  the photo with the tacks drawn.
+
 ## 0.1.0 (2026-09-27)
 
 The first version outside CritKeep: what CritKeep's functional tests used

@@ -50,6 +50,8 @@ const ICONS = {
   languages: '<path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/>',
   info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
   hand: '<path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>',
+  pin: '<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>',
+  trash: '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
   radio: '<path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/>',
 };
 const icon = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
@@ -144,7 +146,10 @@ const S = {
   moments: [],
   table: { live: true, idx: 0 },
   acting: new Set(),
-  ins: null, // { actor, idx, live, fresh, timer, zoom, placed }
+  ins: null, // { actor, idx, live, fresh, timer, zoom, placed, placing, postitAt }
+  notes: [], // the notes on the photos of the run shown (notes.mjs)
+  note: null, // the id of the note whose post-it is open
+  dropped: null, // the note just pinned: its tack lands
   picker: { open: false, active: 0, query: '', hideNoSetup: false },
   runPick: { open: false, active: 0 },
 };
@@ -502,11 +507,16 @@ async function viewRun(id) {
   if (!id) {
     S.run = null;
     S.frames = [];
+    S.notes = [];
   } else {
     const r = await api(`/api/runs/${encodeURIComponent(id)}`);
-    const { frames, ...summary } = r;
+    const { frames, notes, pinned, ...summary } = r;
     S.run = summary;
     S.frames = frames;
+    S.notes = notes ?? [];
+    // A copy with the pins that nobody drew (the page that changed the notes
+    // closed first): this page draws it.
+    for (const seq of new Set(S.notes.filter(kept).map((n) => n.seq))) if (!pinned?.includes(seq)) schedulePinned(seq);
   }
   buildMoments();
   S.table.live = true;
@@ -920,7 +930,8 @@ function renderRunPop({ scroll = false } = {}) {
   $('runPop').innerHTML = runs
     .map((x, i) => {
       const st = runStatus(x);
-      const meta = [runDuration(x), runTests(x)].filter(Boolean).join(' · ');
+      const pins = x.id === S.run?.id ? S.notes.filter(kept).length : (x.notes ?? 0);
+      const meta = [runDuration(x), runTests(x), esc(noteCount(pins))].filter(Boolean).join(' · ');
       return `<div class="run-item${i === S.runPick.active ? ' active' : ''}" role="option" id="run-opt-${esc(x.id)}" data-run="${esc(x.id)}" data-st="${esc(st)}" aria-selected="${x.id === S.run?.id}">
       <span class="rdot"></span>
       <span class="k"><b>${esc(when(x.startedAt))}</b> · ${esc(kindLabel(x))}</span>
@@ -1080,6 +1091,7 @@ function cardHtml(p, moment, running) {
       ${f ? `<img src="${esc(frameUrl(f))}" alt="" loading="lazy"${f.viewport ? ` class="vp" style="${viewportStyle(f)}"` : ''}>` : `<span class="empty">${esc(t('card.no_photos'))}</span>`}
       ${liveShot ? `<img class="live-shot" src="/api/live/${encodeURIComponent(p.id)}" alt="">` : ''}
       ${watching && !acting ? `<span class="chip accent live" style="position:absolute;top:8px;left:8px"><span class="dot"></span>${esc(t('card.live'))}</span>` : ''}
+      ${pinBadge(S.notes.filter((n) => n.actor === p.id && kept(n)).length)}
     </button>
     <div class="card-cap" title="${esc(f ? `${f.test} › ${f.step}` : '')}">${f ? `<span class="faint mono">${esc(frameLabel(f))}</span> ${esc(stepText(f))}` : `<span class="faint">${esc(t('card.nothing'))}</span>`}</div>
     <div class="card-meta"><span>${esc(f ? pathOf(f.url) : '')}</span><span>${esc(f ? hhmmss(f.time) : '')}</span></div>
@@ -1165,7 +1177,7 @@ function insFrames() {
 
 function openInspector(actor) {
   const list = S.frames.filter((f) => f.actor === actor);
-  S.ins = { actor, idx: Math.max(0, list.length - 1), live: isRunning(), fresh: 0, timer: null, zoom: false };
+  S.ins = { actor, idx: Math.max(0, list.length - 1), live: isRunning(), fresh: 0, timer: null, zoom: false, placing: false, postitAt: null };
   const p = S.state.cast.find((c) => c.id === actor);
   $('insName').textContent = cap(actor);
   $('insSub').innerHTML = insSubHtml(actor);
@@ -1178,11 +1190,25 @@ function openInspector(actor) {
 function closeInspector() {
   if (!S.ins) return;
   stopPlay();
+  closePostit();
+  stopPlacing();
   $('insLive').removeAttribute('src');
   $('insLive').hidden = true;
   S.ins = null;
   if (dlg.open) dlg.close();
 }
+
+// Esc puts away what is open over the photo first: the tack about to be
+// placed, then the post-it; only then the inspector.
+dlg.addEventListener('cancel', (e) => {
+  if (S.ins?.placing) {
+    e.preventDefault();
+    stopPlacing();
+  } else if (S.note) {
+    e.preventDefault();
+    closePostit();
+  }
+});
 
 dlg.addEventListener('close', () => {
   const actor = S.ins?.actor;
@@ -1229,6 +1255,11 @@ function renderInspector(first = false) {
   if (first) setLive(ins.live);
   const list = insFrames();
   const f = list[ins.idx];
+  // A post-it belongs to its photo: another photo on screen closes it.
+  if (S.note && (ins.live || openNote()?.seq !== f?.seq)) closePostit();
+  if (ins.placing && (ins.live || !f)) stopPlacing();
+  $('insTack').disabled = ins.live || !f;
+  const pinsOf = (x) => notesOn(x.seq).filter(kept).length;
 
   // Header chip
   const chip = $('insChip');
@@ -1258,7 +1289,7 @@ function renderInspector(first = false) {
     const ic = st === 'failed' ? 'alert' : st === 'context' ? 'dot' : 'check';
     const sel = !ins.live && i === ins.idx ? ' sel' : '';
     const dur = Number.isFinite(x.ms) ? `<span class="dur${x.ms >= SLOW_STEP_MS ? ' slow' : ''}">${esc(fmtDur(x.ms))}</span>` : '';
-    html += `<button class="step${sel}" data-i="${i}"><span class="st ${st}">${icon(ic, 'sm')}</span><span class="sx">${esc(x.step)}</span>${dur}</button>`;
+    html += `<button class="step${sel}" data-i="${i}"><span class="st ${st}">${icon(ic, 'sm')}</span><span class="sx">${esc(x.step)}</span>${pinBadge(pinsOf(x))}${dur}</button>`;
   });
   $('insSteps').innerHTML = html || `<p class="muted" style="margin:12px">${esc(t('ins.no_photos_long'))}</p>`;
   $('insSteps').querySelector('.step.sel')?.scrollIntoView({ block: 'nearest' });
@@ -1312,7 +1343,7 @@ function renderInspector(first = false) {
   $('insStrip').innerHTML = list
     .map((x, i) => {
       const cls = ['thumb', !ins.live && i === ins.idx ? 'sel' : '', x.status === 'failed' ? 'failed' : ''].join(' ');
-      return `<button class="${cls}" data-i="${i}" title="${esc(`${x.test} › ${x.step}`)}"><img src="${esc(frameUrl(x))}" alt="" loading="lazy"><span>${esc(frameLabel(x) || '·')}</span></button>`;
+      return `<button class="${cls}" data-i="${i}" title="${esc(`${x.test} › ${x.step}`)}"><img src="${esc(frameUrl(x))}" alt="" loading="lazy"><span>${esc(frameLabel(x) || '·')}</span>${pinBadge(pinsOf(x))}</button>`;
     })
     .join('');
   const selThumb = $('insStrip').querySelector('.thumb.sel') ?? $('insStrip').lastElementChild;
@@ -1349,9 +1380,10 @@ function renderInspector(first = false) {
  *  to end: every step in order, who acted, how long it took, what they
  *  clicked and when, the requests their page made (slowest first), every
  *  error in full, and the paths to each photo, trace and recording line. */
-function runReport() {
+function runReport(notesMd = '') {
   const r = S.run;
   if (!r) return '';
+  const num = noteNumbers();
   const P = S.state.paths;
   const OUT = P.out;
   const secs = (ms) => (Number.isFinite(ms) ? `${(ms / 1000).toFixed(1)} s` : 'n/a');
@@ -1376,6 +1408,7 @@ function runReport() {
     'step does not name, photographed as they were.',
     ...(S.state.reportNotes?.length ? ['', ...S.state.reportNotes.map((n) => `Note: ${n}`)] : []),
     '',
+    ...(notesMd ? [notesMd, ''] : []),
   ];
   // THE API BY ENDPOINT: every request of every person, ids folded into
   // `{id}`, so the run doubles as a latency check. Page loads (the front's
@@ -1434,7 +1467,9 @@ function runReport() {
       for (const f of all) {
         const began = f.began ? Date.parse(f.began) : null;
         const off = (at) => (began && Number.isFinite(at) ? ` ${at < began ? '-' : '+'}${secs(Math.abs(at - began))}` : '');
-        lines.push(`- ${cap(f.actor)}${f.status === 'context' ? ' (context)' : ''}: page \`${pathOf(f.url)}\`, photo \`${OUT}/${f.file}\``);
+        const pins = notesOn(f.seq).filter(kept).map((n) => num.get(n.id));
+        const pinned = pins.length ? `, pinned notes ${pins.sort((a, b) => a - b).join(', ')} (see Notes)` : '';
+        lines.push(`- ${cap(f.actor)}${f.status === 'context' ? ' (context)' : ''}: page \`${pathOf(f.url)}\`, photo \`${OUT}/${f.file}\`${pinned}`);
         const marks = f.marks ?? [];
         if (marks.length) lines.push(`  - Actions: ${marks.map((m, i) => `${i + 1}. ${m.kind} «${m.label}»${off(m.at)}`).join('; ')}`);
         const reqs = [...(f.requests ?? [])].sort((a, b) => (b.ms ?? -1) - (a.ms ?? -1));
@@ -1450,8 +1485,11 @@ function runReport() {
   return lines.join('\n');
 }
 
-$('runReport').onclick = () => {
-  const md = runReport();
+$('runReport').onclick = async () => {
+  if (!S.run) return;
+  await flushNotes();
+  const notesMd = S.notes.some(kept) ? await fetch(runPath('notes.md')).then((r) => (r.ok ? r.text() : '')).catch(() => '') : '';
+  const md = runReport(notesMd);
   if (!md) return;
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([md], { type: 'text/markdown;charset=utf-8' }));
@@ -1552,6 +1590,7 @@ function placeOnSheet(f) {
     const view = $('insView');
     view.scrollTop = Math.max(0, (sy / H) * img.clientHeight - 12);
   }
+  renderTacks();
 }
 
 function stopPlay() {
@@ -1607,7 +1646,8 @@ $('pLast').onclick = () => insGo(insFrames().length - 1);
 $('pPlay').onclick = togglePlay;
 $('pLive').onclick = goLiveOrEnd;
 $('insClose').onclick = () => dlg.close();
-$('insImg').onclick = () => {
+$('insImg').onclick = (e) => {
+  if (S.ins?.placing) return addNote(pagePoint(e.clientX, e.clientY));
   S.ins.zoom = !S.ins.zoom;
   $('insSheet').classList.toggle('zoom', S.ins.zoom);
 };
@@ -1664,6 +1704,8 @@ dlg.addEventListener('keydown', (e) => {
     L: goLiveOrEnd,
     c: toggleMarks,
     C: toggleMarks,
+    n: startPlacing,
+    N: startPlacing,
   };
   const fn = keys[e.key];
   if (fn) {
@@ -1671,6 +1713,539 @@ dlg.addEventListener('keydown', (e) => {
     fn();
   }
 });
+
+// ---------------------------------------------------------------- notes on the photos
+//
+// A NOTE is a tack on a photo and what it says (notes.mjs has the why). The
+// tack comes from the inspector's bar: dragged onto the photo and dropped
+// where the note goes, or a click on the bar and then one on the photo. It
+// opens a post-it to write in, saved as it is typed. A tack is dragged to
+// move it and clicked to open it again; the post-it goes wherever its bar is
+// dragged, so it never hides what the note is about. A note left empty is
+// not one: it goes when its post-it closes. After every change the photo is
+// drawn again with its tacks and sent to the server: the copy an agent
+// looks at to know which thing each note means.
+
+const NOTE_SAVE_MS = 600;
+const PINNED_MS = 900;
+const DRAG_PX = 4;
+// The tack in the page's pixels, the same on the page and on the copy: its
+// needle ends at the note's point, and its head sits above that point, so
+// it never covers what it points at.
+const TACK = { head: 12, needle: 12 };
+
+let saveTimer = null;
+const saving = new Map(); // note id -> the save on its way
+const pinnedJobs = new Map(); // `${run} ${seq}` -> { run, seq, timer }
+
+const newNoteId = () => `n-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+const written = (n) => Boolean(n.text.trim());
+const kept = (n) => !n.draft && written(n);
+const notesOn = (seq) => S.notes.filter((n) => n.seq === seq);
+const openNote = () => (S.note ? (S.notes.find((n) => n.id === S.note) ?? null) : null);
+const insFrame = () => (S.ins && !S.ins.live ? (insFrames()[S.ins.idx] ?? null) : null);
+const runPath = (...parts) => `/api/runs/${[S.run.id, ...parts].map((p) => encodeURIComponent(String(p))).join('/')}`;
+const clampNum = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const noteCount = (n) => (n ? t(n === 1 ? 'note.count_one' : 'note.count_many', { n }) : '');
+// A tack's tooltip: enough of the note to know what it is about without
+// opening it, whole when short; longer, cut at a word and «…».
+const TIP_CHARS = 50;
+function noteExcerpt(text) {
+  const s = text.trim().replace(/\s+/g, ' ');
+  if (s.length <= TIP_CHARS) return s;
+  const cut = s.slice(0, TIP_CHARS);
+  const word = cut.lastIndexOf(' ');
+  return `${(word > TIP_CHARS * 0.6 ? cut.slice(0, word) : cut).replace(/[\s,.;:]+$/, '')}…`;
+}
+const pinBadge = (n) => (n ? `<i class="nt">${icon('pin', 'sm')}${n}</i>` : '');
+
+/** Each note's number on its photo: 1, 2, 3 in the order they were pinned
+ *  (notes.mjs numbers them the same way for the report). */
+function noteNumbers() {
+  const k = new Map();
+  const out = new Map();
+  for (const n of [...S.notes].sort((a, b) => a.createdAt.localeCompare(b.createdAt))) {
+    k.set(n.seq, (k.get(n.seq) ?? 0) + 1);
+    out.set(n.id, k.get(n.seq));
+  }
+  return out;
+}
+
+/** The point of the page under the pointer, or null off the photo (or off
+ *  the part of it the view shows). `clamp`: the nearest point on it. */
+function pagePoint(cx, cy, clamp = false) {
+  const img = $('insImg');
+  const W = img.naturalWidth;
+  const H = img.naturalHeight;
+  if (!W || !H || $('insSheet').hidden) return null;
+  const r = img.getBoundingClientRect();
+  const v = $('insView').getBoundingClientRect();
+  const box = { left: Math.max(r.left, v.left), top: Math.max(r.top, v.top), right: Math.min(r.right, v.right), bottom: Math.min(r.bottom, v.bottom) };
+  if (clamp) {
+    cx = clampNum(cx, box.left, box.right - 1);
+    cy = clampNum(cy, box.top, box.bottom - 1);
+  } else if (cx < box.left || cx >= box.right || cy < box.top || cy >= box.bottom) return null;
+  return { x: Math.round(((cx - r.left) / r.width) * W), y: Math.round(((cy - r.top) / r.height) * H) };
+}
+
+function renderTacks() {
+  const layer = $('insTacks');
+  const f = insFrame();
+  const img = $('insImg');
+  const W = img.naturalWidth;
+  const H = img.naturalHeight;
+  if (!f || !W || !H || img.getAttribute('src') !== frameUrl(f)) {
+    layer.innerHTML = '';
+    return;
+  }
+  const num = noteNumbers();
+  layer.innerHTML = notesOn(f.seq)
+    .map((n) => {
+      const k = num.get(n.id);
+      const cls = ['tack', n.id === S.note ? 'open' : '', written(n) ? '' : 'draft', n.id === S.dropped ? 'fresh' : ''].join(' ');
+      // No tooltip on the tack whose post-it is open: it would only cover
+      // the same words, beside them.
+      const tip = written(n) && n.id !== S.note ? `${k}. ${noteExcerpt(n.text)}` : '';
+      return `<button class="${cls}" data-note="${esc(n.id)}" style="left:${(100 * n.x) / W}%;top:${(100 * n.y) / H}%" aria-label="${esc(t('note.tack', { n: k }))}"${tip ? ` data-tip="${esc(tip)}"` : ''}><b>${k}</b></button>`;
+    })
+    .join('');
+  S.dropped = null;
+}
+
+/** Everything that counts the notes: the inspector's steps and strip, the
+ *  cards, the run picker. */
+function renderNoteCounts() {
+  if (S.ins) renderInspector();
+  renderCast();
+  if (S.runPick.open) renderRunPop();
+}
+
+function addNote(p) {
+  const f = insFrame();
+  stopPlacing();
+  if (!f || !p) return;
+  const n = { id: newNoteId(), seq: f.seq, actor: f.actor, x: p.x, y: p.y, text: '', createdAt: new Date().toISOString(), updatedAt: null, draft: true };
+  S.notes.push(n);
+  S.dropped = n.id;
+  renderTacks();
+  openPostit(n);
+}
+
+function startPlacing() {
+  if (!insFrame()) return;
+  closePostit();
+  S.ins.placing = true;
+  renderPlacing();
+}
+
+function stopPlacing() {
+  if (S.ins) S.ins.placing = false;
+  renderPlacing();
+}
+
+function renderPlacing() {
+  const on = Boolean(S.ins?.placing);
+  $('insSheet').classList.toggle('placing', on);
+  $('insTack').setAttribute('aria-pressed', String(on));
+  $('insHint').hidden = !on;
+  $('insHint').textContent = on ? t('note.placing') : '';
+}
+
+// The tack on the bar: dragged, a new note where it is dropped; clicked, the
+// next click on the photo places it.
+$('insTack').addEventListener('pointerdown', (e) => {
+  const tool = $('insTack');
+  if (e.button !== 0 || tool.disabled) return;
+  const start = { x: e.clientX, y: e.clientY };
+  let ghost = null;
+  tool.setPointerCapture(e.pointerId);
+  const move = (ev) => {
+    if (!ghost && Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < DRAG_PX) return;
+    if (!ghost) {
+      hideTip();
+      stopPlacing();
+      closePostit();
+      ghost = document.createElement('div');
+      ghost.className = 'tack ghost';
+      ghost.innerHTML = `<b>${notesOn(insFrame()?.seq).length + 1}</b>`;
+      dlg.querySelector('.ins').append(ghost);
+    }
+    ghost.style.left = `${ev.clientX}px`;
+    ghost.style.top = `${ev.clientY}px`;
+    ghost.classList.toggle('off', !pagePoint(ev.clientX, ev.clientY));
+  };
+  const end = (ev) => {
+    tool.removeEventListener('pointermove', move);
+    tool.removeEventListener('pointerup', end);
+    tool.removeEventListener('pointercancel', end);
+    if (ghost) {
+      ghost.remove();
+      if (ev.type === 'pointerup') addNote(pagePoint(ev.clientX, ev.clientY));
+    } else if (ev.type === 'pointerup') {
+      if (S.ins?.placing) stopPlacing();
+      else startPlacing();
+    }
+  };
+  tool.addEventListener('pointermove', move);
+  tool.addEventListener('pointerup', end);
+  tool.addEventListener('pointercancel', end);
+});
+// From the keyboard: a click with no pointer behind it.
+$('insTack').addEventListener('click', (e) => {
+  if (e.detail !== 0) return;
+  if (S.ins?.placing) stopPlacing();
+  else startPlacing();
+});
+
+// A tack on the photo: dragged, it moves; clicked, its post-it opens.
+$('insTacks').addEventListener('pointerdown', (e) => {
+  const el = e.target.closest('.tack');
+  const n = el && S.notes.find((x) => x.id === el.dataset.note);
+  if (!n || e.button !== 0) return;
+  e.preventDefault();
+  hideTip();
+  const img = $('insImg');
+  const start = { x: e.clientX, y: e.clientY };
+  // Where it was taken from, as the offset from its point: the tack moves
+  // with the hand, and its point does not jump to where the pointer is.
+  const r = el.getBoundingClientRect();
+  const grab = { x: e.clientX - (r.left + r.width / 2), y: e.clientY - r.bottom };
+  let moved = false;
+  el.setPointerCapture(e.pointerId);
+  const move = (ev) => {
+    if (!moved && Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < DRAG_PX) return;
+    moved = true;
+    el.classList.add('dragging');
+    const p = pagePoint(ev.clientX - grab.x, ev.clientY - grab.y, true);
+    if (!p) return;
+    n.x = p.x;
+    n.y = p.y;
+    el.style.left = `${(100 * p.x) / img.naturalWidth}%`;
+    el.style.top = `${(100 * p.y) / img.naturalHeight}%`;
+  };
+  const end = (ev) => {
+    el.removeEventListener('pointermove', move);
+    el.removeEventListener('pointerup', end);
+    el.removeEventListener('pointercancel', end);
+    el.classList.remove('dragging');
+    if (moved) {
+      if (!n.draft) void saveNote(n, { moved: true });
+      if (S.note === n.id) $('postitText').focus();
+    } else if (ev.type === 'pointerup') openPostit(n);
+  };
+  el.addEventListener('pointermove', move);
+  el.addEventListener('pointerup', end);
+  el.addEventListener('pointercancel', end);
+});
+$('insTacks').addEventListener('click', (e) => {
+  const el = e.target.closest('.tack');
+  const n = el && e.detail === 0 && S.notes.find((x) => x.id === el.dataset.note);
+  if (n) openPostit(n);
+});
+
+function openPostit(n) {
+  if (S.note && S.note !== n.id) closePostit();
+  S.note = n.id;
+  hideTip();
+  const k = noteNumbers().get(n.id);
+  $('postitN').textContent = k;
+  $('postitTitle').textContent = t('note.title', { n: k, who: cap(n.actor) });
+  $('postitText').value = n.text;
+  postitFailed('');
+  $('postit').hidden = false;
+  renderTacks();
+  placePostit(n);
+  $('postitText').focus();
+}
+
+/** Where the person left the post-it, else beside its tack without covering
+ *  it: to its right, its left, below or above, the first with room. Always
+ *  inside the inspector. */
+function placePostit(n) {
+  const box = $('postit');
+  const d = dlg.getBoundingClientRect();
+  const w = box.offsetWidth;
+  const h = box.offsetHeight;
+  let at = S.ins?.postitAt;
+  if (!at) {
+    const tack = $('insTacks').querySelector(`[data-note="${CSS.escape(n.id)}"]`);
+    const r = (tack ?? $('insView')).getBoundingClientRect();
+    const gap = 14;
+    const sides = [
+      { left: r.right + gap, top: r.top - 8 },
+      { left: r.left - gap - w, top: r.top - 8 },
+      { left: r.left + r.width / 2 - w / 2, top: r.bottom + gap },
+      { left: r.left + r.width / 2 - w / 2, top: r.top - gap - h },
+    ];
+    const fits = (s) => s.left >= d.left + 8 && s.left + w <= d.right - 8 && s.top + h <= d.bottom - 8 && s.top >= d.top + 8;
+    const roomy = (s) => ({ ...s, top: clampNum(s.top, d.top + 8, d.bottom - h - 8) });
+    // Beside it, the post-it may slide up or down; below or above, sideways.
+    at =
+      sides.slice(0, 2).map(roomy).find(fits) ??
+      sides.slice(2).map((s) => ({ ...s, left: clampNum(s.left, d.left + 8, d.right - w - 8) })).find(fits) ??
+      sides[r.top - d.top > d.bottom - r.bottom ? 3 : 2];
+  }
+  box.style.left = `${clampNum(at.left, d.left + 8, d.right - w - 8)}px`;
+  box.style.top = `${clampNum(at.top, d.top + 8, d.bottom - h - 8)}px`;
+}
+
+function closePostit() {
+  if (!S.note) return;
+  const n = openNote();
+  S.note = null;
+  $('postit').hidden = true;
+  clearTimeout(saveTimer);
+  if (n && !written(n)) void dropNote(n);
+  else if (n?.dirty) void saveNote(n);
+  renderTacks();
+}
+
+/** The post-it says nothing about saving while saving works: a strip on
+ *  every note was noise. Only a save that failed shows, in red. */
+function postitFailed(error) {
+  $('postitState').hidden = !error;
+  $('postitState').textContent = error ? t('note.failed', { error }) : '';
+}
+
+/** `moved`: its tack changed place, so the copy with the pins is drawn again
+ *  (as it is for a note that comes); what a note says is not on the copy. */
+async function saveNote(n, { moved = false } = {}) {
+  if (!S.run || !written(n)) return;
+  const body = JSON.stringify({ seq: n.seq, x: n.x, y: n.y, text: n.text });
+  const first = n.draft;
+  // On its way to the server: from now on, deleting it must reach there too.
+  n.draft = false;
+  n.dirty = false;
+  const run = S.run.id;
+  const p = api(runPath('notes', n.id), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body })
+    .then((r) => {
+      const saved = r.notes.find((x) => x.id === n.id);
+      if (saved) Object.assign(n, { createdAt: saved.createdAt, updatedAt: saved.updatedAt });
+      if (S.note === n.id) postitFailed('');
+      if (S.run?.id === run && (first || moved)) schedulePinned(n.seq);
+      if (first) renderNoteCounts();
+    })
+    .catch((e) => {
+      n.dirty = true;
+      if (S.note === n.id) postitFailed(e.message);
+      else banner(t('note.failed', { error: e.message }), 'err');
+    })
+    .finally(() => {
+      if (saving.get(n.id) === p) saving.delete(n.id);
+    });
+  saving.set(n.id, p);
+  await p;
+}
+
+/** A note gone: an empty one without asking, one that says something after
+ *  the question (the post-it's bin). */
+async function dropNote(n) {
+  S.notes = S.notes.filter((x) => x.id !== n.id);
+  if (S.note === n.id) {
+    S.note = null;
+    $('postit').hidden = true;
+    clearTimeout(saveTimer);
+  }
+  renderNoteCounts();
+  if (n.draft || !S.run) return;
+  await saving.get(n.id)?.catch(() => {});
+  try {
+    await api(runPath('notes', n.id), { method: 'DELETE' });
+    schedulePinned(n.seq);
+  } catch (e) {
+    banner(t('note.failed', { error: e.message }), 'err');
+  }
+}
+
+/** The notes of the run on screen, as the server has them now (this page
+ *  or another one changed them). The note being written keeps what is typed
+ *  and where its tack is: the server's copy may be a keystroke behind. */
+function mergeNotes(runId, notes) {
+  const row = S.state?.runs?.find((r) => r.id === runId);
+  if (row) row.notes = notes.filter((n) => n.text.trim()).length;
+  if (S.run?.id !== runId) return S.runPick.open && renderRunPop();
+  const counted = () =>
+    S.notes
+      .filter(kept)
+      .map((n) => `${n.id}@${n.seq}`)
+      .sort()
+      .join();
+  // What the copy of each photo draws: its tacks and where they are.
+  const drawing = () => {
+    const bySeq = new Map();
+    for (const n of S.notes.filter(kept)) bySeq.set(n.seq, [...(bySeq.get(n.seq) ?? []), `${n.id}:${n.x}:${n.y}`]);
+    return new Map([...bySeq].map(([seq, list]) => [seq, list.sort().join()]));
+  };
+  const before = counted();
+  const drew = drawing();
+  const mine = new Map(S.notes.map((n) => [n.id, n]));
+  const next = notes.map((n) => {
+    const m = mine.get(n.id);
+    if (m && (m.dirty || saving.has(m.id))) return Object.assign(m, { createdAt: n.createdAt, updatedAt: n.updatedAt, draft: false });
+    // The open post-it with nothing of its own on the way shows the
+    // server's words: another page (or the API) changed them.
+    if (n.id === S.note && $('postitText').value !== n.text) $('postitText').value = n.text;
+    return m ? Object.assign(m, n, { draft: false }) : n;
+  });
+  const ids = new Set(next.map((n) => n.id));
+  const drafts = S.notes.filter((n) => n.draft && !ids.has(n.id));
+  S.notes = [...next, ...drafts];
+  if (S.note && !openNote()) {
+    S.note = null;
+    $('postit').hidden = true;
+  }
+  // A change made elsewhere (another page, the API) left the server without
+  // the copy of that photo (server.mjs): this page draws it again.
+  const now = drawing();
+  for (const seq of new Set([...drew.keys(), ...now.keys()])) if (drew.get(seq) !== now.get(seq)) schedulePinned(seq);
+  // A note typed on or moved changes only its tack; the counts, only when
+  // a note comes or goes.
+  if (counted() !== before) renderNoteCounts();
+  else renderTacks();
+}
+
+$('postitText').addEventListener('input', () => {
+  const n = openNote();
+  if (!n) return;
+  n.text = $('postitText').value;
+  n.dirty = true;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    if (written(n)) void saveNote(n);
+  }, NOTE_SAVE_MS);
+});
+$('postitText').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) closePostit();
+});
+$('postitClose').onclick = () => closePostit();
+$('postitDel').onclick = async () => {
+  const n = openNote();
+  if (!n) return;
+  if (written(n) && !(await ask(t('note.delete_q', { n: noteNumbers().get(n.id) }), t('note.delete_yes')))) return $('postitText').focus();
+  void dropNote(n);
+};
+
+// The post-it goes wherever its bar is dragged, and stays there for the
+// next note until the inspector closes.
+$('postitHead').addEventListener('pointerdown', (e) => {
+  if (e.button !== 0 || e.target.closest('button')) return;
+  const head = $('postitHead');
+  const box = $('postit');
+  const r = box.getBoundingClientRect();
+  const off = { x: e.clientX - r.left, y: e.clientY - r.top };
+  head.setPointerCapture(e.pointerId);
+  box.classList.add('moving');
+  const move = (ev) => {
+    const d = dlg.getBoundingClientRect();
+    const left = clampNum(ev.clientX - off.x, d.left + 8, d.right - r.width - 8);
+    const top = clampNum(ev.clientY - off.y, d.top + 8, d.bottom - r.height - 8);
+    box.style.left = `${left}px`;
+    box.style.top = `${top}px`;
+    if (S.ins) S.ins.postitAt = { left, top };
+  };
+  const end = () => {
+    head.removeEventListener('pointermove', move);
+    head.removeEventListener('pointerup', end);
+    head.removeEventListener('pointercancel', end);
+    box.classList.remove('moving');
+  };
+  head.addEventListener('pointermove', move);
+  head.addEventListener('pointerup', end);
+  head.addEventListener('pointercancel', end);
+});
+
+/** A question with two answers over whatever is open: true on yes. The
+ *  safe answer has the focus. */
+function ask(text, yes) {
+  const d = $('ask');
+  $('askText').textContent = text;
+  $('askYes').textContent = yes;
+  $('askNo').textContent = t('note.cancel');
+  d.returnValue = '';
+  d.showModal();
+  $('askNo').focus();
+  return new Promise((resolve) => d.addEventListener('close', () => resolve(d.returnValue === 'yes'), { once: true }));
+}
+
+// THE COPY WITH THE PINS: the photo at its own size, each tack drawn as on
+// the page, numbered as in the report. Drawn a moment after the last change
+// to a photo's notes, and removed when the photo has none left.
+function schedulePinned(seq) {
+  if (!S.run) return;
+  const key = `${S.run.id} ${seq}`;
+  clearTimeout(pinnedJobs.get(key)?.timer);
+  pinnedJobs.set(key, { run: S.run.id, seq, timer: setTimeout(() => void sendPinned(key), PINNED_MS) });
+}
+
+async function sendPinned(key) {
+  const job = pinnedJobs.get(key);
+  if (!job) return;
+  pinnedJobs.delete(key);
+  clearTimeout(job.timer);
+  const f = S.run?.id === job.run ? S.frames.find((x) => x.seq === job.seq) : null;
+  if (!f) return;
+  const url = runPath('pinned', job.seq);
+  const notes = notesOn(job.seq).filter(kept);
+  if (!notes.length) {
+    await fetch(url, { method: 'DELETE' }).catch(() => {});
+    return;
+  }
+  const img = new Image();
+  img.src = frameUrl(f);
+  await img.decode();
+  const canvas = document.createElement('canvas');
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  const g = canvas.getContext('2d');
+  g.drawImage(img, 0, 0);
+  const num = noteNumbers();
+  for (const n of notes) drawTack(g, n.x, n.y, num.get(n.id));
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+  await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'image/jpeg' }, body: blob }).catch(() => {});
+}
+
+function drawTack(g, x, y, k) {
+  const cy = y - TACK.needle - TACK.head;
+  g.lineCap = 'round';
+  g.strokeStyle = '#1b1c22';
+  g.lineWidth = 2.5;
+  g.beginPath();
+  g.moveTo(x, y);
+  g.lineTo(x, cy);
+  g.stroke();
+  g.fillStyle = '#1b1c22';
+  g.beginPath();
+  g.arc(x, y, 2.5, 0, 2 * Math.PI);
+  g.fill();
+  // A white ring, so a tack shows on a dark page too.
+  g.fillStyle = '#fff';
+  g.beginPath();
+  g.arc(x, cy, TACK.head + 2, 0, 2 * Math.PI);
+  g.fill();
+  g.fillStyle = '#fbbf24';
+  g.beginPath();
+  g.arc(x, cy, TACK.head, 0, 2 * Math.PI);
+  g.fill();
+  g.lineWidth = 2;
+  g.stroke();
+  g.fillStyle = '#1b1c22';
+  g.font = `800 13px ${getComputedStyle(document.body).fontFamily}`;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText(String(k), x, cy + 0.5);
+}
+
+/** What is still on its way (a note being typed, a copy being drawn), done
+ *  before the report is written. */
+async function flushNotes() {
+  const n = openNote();
+  if (n?.dirty && written(n)) {
+    clearTimeout(saveTimer);
+    await saveNote(n);
+  }
+  await Promise.all([...saving.values()].map((p) => p.catch(() => {})));
+  await Promise.all([...pinnedJobs.keys()].map((k) => sendPinned(k).catch(() => {})));
+}
 
 // ---------------------------------------------------------------- log
 
@@ -1783,6 +2358,7 @@ function connect() {
       if (S.viewRunId === null && r.suite === S.suite) {
         S.run = r;
         S.frames = [];
+        S.notes = [];
         buildMoments();
         S.acting.clear();
         if (S.ins) closeInspector();
@@ -1826,6 +2402,10 @@ function connect() {
     renderCast();
   });
   es.addEventListener('log', (e) => onLogLine(JSON.parse(e.data)));
+  es.addEventListener('notes', (e) => {
+    const d = JSON.parse(e.data);
+    mergeNotes(d.run, d.notes);
+  });
 }
 
 async function refreshState() {
@@ -1953,6 +2533,9 @@ for (const [id, name] of [
   ['pPrev', 'prev'],
   ['pNext', 'next'],
   ['pLast', 'last'],
+  ['insTack', 'pin'],
+  ['postitDel', 'trash'],
+  ['postitClose', 'x'],
   ['insTrace', 'route'],
   ['insDownload', 'download'],
   ['insClose', 'x'],

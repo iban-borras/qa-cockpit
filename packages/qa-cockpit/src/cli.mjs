@@ -441,6 +441,44 @@ export async function runCli(rawConfig, argv) {
       for (const s of all) console.log(`${s.status.padEnd(10)} ${s.name}  ${s.tests} tests · ${s.cast.join(', ') || 'no cast'}`);
     },
 
+    // The notes pinned on a run's photos in the cockpit (notes.mjs), as
+    // Markdown for the agent that acts on them: the newest run with notes,
+    // or the one named. `--list`: every run that has some.
+    async notes() {
+      const { notesMarkdown, readNotes, readRunFiles, runsWithNotes } = await import('./notes.mjs');
+      const cockpitDir = path.join(P.out, 'cockpit');
+      const noted = runsWithNotes(cockpitDir);
+      if (rest.includes('--list')) {
+        if (!noted.length) return console.log('No run has notes.');
+        for (const id of noted) console.log(`${id}  ${readNotes(path.join(cockpitDir, id)).filter((n) => n.text.trim()).length} notes`);
+        return;
+      }
+      const id = rest.find((a) => !a.startsWith('--')) ?? noted[0];
+      if (!id) return console.log('No run has notes. They are pinned on the photos, in the cockpit.');
+      const dir = path.join(cockpitDir, id);
+      if (path.dirname(dir) !== cockpitDir || !fs.existsSync(path.join(dir, 'run.json'))) fail(`No run "${id}" in ${shown(config, cockpitDir)}.`);
+      const { meta, frames } = readRunFiles(dir);
+      const md = notesMarkdown({
+        runId: id,
+        dir,
+        frames,
+        notes: readNotes(dir),
+        out: shown(config, P.out),
+        project: shown(config, P.project),
+      });
+      if (!md) return console.log(`The run ${id} has no notes.`);
+      console.log(
+        [
+          `# Notes on the run ${id}`,
+          '',
+          `- Suite: \`${shown(config, P.suites)}/${meta.suite}.md\`; ${meta.status}, started ${meta.startedAt}`,
+          `- The whole run, step by step: the cockpit's «Report» on this run`,
+          '',
+          md,
+        ].join('\n'),
+      );
+    },
+
     // .mcp.json at the repo root: one Playwright MCP server per saved
     // session, for an agent that drives a person's browser by hand.
     // Generated, not committed: it must not prompt every developer who opens
@@ -574,6 +612,8 @@ export async function runCli(rawConfig, argv) {
   doctor           what this machine and this config have and lack; heals deps and browser
   cockpit          the cockpit on http://localhost:${config.cockpit.port} (--port <p>, --no-open);
                    launch it from a terminal on your own desktop and keep it open
+  notes [run]      the notes pinned on a run's photos in the cockpit, as Markdown
+                   (the newest run with notes; --list: every run that has some)
   lock             who holds the stack: one run at a time (QA_WHO names you)
   unlock           remove the lock by hand, when its holder hangs
 ${own ? `\n${own}\n` : ''}

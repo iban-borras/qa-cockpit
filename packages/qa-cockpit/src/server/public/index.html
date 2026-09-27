@@ -154,8 +154,10 @@
           <div class="who"><b id="insName"></b><span id="insSub"></span></div>
           <span id="insChip" class="chip"></span>
           <span id="insState" class="chip" hidden></span>
+          <span id="insHint" class="chip note-hint" hidden></span>
         </div>
         <div class="right">
+          <button class="btn icon tack-tool" id="insTack" data-i18n-aria="note.add" data-i18n-title="note.add_title"></button>
           <button class="btn icon" id="insTrace" data-i18n-aria="ins.trace"></button>
           <button class="btn icon" id="insDownload" data-i18n-aria="ins.download" data-i18n-title="ins.download"></button>
           <button class="btn" id="insPlayAs"></button>
@@ -171,6 +173,7 @@
               <img id="insImg" alt="">
               <div class="seen" id="insSeen" hidden></div>
               <div class="marks" id="insMarks"></div>
+              <div class="tacks" id="insTacks"></div>
             </div>
             <img id="insLive" alt="" hidden>
             <div class="empty" id="insEmpty" hidden></div>
@@ -196,7 +199,27 @@
           </div>
         </div>
       </div>
+      <section class="postit" id="postit" hidden data-i18n-aria="note.label">
+        <header class="postit-head" id="postitHead">
+          <span class="postit-n" id="postitN"></span>
+          <span class="postit-title" id="postitTitle"></span>
+          <button class="btn icon ghost" id="postitDel" data-i18n-aria="note.delete" data-i18n-title="note.delete"></button>
+          <button class="btn icon ghost" id="postitClose" data-i18n-aria="note.close" data-i18n-title="note.close"></button>
+        </header>
+        <textarea id="postitText" spellcheck="true" data-i18n-placeholder="note.placeholder"></textarea>
+        <footer class="postit-foot" id="postitState" hidden></footer>
+      </section>
     </div>
+  </dialog>
+
+  <dialog id="ask" class="ask" aria-labelledby="askText">
+    <form method="dialog">
+      <p id="askText"></p>
+      <div class="ask-buttons">
+        <button class="btn" value="no" id="askNo"></button>
+        <button class="btn danger" value="yes" id="askYes"></button>
+      </div>
+    </form>
   </dialog>
 
   <div id="tip" role="tooltip" hidden></div>

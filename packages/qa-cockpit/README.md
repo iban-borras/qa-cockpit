@@ -36,6 +36,9 @@ the same cockpit for the people who watch.
   - a card per person, and a timeline over every step of the run;
   - live screens while a step runs;
   - an inspector with each photo, the clicks, the requests and their times;
+  - notes pinned on the photos: a tack dropped on the very point a note is
+    about, and a post-it to write it on; the report and `notes` hand them
+    to an agent, with a copy of the photo showing each tack;
   - Playwright's trace viewer;
   - a Markdown report of the whole run, written for a model to read;
   - English, Catalan and Spanish.
@@ -110,6 +113,7 @@ pass <suite> <who> <result> ...   a row in the suite's runs table
 open <person>                     a browser window signed in as that person
 mcp                               .mcp.json: one Playwright MCP server per person
 cockpit [--port p] [--no-open]    the cockpit
+notes [run] [--list]              the notes pinned on a run's photos, as Markdown
 lock | unlock                     who holds the stack
 doctor                            what this machine and this config lack
 init [folder] [--claude]          a new project folder, from the templates

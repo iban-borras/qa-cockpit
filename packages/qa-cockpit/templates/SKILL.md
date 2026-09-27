@@ -107,6 +107,7 @@ npx qa-cockpit open <person>    # a browser window signed in as that person
 npx qa-cockpit stamp <suite>    # write the suite's hash into the recording's first line
 npx qa-cockpit pass <suite> <who> <result> <notes...>   # a row in the suite's runs table
 npx qa-cockpit mcp              # .mcp.json: one Playwright MCP server per saved session
+npx qa-cockpit notes [run]      # the notes a person pinned on a run's photos (--list: runs with notes)
 npx qa-cockpit down | purge     # stop the stack; purge removes its data too
 ```
 
@@ -177,6 +178,25 @@ Two verdicts, and only two:
 When the suite ITSELF is wrong (it quotes a text the app never had, or
 describes a rule that changed by decision), say so in the notes and leave
 the suite's edit to its author.
+
+## Notes pinned on the photos
+
+A person reviewing a run in the cockpit can pin notes on its photos: each
+one a tack on the very point of the page it is about, and a text. When you
+are asked to act on them:
+
+1. `npx qa-cockpit notes` prints the newest run's notes (`notes <run>`
+   for another, `--list` for the runs that have some). Per photo: the
+   photo, the copy «with the pins», the page, the device and the recording
+   line. Per pin: its point in the page's CSS pixels, whether it was on
+   screen, the action of the step it falls on, and the text.
+2. Look at the copy with the pins first: the numbered tack shows the thing
+   the note means, where bare coordinates are easy to misread. No copy yet:
+   the cockpit draws it when the run is open there.
+3. A note is about the app or about the suite: fix the app, or change the
+   suite and GENERATE. Say which, note by note, in your answer.
+4. Notes stay until a person deletes them in the cockpit: never delete one
+   yourself.
 
 ## Writing steps against the cast
 
