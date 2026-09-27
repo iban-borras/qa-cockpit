@@ -91,7 +91,7 @@ svg.i.lg { width: 18px; height: 18px; }
 .bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; }
 .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
 /* The octopus in flying goggles, one leg per person of the cast (logo.svg;
-   favicon.svg is its own cut for 16 to 32 px). Iban, 2026-09-26. */
+   favicon.svg is its own cut for 16 to 32 px). */
 .mark { width: 36px; height: 36px; display: block; flex: none; }
 /* A flex row, so the chip sits on the title's middle and not on its
    baseline, where it hung 3.6 px low. */
@@ -155,7 +155,7 @@ select option { background: var(--panel-2); color: var(--text); }
 .track > div { height: 100%; width: 0; background: var(--accent); transition: width 0.3s; }
 /* THE RUN PICKER (renderRunPop): the suite picker's button and panel. The
    face ends in the status word, in its colour; it is cut only when the
-   line has no more room (Iban, 2026-09-26). */
+   line has no more room. */
 .run-picker { position: relative; min-width: 0; max-width: 100%; }
 .picker-btn.run-btn { max-width: 100%; color: var(--muted); }
 .run-btn:disabled { cursor: default; opacity: 0.7; }
@@ -333,7 +333,7 @@ dialog#inspector::backdrop { background: rgba(4, 4, 6, 0.72); }
 .picker-item:hover, .picker-item.active { background: var(--panel-3); }
 .picker-item[aria-selected='true'] { box-shadow: inset 2px 0 0 var(--accent); background: var(--accent-soft); }
 /* The suite picked wears its standing: green when it is ready to run, the
-   accent's red while something is still missing (Iban, 2026-09-24). */
+   accent's red while something is still missing. */
 .picker-item.ready[aria-selected='true'] { box-shadow: inset 2px 0 0 var(--ok); background: var(--ok-soft); }
 .picker-item .t { font-weight: 550; font-size: 13.5px; }
 .picker-item .slug { font: 11.5px var(--mono); color: var(--faint); }

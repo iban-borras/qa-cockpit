@@ -19,7 +19,7 @@ const $ = (id) => document.getElementById(id);
 // Lucide icons, inlined: no emoji, no CDN.
 const ICONS = {
   // The kinds of device a person plays on (devices.mjs): an allegory on the
-  // card, never the device's outline (Iban, 2026-09-26).
+  // card, never the device's outline.
   dev_phone: '<rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/>',
   dev_tablet: '<rect width="16" height="20" x="4" y="2" rx="2" ry="2"/><line x1="12" x2="12.01" y1="18" y2="18"/>',
   dev_laptop: '<path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/>',
@@ -89,7 +89,7 @@ const deviceHtml = (d) =>
 const lastDeviceOf = (actor) => S.frames.findLast((f) => f.actor === actor && f.device)?.device ?? S.state?.cast.find((c) => c.id === actor)?.device ?? null;
 
 /** Under a card's name: the device on a line of its own, then the badge and
- *  the email (Iban, 2026-09-26: no line starting with a separator). */
+ *  the email, so no line starts with a separator. */
 function whoLines(p, f) {
   const d = deviceOf(p, f);
   const rest = [p.badge, p.email].filter(Boolean).map(esc).join(' · ');
@@ -568,8 +568,8 @@ function isRunning() {
 
 // ---------------------------------------------------------------- header, status
 
-// THE FAVICON WAVES WHILE A RUN GOES (Iban, 2026-09-26: «en un navegador
-// multipestanya es podria saber quan està executant-se un test»). Four
+// THE FAVICON WAVES WHILE A RUN GOES, so a browser full of tabs still
+// tells, from the tab strip, whether a test is running. Four
 // frames of the favicon's octopus, each leg rising in turn after the one
 // before it, swapped while the cockpit runs or follows a run; the still
 // favicon.svg otherwise. The frames are made from favicon.svg itself, so a
@@ -809,9 +809,9 @@ function renderStatus() {
   $('runReport').hidden = !r;
   const txt = r ? t(`run.${r.status}`) : t('run.none');
 
-  // THE STATUS, SAID ONCE (Iban, 2026-09-26: a «Red» chip beside a picker
-  // that ends in «red»): the picker's face ends in the status word, in its
-  // colour, with the live dot while it runs.
+  // THE STATUS, SAID ONCE (a «Red» chip beside a picker that ends in «red»
+  // was twice): the picker's face ends in the status word, in its colour,
+  // with the live dot while it runs.
   const runs = runsOf(S.suite);
   const chosen = runs.find((x) => x.id === r?.id) ?? runs[0];
   const status = runStatus(chosen);
@@ -852,8 +852,8 @@ function renderStatus() {
 
 // ---------------------------------------------------------------- the run picker
 //
-// The suite picker's button and panel, for the runs of the suite shown
-// (Iban, 2026-09-26: «un div més ric»). A row per run: its status in
+// The suite picker's button and panel, for the runs of the suite shown:
+// richer than a native select could be. A row per run: its status in
 // colour, when and whose, how long it took, how far its tests got and
 // where it broke. Keys as in a listbox: arrows, Home/End, Enter, Escape.
 
@@ -1000,7 +1000,7 @@ function renderTableHead() {
   $('tLabel').textContent = n ? `${m.test} › ${m.step}` : S.run ? t('table.empty') : '';
   $('tLabel').title = $('tLabel').textContent;
   // Only while a run goes: after it, the ⏭ button beside the timeline
-  // already goes to the end (Iban, 2026-09-23: one door per thing).
+  // already goes to the end (one door per thing).
   const live = $('tLive');
   live.hidden = S.table.live || n === 0 || !isRunning();
   withIcon(live, 'radio', t('table.live'));
@@ -1299,7 +1299,7 @@ function renderInspector(first = false) {
   $('pPlay').setAttribute('aria-label', t(ins.timer ? 'ins.pause' : 'ins.play'));
   $('pPlay').disabled = n < 2;
   // Only while a run goes: after it, ⏭ goes to the last photo, and a
-  // second button for the same thing was one too many (Iban, 2026-09-23).
+  // second button for the same thing was one too many.
   const pl = $('pLive');
   pl.hidden = ins.live || !isRunning();
   const fresh = ins.fresh === 1 ? t('ins.fresh_one') : ins.fresh > 1 ? t('ins.fresh_many', { n: ins.fresh }) : '';

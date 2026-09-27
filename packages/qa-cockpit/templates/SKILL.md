@@ -25,7 +25,7 @@ in the cockpit.
 1. **Who has the stack?** `npx qa-cockpit lock`. If somebody holds it, wait
    for their run to end. Never `unlock` a lock whose holder is alive unless
    the person you work for says so.
-2. **Say who you are:** set `QA_WHO` (`Claude`, `Grace`, ...) in the
+2. **Say who you are:** set `QA_WHO` (`Claude`, `ci`, ...) in the
    environment of every command, so a refusal or the cockpit names you.
 3. **Is the cockpit up?** `curl -s http://localhost:<port>/api/state` (the
    config's `cockpit.port`, 3150 by default). If it answers, a command from

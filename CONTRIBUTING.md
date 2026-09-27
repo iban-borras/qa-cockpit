@@ -26,6 +26,10 @@ npx qa-cockpit down
 Run it before any change is proposed, and say in the pull request that you
 did.
 
+CI (`.github/workflows/ci.yml`) runs the same on Linux and Windows for
+every pull request, and checks that `npm pack` ships what it must and that
+`init` scaffolds a project that loads.
+
 ## The code
 
 - **Plain JavaScript modules** (`.mjs`), JSDoc where a type helps. No build

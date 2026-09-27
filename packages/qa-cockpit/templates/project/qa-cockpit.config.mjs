@@ -33,6 +33,7 @@ export default defineConfig({
   // One process of your own (`npm run dev`, `node server.mjs`):
   stack: processStack({
     base: import.meta.url,
+    name: '{{PROJECT}}',
     command: 'npm',
     args: ['run', 'dev'],
     cwd: '{{ROOT}}',

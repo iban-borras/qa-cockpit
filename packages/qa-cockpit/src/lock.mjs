@@ -10,8 +10,8 @@
 // steps through QA_LOCK: a command whose QA_LOCK matches the lock's token
 // goes ahead without taking it again.
 //
-// QA_WHO names the holder («Grace», «Claude»); without it the name comes
-// from the program the command was launched from.
+// QA_WHO names the holder («Claude», «ci», a person); without it the name
+// comes from the program the command was launched from.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';

@@ -1,0 +1,107 @@
+# The package's checks on every push and pull request: its code parses, the
+# tarball holds what npm must ship, `init` scaffolds a project that loads,
+# and the example (the package's own end-to-end test) goes green, on Linux
+# and on Windows, where the stack and process handling differ.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  package:
+    name: Package (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Every module parses
+        working-directory: packages/qa-cockpit
+        run: find bin src templates -name '*.mjs' -o -name '*.js' | sort | xargs -n1 node --check
+
+      # What npm ships: the files people need, and nothing of a run.
+      - name: The tarball
+        working-directory: packages/qa-cockpit
+        run: |
+          npm pack --dry-run --json > pack.json
+          node -e '
+            const [p] = JSON.parse(require("fs").readFileSync("pack.json", "utf8"));
+            const files = p.files.map((f) => f.path);
+            const must = ["bin/qa-cockpit.mjs", "src/index.mjs", "src/server/public/index.html", "templates/SKILL.md", "README.md", "CHANGELOG.md", "LICENSE"];
+            const missing = must.filter((f) => !files.includes(f));
+            const stray = files.filter((f) => /(^|\/)(\.qa-cockpit|test-results|node_modules)\//.test(f));
+            console.log(`${p.name}@${p.version}: ${files.length} files, ${p.size} bytes`);
+            if (missing.length) throw new Error(`missing: ${missing.join(", ")}`);
+            if (stray.length) throw new Error(`should not ship: ${stray.join(", ")}`);
+          '
+
+      # A project that installs the tarball as npm would, then `init`: the
+      # scaffold must load and list its example suite.
+      - name: init in a new project
+        run: |
+          npm pack --pack-destination "$RUNNER_TEMP" ./packages/qa-cockpit
+          mkdir "$RUNNER_TEMP/proj" && cd "$RUNNER_TEMP/proj"
+          git init -q && npm init -y > /dev/null
+          npm install --no-audit --no-fund "$RUNNER_TEMP"/qa-cockpit-*.tgz @playwright/test
+          npx --no-install qa-cockpit init qa
+          npx --no-install qa-cockpit suites --config qa/qa-cockpit.config.mjs | tee suites.txt
+          grep -q 'example' suites.txt
+          grep -q 'QA Cockpit' AGENTS.md
+
+  example:
+    name: Example (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        working-directory: examples/two-person-chat/qa
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm ci --no-audit --no-fund
+      - name: Chromium
+        run: npx playwright install ${{ runner.os == 'Linux' && '--with-deps' || '' }} chromium
+
+      - run: npx --no-install qa-cockpit up
+      - run: npx --no-install qa-cockpit setup chat
+      - run: npx --no-install qa-cockpit replay chat
+      # The recording still matches its suite.
+      - run: test "$(npx --no-install qa-cockpit decide chat)" = REPLAY
+      - run: npx --no-install qa-cockpit down
+        if: always()
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: example-${{ matrix.os }}
+          path: |
+            examples/two-person-chat/qa/.qa-cockpit/
+            examples/two-person-chat/qa/test-results/
+          retention-days: 7
+          if-no-files-found: ignore

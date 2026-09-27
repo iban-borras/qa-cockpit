@@ -3,7 +3,7 @@
        cast (it was born beside CritKeep's own octopus). Built on a 64 grid: the head is a circle of 16 over a
        rounded box, the legs mirror in pairs around x = 32, the outer
        pair curled, the inner pair straight so the middle stays open. No
-       tile: it breathes on whatever it sits on (Iban, 2026-09-26); the
+       tile: it breathes on whatever it sits on; the
        viewBox is cut to the octopus itself. -->
   <defs>
     <clipPath id="head">
