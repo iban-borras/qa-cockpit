@@ -26,6 +26,7 @@ without a person beside it.
 | `src/compose.mjs`, `src/process.mjs` | the two stacks a project can use |
 | `src/lock.mjs` | one run at a time, and who holds the stack |
 | `src/stackdata.mjs` | what the stack's data is now: the setup of which suite, or spent by a replay |
+| `src/detach.mjs`, `src/desktop.mjs` | `cockpit --detach`: the cockpit started for a person, on their desktop, outliving whoever asked |
 | `src/notes.mjs` | the notes pinned on a run's photos, and their Markdown |
 | `src/server/server.mjs` | the cockpit's server: the runs, the API, the files it serves |
 | `src/server/public/` | the cockpit's page: `cockpit.js`, `cockpit.css`, `i18n.js` |

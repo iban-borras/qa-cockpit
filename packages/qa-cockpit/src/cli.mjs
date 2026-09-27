@@ -574,7 +574,21 @@ export async function runCli(rawConfig, argv) {
       const i = rest.indexOf('--port');
       const port = i !== -1 ? Number(rest[i + 1]) : config.cockpit.port;
       if (!Number.isInteger(port) || port < 1024 || port > 65535) {
-        fail(`Usage: ${CLI} cockpit [--port <1024-65535>] [--no-open]`);
+        fail(`Usage: ${CLI} cockpit [--port <1024-65535>] [--no-open] [--detach | --restart]`);
+      }
+      // For a person, from anywhere: an agent asked to open the cockpit runs
+      // this, and the cockpit outlives the agent's session (detach.mjs).
+      if (rest.includes('--detach') || rest.includes('--restart')) {
+        const { detachCockpit } = await import('./detach.mjs');
+        return detachCockpit({
+          config,
+          port,
+          entry: process.argv[1],
+          args: rest.filter((a) => a !== '--detach' && a !== '--restart'),
+          restart: rest.includes('--restart'),
+          open: !rest.includes('--no-open'),
+          cwd: process.cwd(),
+        });
       }
       ensureReady();
       const { startCockpit } = await import('./server/server.mjs');
@@ -626,6 +640,8 @@ export async function runCli(rawConfig, argv) {
   doctor           what this machine and this config have and lack; heals deps and browser
   cockpit          the cockpit on http://localhost:${config.cockpit.port} (--port <p>, --no-open);
                    launch it from a terminal on your own desktop and keep it open
+                   --detach: started for a person, in a window of its own, outliving
+                   whoever asked (what an agent runs); --restart: a fresh one
   notes [run]      the notes pinned on a run's photos in the cockpit, as Markdown
                    (the newest run with notes; --list: every run that has some)
   lock             who holds the stack: one run at a time (QA_WHO names you)

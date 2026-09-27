@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.0 (unreleased)
+
+- `cockpit --detach`: the cockpit started for a person, so that it outlives
+  whoever asked for it (an agent's session) and opens its windows on the
+  person's desktop. One that answers already is reused, or replaced with
+  `--restart` (never during a run). On Windows it starts in a window of its
+  own; from a terminal on a desktop nobody sees (an agent's may be), through
+  a Task Scheduler task that lives a few seconds; on macOS and Linux, in the
+  background with a log. The skill tells agents to use it when somebody asks
+  for the cockpit.
+- The cockpit's state says its version and process.
+
 ## 0.2.0 (2026-09-27)
 
 Built for agents, and now it says so first: the READMEs open with what QA

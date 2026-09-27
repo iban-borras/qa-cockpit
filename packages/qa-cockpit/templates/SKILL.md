@@ -28,7 +28,8 @@ in the cockpit.
 2. **Say who you are:** set `QA_WHO` (`Claude`, `ci`, ...) in the
    environment of every command, so a refusal or the cockpit names you.
 3. **Is the cockpit up?** `curl -s http://localhost:<port>/api/state` (the
-   config's `cockpit.port`, 3150 by default). If it answers, a command from
+   config's `cockpit.port`, 3150 by default). Not up and a person wants to
+   watch: open it for them (below, «Opening the cockpit»). If it answers, a command from
    your terminal is followed there on its own, as yours. **A whole sequence
    (reset, setup, replay) goes through the cockpit's API**, which holds the
    stack across its steps; three commands of your own let go of it between
@@ -50,6 +51,33 @@ in the cockpit.
    going. If the stack runs your working tree with hot reload, **saving app
    code counts**: the server restarts or the page reloads under the running
    suite, and its requests fail.
+
+## Opening the cockpit for a person
+
+When somebody asks you to open (or start, or restart) the cockpit:
+
+```bash
+npx qa-cockpit cockpit --detach      # or: --restart, for a fresh one
+```
+
+Never `npx qa-cockpit cockpit` in your own terminal for them: a cockpit
+started in your session dies with it, and whatever it opens with a window
+(«Play as», a headed run) opens on the desktop of whoever started it, which
+may not be theirs. `--detach` takes care of both, and returns at once:
+
+- one already answers, this version: it says so and opens the page;
+- one of another version answers: it says so; `--restart` replaces it
+  (never while a run is going: wait for it, or stop it in the cockpit);
+- none: it starts one that outlives you. On Windows, in a window of its
+  own called «QA Cockpit», minimised; if your terminal is on a desktop
+  nobody sees (some agents' terminals are, and the cockpit warns about it),
+  through the Task Scheduler, whose interactive tasks start on the desktop
+  of the person logged on; the task lives a few seconds. On macOS and Linux,
+  in the background, its output in `<out>/cockpit.log`.
+
+Say the address it prints (`http://localhost:<port>`). If it adds that the
+cockpit's windows will not show, the person must run
+`npx qa-cockpit cockpit` in a terminal of their own: tell them so.
 
 ## Setting it up in a project (the first time)
 
@@ -92,7 +120,7 @@ stack answers.
 
 ```bash
 npx qa-cockpit doctor           # what this machine and this config have and lack
-npx qa-cockpit cockpit          # the cockpit (--port <p>, --no-open)
+npx qa-cockpit cockpit --detach # the cockpit for a person (--restart; «Opening the cockpit»)
 npx qa-cockpit lock             # who holds the stack; unlock removes a hung lock
 npx qa-cockpit up               # start the stack and wait until it answers
 npx qa-cockpit status           # where it answers, saved sessions

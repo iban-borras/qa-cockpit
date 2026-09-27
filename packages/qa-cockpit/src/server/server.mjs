@@ -29,6 +29,9 @@ import { listSuites } from '../suites.mjs';
 import { deviceFor, deviceLabel } from '../devices.mjs';
 import { cleanNote, notesMarkdown, pinnedFileOf, pinnedSeqs, readNotes, readRunFiles, writeNotes } from '../notes.mjs';
 import { readData } from '../stackdata.mjs';
+import { desktopOf } from '../desktop.mjs';
+
+const VERSION = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version;
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(HERE, 'public');
@@ -371,9 +374,10 @@ async function checkStack() {
   if (changed) broadcast('stack', stack);
 }
 
-// Windows can start a process on a desktop the person does not see (an
-// agent's terminal does). A child inherits its parent's desktop, so a small
-// PowerShell child tells us ours. Linux needs a display for any window.
+// The windows the cockpit opens («Play as», headed runs) appear on the
+// desktop it was started on (desktop.mjs): say so when nobody sees that one.
+// Linux needs a display for any window. `cockpit --detach` starts it on the
+// person's desktop whatever the terminal (detach.mjs).
 function checkDesktop() {
   if (process.platform === 'linux') {
     if (!process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
@@ -381,27 +385,10 @@ function checkDesktop() {
     }
     return;
   }
-  if (process.platform !== 'win32') return;
-  const script = `
-Add-Type @"
-using System; using System.Text; using System.Runtime.InteropServices;
-public class CkDesk {
-  [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
-  [DllImport("user32.dll")] public static extern IntPtr GetThreadDesktop(uint t);
-  [DllImport("user32.dll")] public static extern IntPtr GetProcessWindowStation();
-  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern bool GetUserObjectInformation(IntPtr h, int i, StringBuilder s, int n, out int need);
-  public static string Name(IntPtr h) { var s = new StringBuilder(256); int n; GetUserObjectInformation(h, 2, s, 512, out n); return s.ToString(); }
-}
-"@
-[CkDesk]::Name([CkDesk]::GetProcessWindowStation()) + '\\' + [CkDesk]::Name([CkDesk]::GetThreadDesktop([CkDesk]::GetCurrentThreadId()))`;
-  const ps = spawn('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], { windowsHide: true });
-  let out = '';
-  ps.stdout.on('data', (d) => (out += d));
-  ps.on('close', () => {
-    const where = out.trim();
+  void desktopOf().then((where) => {
     if (where && where.toLowerCase() !== 'winsta0\\default') {
       desktopWarning = { code: 'hidden_desktop', where };
-      log(`[cockpit] started on a desktop nobody sees (${where}): windows will not show. Launch it from your own terminal.`, 'error');
+      log(`[cockpit] started on a desktop nobody sees (${where}): windows will not show. Start it with \`${CFG.cli} cockpit --detach\`.`, 'error');
       broadcast('desktop', { desktopWarning });
     }
   });
@@ -736,6 +723,10 @@ function state() {
   const rel = (abs) => (abs ? shown(CFG, abs) : null);
   return {
     port: PORT,
+    // Which cockpit this is, and its process: `cockpit --detach` tells an
+    // older one apart, and `--restart` stops this one (detach.mjs).
+    version: VERSION,
+    pid: process.pid,
     name: CFG.name,
     project: CFG.stack.name,
     // Where the cockpit runs, and how: the page shows the command when this

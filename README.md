@@ -134,6 +134,7 @@ pass <suite> <who> <result> ...   a row in the suite's runs table
 open <person>                     a browser window signed in as that person
 mcp                               .mcp.json: one Playwright MCP server per person
 cockpit [--port p] [--no-open]    the cockpit
+cockpit --detach | --restart      the cockpit for a person, outliving whoever asked
 notes [run] [--list]              the notes pinned on a run's photos, as Markdown
 lock | unlock                     who holds the stack
 doctor                            what this machine and this config lack
