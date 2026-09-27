@@ -139,6 +139,8 @@ function suiteInfo(config, name, index) {
     tests: counted || index.get(name)?.tests || 0,
     cast,
     recorded: Boolean(recording),
+    // Its file's own name: a project may record in .mjs, .ts or .js.
+    recordingFile: recording ? path.basename(recording) : null,
     setup,
     status,
     lastPass: last ? { date: last[1], who: last[2], result: last[3] } : null,

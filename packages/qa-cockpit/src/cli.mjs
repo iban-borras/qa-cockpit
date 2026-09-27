@@ -8,6 +8,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { newRecordingPath, recordingOf, resolveConfig, setupOf, shown } from './config.mjs';
 import { acquireLock, breakLock, lockFileOf, readLock, StackBusy } from './lock.mjs';
+import { noteData, readData, staleFor, staleLine } from './stackdata.mjs';
 import { decide, listSuites, recordPass, suiteHeader } from './suites.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -307,6 +308,8 @@ export async function runCli(rawConfig, argv) {
       if (!config.stack.purge) fail(`The stack "${STACK}" has no \`purge\`.`);
       holdStack('purge');
       await config.stack.purge(ctx);
+      // Its next `up` starts from nothing: as after a reset, no setup yet.
+      noteData(config, { state: 'reset' });
       clearSavedSessions();
       console.log(`The stack "${STACK}" removed with its volumes.`);
     },
@@ -330,8 +333,10 @@ export async function runCli(rawConfig, argv) {
       if (!config.stack.reset) fail(`The stack "${STACK}" has no \`reset\`.`);
       guard();
       await takeStack('reset', null, 'reset');
+      noteData(config, { state: 'resetting' });
       const said = await config.stack.reset(ctx);
       await waitHealthy(config);
+      noteData(config, { state: 'reset' });
       clearSavedSessions();
       console.log(`${said ? `${said} ` : 'Fresh data. '}Saved sessions cleared.`);
     },
@@ -346,7 +351,10 @@ export async function runCli(rawConfig, argv) {
       guard();
       await takeStack('setup', suite, `setup ${suite}`);
       fs.mkdirSync(P.state, { recursive: true });
+      // A setup that fails leaves «setting-up» behind (playwright() exits).
+      noteData(config, { state: 'setting-up', suite });
       await playwright(['test', testFileArg(file)]);
+      noteData(config, { state: 'setup', suite });
     },
 
     async smoke() {
@@ -374,11 +382,17 @@ export async function runCli(rawConfig, argv) {
       guard();
       await takeStack('replay', suite, ['replay', ...rest].join(' '));
       fs.mkdirSync(P.state, { recursive: true });
+      // Said, not refused: one test run again on purpose (`-g T3`) is a
+      // replay after a replay too.
+      const stale = staleFor(readData(config), suite);
+      if (stale) console.log(`${staleLine(stale)} The recording may fail for that: \`${CLI} reset\` and \`${CLI} setup ${suite}\` first.`);
       if (!P.sessionsSetup || sessionsFresh(config.sessions.freshFor)) {
         if (P.sessionsSetup) console.log('Saved sessions are fresh; not renewing them.');
       } else {
         await playwright(['test', testFileArg(P.sessionsSetup)]);
       }
+      // From its first test on, a recording changes the data.
+      noteData(config, { state: 'spent', suite });
       await playwright(['test', testFileArg(file), ...rest.slice(1)]);
     },
 

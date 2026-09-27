@@ -137,7 +137,11 @@ official image of the pinned version, for a stack made with `composeStack`.
 The hash in a recording's first line is of the suite WITHOUT its runs
 table, so writing a row never makes the recording look stale. Recordings
 change the data (they send, delete, sign out), so a replay always wants
-`reset` and `setup` before it.
+`reset` and `setup` before it. The CLI keeps what the stack's data is
+(`<out>/stack-data.json`, written by every `reset`, `setup` and
+`replay`): when a `replay` says «The stack's data is not this suite's
+setup», stop and run `reset` and `setup <suite>` first, unless you are
+running one test again on purpose.
 
 ## The director (GENERATE)
 

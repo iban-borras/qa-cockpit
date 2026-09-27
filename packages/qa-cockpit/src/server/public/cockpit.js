@@ -297,7 +297,7 @@ function renderTodo(s) {
   }
   const withFile = (key, file) => esc(t(key, { file: '' })).replace('', `<code>${esc(file)}</code>`);
   const lacks = [];
-  const recording = `${S.state.paths.recordings}/${s.name}${S.state.recordingExt}`;
+  const recording = `${S.state.paths.recordings}/${s.recordingFile ?? `${s.name}${S.state.recordingExt}`}`;
   if (!s.recorded) lacks.push(withFile('todo.no_recording', recording));
   if (s.status === 'stale') lacks.push(withFile('todo.stale', recording));
   if (!s.setup) lacks.push(withFile('todo.no_setup', `${S.state.paths.setups}/${s.name}${S.state.setupExt}`));
@@ -1391,7 +1391,7 @@ function runReport(notesMd = '') {
   const lines = [
     `# QA run: ${r.suite} · ${r.id}`,
     '',
-    `- Suite: \`${P.suites}/${r.suite}.md\`; recording: \`${P.recordings}/${r.suite}${S.state.recordingExt}\``,
+    `- Suite: \`${P.suites}/${r.suite}.md\`; recording: \`${P.recordings}/${suiteOf(r.suite)?.recordingFile ?? `${r.suite}${S.state.recordingExt}`}\``,
     `- Run: ${kindLabel(r)}, ${r.status}, started ${r.startedAt}${r.endedAt ? `, took ${secs(Date.parse(r.endedAt) - t0)}` : ''}`,
     `- Log: \`${OUT}/cockpit/${r.id}/log.jsonl\`; photos and traces under \`${OUT}/\``,
     `- People: ${[...new Set(S.frames.map((f) => f.actor))]
@@ -2157,14 +2157,24 @@ $('postitHead').addEventListener('pointerdown', (e) => {
 /** A question with two answers over whatever is open: true on yes. The
  *  safe answer has the focus. */
 function ask(text, yes) {
+  return choose(text, [
+    { value: 'no', label: t('ask.cancel') },
+    { value: 'yes', label: yes, kind: 'danger' },
+  ]).then((v) => v === 'yes');
+}
+
+/** A question with several answers: the value of the one taken, or '' for
+ *  Esc. `focus`: the answer Enter takes (the first by default). */
+function choose(text, answers, focus = answers[0].value) {
   const d = $('ask');
   $('askText').textContent = text;
-  $('askYes').textContent = yes;
-  $('askNo').textContent = t('note.cancel');
+  $('askButtons').innerHTML = answers
+    .map((a) => `<button class="btn${a.kind ? ` ${a.kind}` : ''}" value="${esc(a.value)}">${esc(a.label)}</button>`)
+    .join('');
   d.returnValue = '';
   d.showModal();
-  $('askNo').focus();
-  return new Promise((resolve) => d.addEventListener('close', () => resolve(d.returnValue === 'yes'), { once: true }));
+  $('askButtons').querySelector(`[value="${CSS.escape(focus)}"]`)?.focus();
+  return new Promise((resolve) => d.addEventListener('close', () => resolve(d.returnValue), { once: true }));
 }
 
 // THE COPY WITH THE PINS: the photo at its own size, each tack drawn as on
@@ -2549,7 +2559,37 @@ renderLang();
 
 $('btnReset').onclick = () => act('reset');
 $('btnSetup').onclick = () => act('setup');
-$('btnReplay').onclick = () => act('replay');
+// A REPLAY NEEDS ITS SUITE'S SETUP just before it (stackdata.mjs). When the
+// stack's data is something else, the page asks, and a Full run (reset,
+// setup, recording) is the answer Enter takes.
+$('btnReplay').onclick = async () => {
+  const s = suiteOf(S.suite);
+  const why = s?.setup ? staleWhy(s.name) : null;
+  if (why) {
+    const pick = await choose(
+      t('replay.stale', { suite: s.title, why }),
+      [
+        { value: 'cancel', label: t('ask.cancel') },
+        { value: 'replay', label: t('replay.anyway') },
+        { value: 'full', label: t('btn.full'), kind: 'primary' },
+      ],
+      'full',
+    );
+    if (pick === 'full') return void act('full');
+    if (pick !== 'replay') return;
+  }
+  void act('replay');
+};
+
+/** Why a replay of the suite would not find its setup's data, in words; null
+ *  when it would, or when nothing is known. The rules of stackdata.mjs's
+ *  staleFor. */
+function staleWhy(suite) {
+  const d = S.state?.data;
+  if (!d?.state || (d.state === 'setup' && d.suite === suite)) return null;
+  const code = d.state === 'spent' ? 'spent' : d.state === 'setup' ? 'other_setup' : d.state === 'setting-up' ? 'setup_unfinished' : 'reset';
+  return t(`data.${code}`, { suite: suiteOf(d.suite)?.title ?? d.suite ?? '', when: when(d.at) });
+}
 $('btnFull').onclick = () => act('full');
 $('btnStop').onclick = () => act('stop');
 $('elsewhere').onclick = () => S.state?.task?.suite && pickSuite(S.state.task.suite);

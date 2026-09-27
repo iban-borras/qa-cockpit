@@ -28,6 +28,7 @@ import { acquireLock, isAlive, lockFileOf, readLock, StackBusy } from '../lock.m
 import { listSuites } from '../suites.mjs';
 import { deviceFor, deviceLabel } from '../devices.mjs';
 import { cleanNote, notesMarkdown, pinnedFileOf, pinnedSeqs, readNotes, readRunFiles, writeNotes } from '../notes.mjs';
+import { readData } from '../stackdata.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(HERE, 'public');
@@ -755,6 +756,9 @@ function state() {
     recordingExt: CFG.suiteFormat.extensions[0],
     setupExt: CFG.suiteFormat.setupExtensions[0],
     reportNotes: CFG.report.notes,
+    // What the stack's data is now (stackdata.mjs): the Replay button asks
+    // before a replay that would not find its suite's setup.
+    data: readData(CFG),
     stack,
     desktopWarning,
     lock: lockInfo(),
