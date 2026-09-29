@@ -70,7 +70,7 @@ to agents.
   agent how to configure the project, run, record and heal, and points the
   repo's `AGENTS.md` at it.
 - **`--in-docker`**: Playwright in the official image of the pinned version,
-  the same browser and fonts on any machine.
+  the same browser and fonts on any machine (npm projects).
 
 <p align="center"><img src="docs/images/cockpit-suites.webp" alt="The suite picker: every suite with where it stands, ready to run, needing a new recording, or with no setup yet" width="900"></p>
 
@@ -95,6 +95,9 @@ npx qa-cockpit init            # writes ./qa: config, fixtures, suites, SKILL.md
 cd qa && npm install && npx playwright install chromium
 ```
 
+npm, pnpm, yarn or bun: QA Cockpit installs with the one your lockfile
+says, and heals `node_modules` when it falls behind.
+
 Then make `qa/qa-cockpit.config.mjs` true for your app, or ask your agent:
 *«Set QA Cockpit up for this project following qa/SKILL.md»*. Run
 `npx qa-cockpit doctor` until everything says ok.
@@ -106,7 +109,7 @@ The config is the whole contract between your app and the cockpit:
 | `base` | `import.meta.url`: paths in the config are relative to its file |
 | `name`, `root` | the app's name; the repo's root, for the paths shown to people and agents |
 | `paths` | where the suites, recordings, setups, output and saved sessions live |
-| `cast` | the people of every suite: `{ alice: { name, email, password, badge, device } }` |
+| `cast` | the people of every suite: `{ alice: { name, email, password, badge, device, context } }`, `context` being Playwright's browser options for that person alone (a locale, a time zone, headers) |
 | `stack` | a copy of the app that tests may break: `composeStack(...)`, `processStack(...)`, or your own `urls()`, `up`, `down`, `reset`, `guard` |
 | `signIn({ page, person })` | the app's real sign-in; the package saves the session |
 | `sessions` | how long a saved session stays fresh; who has an account |

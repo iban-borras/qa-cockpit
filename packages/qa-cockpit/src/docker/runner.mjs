@@ -1,5 +1,6 @@
 // `<cli> <command> --in-docker`: Playwright runs inside the official
-// Playwright image of the version the project's package-lock.json pins, so
+// Playwright image of the version the project's package-lock.json pins (an
+// npm project only: the container installs it with npm), so
 // the browser and its fonts are the same on any machine. The host needs Node
 // and Docker, nothing installed in the project's folder. Only for a stack
 // made with composeStack (compose.mjs).
@@ -23,6 +24,7 @@ import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { packageManager } from '../deps.mjs';
 
 const PACKAGE_DIR = path.dirname(path.dirname(path.dirname(fileURLToPath(import.meta.url))));
 const BRIDGE_COMMANDS = new Set(['port', 'exec', 'logs', 'ps']);
@@ -39,7 +41,14 @@ function composeOf(config) {
 
 /** The image of the Playwright the lockfile pins, not of a range. */
 export function runnerImage(config) {
-  const lock = JSON.parse(fs.readFileSync(path.join(config.paths.project, 'package-lock.json'), 'utf8'));
+  // The container installs the project on its own, with the npm the image
+  // has, from a package-lock.json beside the config (runner-entry.mjs).
+  const pm = packageManager(config);
+  if (pm.dir !== config.paths.project || path.basename(pm.lockfile ?? '') !== 'package-lock.json') {
+    const what = pm.lockfile ? path.relative(config.paths.root, pm.lockfile).split(path.sep).join('/') : 'no lockfile';
+    throw new Error(`--in-docker installs with npm from a package-lock.json beside the config; this project has ${pm.name} (${what}): run without --in-docker.`);
+  }
+  const lock = JSON.parse(fs.readFileSync(pm.lockfile, 'utf8'));
   const version = lock.packages?.['node_modules/@playwright/test']?.version;
   if (!version) throw new Error('package-lock.json pins no @playwright/test.');
   return `mcr.microsoft.com/playwright:v${version}-noble`;

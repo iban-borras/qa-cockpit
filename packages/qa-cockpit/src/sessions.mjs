@@ -10,7 +10,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { resolveConfig } from './config.mjs';
-import { deviceFor, deviceLabel, resolveDevice } from './devices.mjs';
+import { contextOptions, deviceFor, deviceLabel, resolveDevice } from './devices.mjs';
 import * as cockpit from './worker.mjs';
 
 /**
@@ -31,7 +31,7 @@ export async function saveSession(browser, rawConfig, id, override = {}) {
   // Signed in on the person's own device: some apps sign a phone in
   // through another screen.
   const device = override.device ? resolveDevice(config, override.device) : deviceFor(config, id);
-  const context = await browser.newContext(device.context);
+  const context = await browser.newContext(contextOptions(config, id, device));
   const page = await context.newPage();
   try {
     await config.signIn({ page, person, config });

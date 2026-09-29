@@ -15,7 +15,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadConfig } from './config.mjs';
-import { deviceFor, resolveDevice } from './devices.mjs';
+import { deviceFor, personContext, resolveDevice } from './devices.mjs';
 import { playwrightOf } from './playwright.mjs';
 
 const person = process.argv[2];
@@ -40,11 +40,16 @@ try {
   // then Playwright takes no density, touch or mobile flag either (only the
   // browser's name). A phone's or a tablet's window is the device's own.
   const { viewport, screen, deviceScaleFactor, isMobile, hasTouch, ...rest } = device.context;
+  // The person's own options from the cast (a locale, headers...) win, but
+  // a computer's window keeps the size the person gives it.
+  const own = personContext(config, person);
+  const { viewport: ownViewport, screen: ownScreen, ...ownRest } = own;
   const context = await browser.newContext({
     ...(big ? { ...rest, viewport: null } : device.context),
     storageState: sessionFile,
     locale: config.browser.locale,
     timezoneId: config.browser.timezoneId,
+    ...(big ? ownRest : own),
   });
   const page = await context.newPage();
   await page.goto(new URL(config.browser.landing, front).href);

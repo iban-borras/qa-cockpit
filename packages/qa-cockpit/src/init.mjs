@@ -122,7 +122,7 @@ export async function init(args) {
   console.log(`
 Next:
   cd ${folder}
-  npm install
+  npm install          (or pnpm, yarn, bun: QA Cockpit follows the lockfile)
   npx playwright install chromium
   Fill the TODOs of qa-cockpit.config.mjs (or ask your agent: «Set QA Cockpit up
   for this project following ${vars.DIR}/SKILL.md»), then:

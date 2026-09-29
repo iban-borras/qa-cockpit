@@ -67,6 +67,19 @@ export function deviceFor(config, id, overrides = {}) {
   return resolveDevice(config, overrides[id] ?? person?.device);
 }
 
+/**
+ * The person's own browser context options, from the cast (`context`): a
+ * locale, a time zone, the headers a proxy in front of the app would add...
+ */
+export function personContext(config, id) {
+  return config.cast.find((p) => p.id === id)?.context ?? {};
+}
+
+/** A context for a person on a device: the device's options, then the person's own, which win. */
+export function contextOptions(config, id, device) {
+  return { ...device.context, ...personContext(config, id) };
+}
+
 /** What the cockpit shows of a device: no context options, only what it is. */
 export function deviceLabel(device) {
   return { name: device.name, kind: device.kind, width: device.width, height: device.height };

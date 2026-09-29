@@ -20,7 +20,6 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { createRequire } from 'node:module';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { shown } from '../config.mjs';
@@ -30,6 +29,7 @@ import { deviceFor, deviceLabel } from '../devices.mjs';
 import { cleanNote, notesMarkdown, pinnedFileOf, pinnedSeqs, readNotes, readRunFiles, writeNotes } from '../notes.mjs';
 import { readData } from '../stackdata.mjs';
 import { desktopOf } from '../desktop.mjs';
+import { playwrightCoreDir } from '../deps.mjs';
 
 const VERSION = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version;
 
@@ -51,7 +51,7 @@ let TRACE_VIEWER_DIR = null;
 function traceViewerDir(config) {
   let core = path.join(config.paths.project, 'node_modules', 'playwright-core');
   try {
-    core = path.dirname(createRequire(path.join(config.paths.project, 'package.json')).resolve('playwright-core/package.json'));
+    core = playwrightCoreDir(config);
   } catch {
     // The usual place, then.
   }

@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.4.0 (unreleased)
+
+From the first project to use QA Cockpit outside CritKeep:
+
+- Any package manager: npm, pnpm, yarn or bun, the one the project's
+  lockfile (or `packageManager`) says, also a workspace's lockfile above
+  the config. The dependency check and its healing use it, `doctor` names
+  it, and the trace viewer is found where pnpm keeps Playwright.
+  `--in-docker` still installs with npm, and says so to other projects.
+- A person's own browser `context` in the cast: Playwright's options for
+  them alone (a locale, a time zone, the headers a proxy would add), in
+  their runs, their sessions and «Play as».
+- The skill warns that the whole cast browses from one IP, so limits per
+  IP count everybody together; that the QA copy's own ports may meet a CSP
+  or a CORS written for the development ones; and that the photos and
+  reports keep whatever the screens show, so made-up data beats a copy of
+  production.
+- The npm README opens with the demo video's poster, linking to it.
+
 ## 0.3.0 (2026-09-27)
 
 - `cockpit --detach`: the cockpit started for a person, so that it outlives

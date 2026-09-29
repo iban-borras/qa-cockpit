@@ -7,6 +7,7 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { newRecordingPath, recordingOf, resolveConfig, setupOf, shown } from './config.mjs';
+import { depsStale, installDeps, packageManager, playwrightCli as playwrightCliOf } from './deps.mjs';
 import { acquireLock, breakLock, lockFileOf, readLock, StackBusy } from './lock.mjs';
 import { noteData, readData, staleFor, staleLine } from './stackdata.mjs';
 import { decide, listSuites, recordPass, suiteHeader } from './suites.mjs';
@@ -188,33 +189,23 @@ export async function runCli(rawConfig, argv) {
     return rel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
-  // The project installs itself: its node_modules must match
-  // package-lock.json (the hidden lockfile npm writes against the committed
-  // one), and a run on this machine needs Playwright's Chromium. Both heal
-  // on the spot.
+  // The project installs itself, with its own package manager (deps.mjs):
+  // its node_modules must match its lockfile, and a run on this machine
+  // needs Playwright's Chromium. Both heal on the spot.
   function checkDepsStale() {
-    const wanted = path.join(P.project, 'package-lock.json');
-    const installed = path.join(P.project, 'node_modules', '.package-lock.json');
-    if (!fs.existsSync(wanted)) return 'package-lock.json is missing';
-    if (!fs.existsSync(installed)) return 'node_modules has never been installed from this lockfile';
     try {
-      const want = JSON.parse(fs.readFileSync(wanted, 'utf8')).packages ?? {};
-      const have = JSON.parse(fs.readFileSync(installed, 'utf8')).packages ?? {};
-      for (const [key, entry] of Object.entries(want)) {
-        if (key === '' || entry.optional) continue;
-        const onDisk = have[key];
-        if (!onDisk || onDisk.version !== entry.version) return `${key} is missing or not ${entry.version}`;
-      }
+      return depsStale(config);
     } catch (err) {
-      return `unreadable lockfile (${err.message})`;
+      fail(err.message);
     }
-    return null;
   }
 
-  function healDeps() {
-    console.log('Dependencies out of date: npm ci...');
-    const r = spawnSync('npm', ['ci'], { cwd: P.project, stdio: 'inherit', shell: true });
-    if (r.status !== 0) fail(`npm ci failed in ${P.project}.`);
+  function healDeps(why) {
+    try {
+      installDeps(config, why);
+    } catch (err) {
+      fail(err.message);
+    }
   }
 
   function chromiumInstalled() {
@@ -223,7 +214,7 @@ export async function runCli(rawConfig, argv) {
     return spawnSync(process.execPath, ['-e', code], { cwd: P.project, stdio: 'pipe' }).status === 0;
   }
 
-  const playwrightCli = () => path.join(P.project, 'node_modules', '@playwright', 'test', 'cli.js');
+  const playwrightCli = () => playwrightCliOf(config);
 
   function healChromium() {
     console.log("Playwright's Chromium is missing: installing it...");
@@ -233,7 +224,8 @@ export async function runCli(rawConfig, argv) {
 
   /** For anything that runs here: the dependencies and the browser. */
   function ensureReady({ browser = true } = {}) {
-    if (checkDepsStale()) healDeps();
+    const stale = checkDepsStale();
+    if (stale) healDeps(stale);
     if (browser && !chromiumInstalled()) healChromium();
   }
 
@@ -547,16 +539,22 @@ export async function runCli(rawConfig, argv) {
         line(dockerUp, 'Docker', dockerUp ? info.stdout.trim() : 'no daemon answers (is Docker running?)');
       }
       const stale = checkDepsStale();
-      if (stale) healDeps();
-      line(true, 'Dependencies', stale ? `healed (${stale})` : 'match package-lock.json');
+      if (stale) healDeps(stale);
+      const pm = packageManager(config);
+      const lock = pm.lockfile ? shown(config, pm.lockfile) : 'no lockfile';
+      line(true, 'Dependencies', `${pm.name}, ${stale ? `installed now (${stale})` : `match ${lock}`}`);
       const had = chromiumInstalled();
       if (!had) healChromium();
       line(true, 'Chromium', had ? 'installed' : 'installed now');
       if (dockerUp) {
         const { runnerImage } = await import('./docker/runner.mjs');
-        const image = runnerImage(config);
-        const present = spawnSync('docker', ['image', 'inspect', image], { windowsHide: true }).status === 0;
-        line(true, 'Runner image', `${image}${present ? '' : ' (pulled on the first --in-docker run)'}`);
+        try {
+          const image = runnerImage(config);
+          const present = spawnSync('docker', ['image', 'inspect', image], { windowsHide: true }).status === 0;
+          line(true, 'Runner image', `${image}${present ? '' : ' (pulled on the first --in-docker run)'}`);
+        } catch (err) {
+          line(true, 'Runner image', `none: ${err.message}`);
+        }
       }
       try {
         const urls = config.stack.urls();

@@ -21,7 +21,10 @@ export default defineConfig({
 
   // TODO: the people of every suite, always the same, so a step can say
   // «Alice» without explaining who Alice is. Fake accounts of the QA copy
-  // of the app only: their passwords may sit here.
+  // of the app only: their passwords may sit here. A person may also say
+  // their `device` ('iPhone 15'...) and their own browser `context`
+  // (Playwright's options: `locale: 'es-ES'`, `timezoneId`, or the
+  // `extraHTTPHeaders` a proxy in front of the app would add).
   cast: {
     alice: { name: 'Alice', email: 'alice@example.com', password: 'change-me' },
     bob: { name: 'Bob', email: 'bob@example.com', password: 'change-me' },

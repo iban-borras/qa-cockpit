@@ -19,7 +19,7 @@ export function defineConfig(config) {
 }
 
 /**
- * @typedef {{ id: string, name: string, email: string | null, badge: string | null, [key: string]: unknown }} Person
+ * @typedef {{ id: string, name: string, email: string | null, badge: string | null, context?: object, [key: string]: unknown }} Person
  */
 
 // A person's id is a word: it names a fixture, a saved session file and the
@@ -62,6 +62,15 @@ export function resolveConfig(raw, file) {
 
   const cast = Object.entries(raw.cast ?? {}).map(([id, person]) => {
     if (!PERSON_ID.test(id)) throw new Error(`Cast: «${id}» is not a usable id (lowercase letters, digits, _).`);
+    // Playwright's browser context options for this person alone
+    // (devices.mjs). Never the session: that one is saved by the package.
+    const own = person?.context;
+    if (own !== undefined && (own === null || typeof own !== 'object' || Array.isArray(own))) {
+      throw new Error(`Cast: ${id}'s \`context\` must be an object of Playwright's browser context options.`);
+    }
+    if (own?.storageState !== undefined) {
+      throw new Error(`Cast: ${id}'s \`context\` cannot set storageState: QA Cockpit saves and loads the session.`);
+    }
     return {
       ...person,
       id,

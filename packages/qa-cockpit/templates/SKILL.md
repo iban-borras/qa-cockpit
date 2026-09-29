@@ -103,10 +103,22 @@ everything says ok:
    - `guard()`, when the app can tell: refuse unless the running stack is
      the QA one (its mode, its mail sent nowhere). It is what makes an
      accident impossible by construction rather than by care.
+   - Its own ports may meet rules written for the development ones: a
+     frontend whose CSP (`connect-src`) names the API's origin, an API
+     whose CORS allows only the dev app. Give the QA copy the same rules
+     for its own ports, or a small proxy that serves the app and the API
+     from one origin.
+   - Made-up data, not a copy of production: the photos, traces and
+     reports keep whatever the screens show, and the report and the notes
+     are written for an agent, which sends them to its model. With a copy
+     of production, anonymise it first.
 2. **The cast:** the people every suite shares, the same names and
    accounts everywhere (`alice`, `bob`, an `admin` if the app has one).
    Fake accounts of the QA stack only; their passwords may sit in the
-   config. Each may say their usual `device` (below).
+   config. Each may say their usual `device` (below), and their own
+   browser `context`: Playwright's context options for them alone, such as
+   `locale: 'es-ES'` and `timezoneId` for a person who reads the app in
+   another language, or the headers of the gotcha on one IP, below.
 3. **`signIn({ page, person })`:** the app's real sign-in form, as the
    person would use it, ending when the app shows them signed in. The
    package saves the session and every fixture reuses it.
@@ -296,8 +308,19 @@ recordings/             <suite>.spec.*: the recordings, hash in line 1
 - Saved sessions may go stale (short-lived tokens, rotated refresh tokens):
   `replay` renews them unless every one is younger than
   `sessions.freshFor`.
-- Mind the app's rate limits on sign-in: a setup followed by a replay signs
-  everybody in twice.
+- The whole cast browses from one machine, so from one IP: a rate limit per
+  IP (on sign-in, or 60 requests a minute) counts everybody together, where
+  production counts each person. A setup followed by a replay also signs
+  everybody in twice. Raise the limits in the QA copy; or, when the app
+  trusts a proxy's header, give each person their own address:
+  `context: { extraHTTPHeaders: { 'X-Forwarded-For': '10.0.0.2' } }` in the
+  cast. A test that hits a limit may also be a finding: an app that makes
+  dozens of requests for one screen.
+- The project installs with its own package manager: npm, pnpm, yarn or
+  bun, whichever its lockfile (or `packageManager`) says, also a
+  workspace's lockfile above the config. `doctor` names it and heals
+  `node_modules`. `--in-docker` installs with npm: it needs a
+  `package-lock.json` beside the config.
 - Two copies of `@playwright/test` refuse to run together: the package
   never imports Playwright itself, the project hands its own over (the
   fixtures file does).

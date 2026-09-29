@@ -15,7 +15,7 @@ Agents write and run the multi-user tests; people watch every screen and judge.<
 > developer do not write tests: they watch each person's screen, step by
 > step, and pin a note on whatever is wrong for the agent to fix.
 
-<p align="center"><img src="https://raw.githubusercontent.com/iban-borras/qa-cockpit/main/docs/images/cockpit-table.webp" alt="The cockpit after a run: one card per person, each with their own screen at the same moment of the story, and a timeline over every step" width="900"></p>
+<p align="center"><a href="https://github.com/user-attachments/assets/ade8aadc-df35-4c92-b7da-d0cec8c1caab"><img src="https://raw.githubusercontent.com/iban-borras/qa-cockpit/main/docs/images/demo-poster.webp" alt="Vibe testing: the 39-second demo of QA Cockpit. Click to watch it." width="900"></a></p>
 
 **How it goes**
 
@@ -36,6 +36,8 @@ collaborative app happens *between* people: Alice sends, Bob must see it
 arrive; a host opens a session, three players must be let in. Those are the
 tests people used to click through by hand, and the ones QA Cockpit hands
 to agents.
+
+<p align="center"><img src="https://raw.githubusercontent.com/iban-borras/qa-cockpit/main/docs/images/cockpit-table.webp" alt="The cockpit after a run: one card per person, each with their own screen at the same moment of the story, and a timeline over every step" width="900"></p>
 
 ## What you get
 
@@ -67,7 +69,7 @@ to agents.
   agent how to configure the project, run, record and heal, and points the
   repo's `AGENTS.md` at it.
 - **`--in-docker`**: Playwright in the official image of the pinned version,
-  the same browser and fonts on any machine.
+  the same browser and fonts on any machine (npm projects).
 
 <p align="center"><img src="https://raw.githubusercontent.com/iban-borras/qa-cockpit/main/docs/images/cockpit-suites.webp" alt="The suite picker: every suite with where it stands, ready to run, needing a new recording, or with no setup yet" width="900"></p>
 
@@ -92,6 +94,9 @@ npx qa-cockpit init            # writes ./qa: config, fixtures, suites, SKILL.md
 cd qa && npm install && npx playwright install chromium
 ```
 
+npm, pnpm, yarn or bun: QA Cockpit installs with the one your lockfile
+says, and heals `node_modules` when it falls behind.
+
 Then make `qa/qa-cockpit.config.mjs` true for your app, or ask your agent:
 *«Set QA Cockpit up for this project following qa/SKILL.md»*. Run
 `npx qa-cockpit doctor` until everything says ok.
@@ -103,7 +108,7 @@ The config is the whole contract between your app and the cockpit:
 | `base` | `import.meta.url`: paths in the config are relative to its file |
 | `name`, `root` | the app's name; the repo's root, for the paths shown to people and agents |
 | `paths` | where the suites, recordings, setups, output and saved sessions live |
-| `cast` | the people of every suite: `{ alice: { name, email, password, badge, device } }` |
+| `cast` | the people of every suite: `{ alice: { name, email, password, badge, device, context } }`, `context` being Playwright's browser options for that person alone (a locale, a time zone, headers) |
 | `stack` | a copy of the app that tests may break: `composeStack(...)`, `processStack(...)`, or your own `urls()`, `up`, `down`, `reset`, `guard` |
 | `signIn({ page, person })` | the app's real sign-in; the package saves the session |
 | `sessions` | how long a saved session stays fresh; who has an account |

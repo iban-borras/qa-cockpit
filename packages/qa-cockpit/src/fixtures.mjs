@@ -25,7 +25,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { resolveConfig } from './config.mjs';
-import { deviceFor, deviceLabel } from './devices.mjs';
+import { contextOptions, deviceFor, deviceLabel } from './devices.mjs';
 import * as cockpit from './worker.mjs';
 
 /**
@@ -43,7 +43,7 @@ export function cockpitFixtures(base, rawConfig) {
     if (!fs.existsSync(state)) {
       throw new Error(`No saved session for ${id} (${state}). Run: ${config.cli} setup <suite>`);
     }
-    return browser.newContext({ ...device.context, storageState: state });
+    return browser.newContext({ ...contextOptions(config, id, device), storageState: state });
   }
 
   const person = (id) =>
