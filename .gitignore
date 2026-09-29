@@ -3,3 +3,4 @@ node_modules/
 .qa-cockpit/
 test-results/
 *.log
+docs/video/

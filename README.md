@@ -16,7 +16,7 @@ Agents write and run the multi-user tests; people watch every screen and judge.<
 > developer do not write tests: they watch each person's screen, step by
 > step, and pin a note on whatever is wrong for the agent to fix.
 
-<p align="center"><img src="docs/images/cockpit-table.webp" alt="The cockpit after a run: one card per person, each with their own screen at the same moment of the story, and a timeline over every step" width="900"></p>
+https://github.com/user-attachments/assets/ade8aadc-df35-4c92-b7da-d0cec8c1caab
 
 **How it goes**
 
@@ -37,6 +37,8 @@ collaborative app happens *between* people: Alice sends, Bob must see it
 arrive; a host opens a session, three players must be let in. Those are the
 tests people used to click through by hand, and the ones QA Cockpit hands
 to agents.
+
+<p align="center"><img src="docs/images/cockpit-table.webp" alt="The cockpit after a run: one card per person, each with their own screen at the same moment of the story, and a timeline over every step" width="900"></p>
 
 ## What you get
 
