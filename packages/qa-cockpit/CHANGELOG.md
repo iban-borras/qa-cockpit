@@ -18,6 +18,32 @@ From the first project to use QA Cockpit outside CritKeep:
   reports keep whatever the screens show, so made-up data beats a copy of
   production.
 - The npm README opens with the demo video's poster, linking to it.
+- `video <suite>`: a demo video of a green suite, from its real screens.
+  Each person's page is captured by a CDP screencast of its own, at the
+  page's size (the trace's is 800×450, Playwright's video 1 Mbit/s VP8,
+  neither adjustable), then drawn in the project's Chromium: a macOS
+  cursor gliding to each control, a ripple and a tic on each press, a
+  subtitle per step from the suite, a card per test, generated music, and
+  the narration a video script names (`video script <suite>`), the music
+  ducking under it. `--motion` plays it in real time with the app's
+  animations on and the people paced like people; `--clips` adds each step
+  of each person as it played, at 60 fps, with the pointer's path as JSON.
+  Every video comes with a contact sheet to check. `video render` draws a
+  capture again; `video check` says what is missing (ffmpeg). In a video's
+  run, the trace keeps its snapshots but not its screenshots, and the
+  cockpit's live view shares the capture's frames: two screencasts on one
+  page starve each other. New config keys: `video`, `paths.videos`. The
+  skill tells agents to make one only when asked, after checking they can.
+- A video's cover shows the app itself: the end of the step that shows most
+  of it rises from the bottom in a flat browser, a phone beside it when
+  somebody plays on one, and rests under the title. Whatever enters a card
+  slides in and slows down to rest, one element after the other, and each
+  subtitle rises into place: nothing stops dead.
+- `video voices <suite>`: a script's narration in the system's own voice
+  (Windows' System.Speech, macOS's `say`, espeak-ng on Linux), offline,
+  for when no voice service is at hand. The skill says the order: a voice
+  service among the agent's tools, with the person's yes (it spends their
+  credits); else the system's voice, as a draft; else subtitles alone.
 
 ## 0.3.0 (2026-09-27)
 

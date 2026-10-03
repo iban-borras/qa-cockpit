@@ -301,6 +301,16 @@ async function pollWatch() {
   }
   for (const [actor, entry] of pages) {
     const want = watched.includes(actor);
+    if (entry.shared) {
+      // A video's capture paints this person already: its frames, not a
+      // screencast of our own (two on one page starve each other).
+      if (want && !entry.watched && entry.lastShared) {
+        entry.latest = entry.lastShared;
+        sendLive(actor, entry);
+      }
+      entry.watched = want;
+      continue;
+    }
     if (want && !entry.cdp) await startLive(actor, entry);
     else if (!want && entry.cdp) await stopLive(entry);
   }
@@ -326,6 +336,24 @@ async function startLive(actor, entry) {
   } catch {
     entry.cdp = undefined;
   }
+}
+
+/** This person's frames come from a video's capture (fixtures.mjs). */
+export function sharedFrames(actor) {
+  const entry = pages.get(actor);
+  if (entry) entry.shared = true;
+}
+
+/** A frame of the video's capture: the live view's, while somebody watches. */
+export function liveFrame(actor, frame) {
+  const entry = pages.get(actor);
+  if (!entry) return;
+  entry.lastShared = frame;
+  if (!entry.watched) return;
+  entry.latest = frame;
+  const wait = LIVE_INTERVAL_MS - (Date.now() - entry.lastSent);
+  if (wait <= 0) sendLive(actor, entry);
+  else if (!entry.timer) entry.timer = setTimeout(() => sendLive(actor, entry), wait);
 }
 
 function sendLive(actor, entry) {

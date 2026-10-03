@@ -26,6 +26,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { resolveConfig } from './config.mjs';
 import { contextOptions, deviceFor, deviceLabel } from './devices.mjs';
+import * as video from './video/capture.mjs';
 import * as cockpit from './worker.mjs';
 
 /**
@@ -52,9 +53,15 @@ export function cockpitFixtures(base, rawConfig) {
       const context = await contextFor(browser, id, device);
       const page = await context.newPage();
       await cockpit.register(id, page, deviceLabel(device));
+      // For `qa-cockpit video` (video/capture.mjs): the page's own frames,
+      // which the cockpit's live view then shares: two screencasts on one
+      // page starve each other.
+      await video.startCapture(id, page, device, (frame) => cockpit.liveFrame(id, frame));
+      if (video.capturing(page)) cockpit.sharedFrames(id);
       try {
         await use(page);
       } finally {
+        await video.stopCapture(page);
         await cockpit.unregister(id);
         await context.close();
       }
@@ -77,7 +84,9 @@ export function cockpitFixtures(base, rawConfig) {
   // `test.step`; only this wrapper knows. The step's location is passed on
   // so reports still point at the recording's line, not at this file.
   // Without COCKPIT_URL nothing is wrapped and a replay runs as it always did.
-  if (cockpit.enabled) {
+  // A video's run (video/capture.mjs) wraps them too: it notes when each
+  // step began and ended, on the clock of its frames.
+  if (cockpit.enabled || video.enabled) {
     const plainStep = extended.step;
     const withPhotos = async (title, body, options = {}) => {
       const location = options.location ?? cockpit.callerLocation();
@@ -94,6 +103,17 @@ export function cockpitFixtures(base, rawConfig) {
           const began = Date.now();
           try {
             const result = await body(info);
+            if (video.enabled) {
+              await video.settleAll();
+              video.stepRecorded({
+                test: testInfo.title,
+                title,
+                began,
+                ended: Date.now(),
+                people: cockpit.peopleIn(title),
+                urls: video.pageUrls(),
+              });
+            }
             const soft = testInfo.errors.slice(softBefore);
             if (soft.length) {
               const error = new Error(soft.map((e) => e.message ?? String(e.value ?? '')).join('\n\n'));

@@ -42,6 +42,18 @@ export function playwrightConfig(rawConfig, overrides = {}) {
     ...(config.paths.smoke ? [rel(config.paths.smoke)] : []),
   ];
   const { use: extraUse, ...rest } = overrides;
+  // A video's run (`qa-cockpit video`, video/capture.mjs) brings its own
+  // screencast per person. The trace's and Playwright's video would be two
+  // more on the same page, and they starve each other: measured, the trace
+  // got half its frames, late. The trace keeps its DOM snapshots, the part
+  // that serves to debug. In «motion» the app's animations are what the
+  // video is for.
+  const video = process.env.QA_VIDEO_DIR ? process.env.QA_VIDEO_MODE || 'guide' : null;
+  const trace = video
+    ? { mode: cockpit ? 'on' : 'retain-on-failure', screenshots: false, snapshots: true, sources: true }
+    : cockpit
+      ? 'on'
+      : 'retain-on-failure';
   return {
     testDir,
     testMatch,
@@ -67,10 +79,10 @@ export function playwrightConfig(rawConfig, overrides = {}) {
       timezoneId: config.browser.timezoneId,
       // An app that honours this preference turns its animations off: no
       // entrance animation to wait out, and photos come out settled.
-      reducedMotion: config.browser.reducedMotion,
-      trace: cockpit ? 'on' : 'retain-on-failure',
+      reducedMotion: video === 'motion' ? 'no-preference' : config.browser.reducedMotion,
+      trace,
       screenshot: 'only-on-failure',
-      video: 'retain-on-failure',
+      video: video ? 'off' : 'retain-on-failure',
       ...config.playwright.use,
       ...extraUse,
     },

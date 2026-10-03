@@ -29,6 +29,7 @@ without a person beside it.
 | `src/stackdata.mjs` | what the stack's data is now: the setup of which suite, or spent by a replay |
 | `src/detach.mjs`, `src/desktop.mjs` | `cockpit --detach`: the cockpit started for a person, on their desktop, outliving whoever asked |
 | `src/notes.mjs` | the notes pinned on a run's photos, and their Markdown |
+| `src/video/` | `video`: the capture in a run (`capture.mjs`), the plan of a video (`plan.mjs`), its drawing on a Chromium stage and its encoding (`render.mjs`; the design is `stage.html`), its sound (`audio.mjs`), its script (`script.mjs`), the system's voice (`voices.mjs`) |
 | `src/server/server.mjs` | the cockpit's server: the runs, the API, the files it serves |
 | `src/server/public/` | the cockpit's page: `cockpit.js`, `cockpit.css`, `i18n.js` |
 | `src/docker/` | `--in-docker`: Playwright in the official image |

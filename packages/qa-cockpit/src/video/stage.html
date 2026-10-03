@@ -1,0 +1,446 @@
+<!doctype html>
+<!--
+  The stage of a video (render.mjs): Chromium draws every frame of it here,
+  from a state the plan computes (plan.mjs), and the renderer takes a
+  picture. Text, the cursor and the ripples come out antialiased because a
+  browser draws them, at whatever sub-pixel position they fall.
+
+  How it moves: nothing that moves stops dead. Whatever enters slides in and
+  slows down to rest (ease-out), one element a beat after the other; what
+  leaves fades. The cursor alone eases in and out, as a hand does.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  :root {
+    --bg: #141a26;
+    --band: #0d121b;
+    --accent: #5b9dff;
+    --text: #f4f6fa;
+    --muted: #a9b3c4;
+    --font: "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  }
+  html, body {
+    margin: 0;
+    width: 1280px;
+    height: 840px;
+    overflow: hidden;
+    background: var(--bg);
+    font-family: var(--font);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: geometricPrecision;
+  }
+
+  /* The layers, bottom to top. #stage is its own stacking context, so the
+     grain under its screens never climbs over the cursor. */
+  #stage, #overlay, #band, #card, #black { position: absolute; left: 0; top: 0; width: 1280px; }
+  #stage { z-index: 0; height: 720px; overflow: hidden; background: var(--bg); }
+  #overlay { z-index: 1; height: 720px; overflow: hidden; pointer-events: none; }
+  #band { z-index: 2; }
+  #card { z-index: 3; }
+  #black { z-index: 4; height: 840px; background: #000; opacity: 0; }
+
+  /* A dark gradient in 8 bits, then in video, comes out in rings. A grain
+     too fine to see breaks them; it does not move, so it costs no bitrate. */
+  #stage::after, #card::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.06;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='240' height='240' filter='url(%23n)'/></svg>");
+  }
+
+  /* ── the screens ── */
+  .panel {
+    position: absolute;
+    z-index: 1;
+    overflow: hidden;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.07);
+  }
+  .panel.bleed { border-radius: 0; box-shadow: none; }
+  .panel img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .panel.empty { background: color-mix(in srgb, var(--bg) 70%, #fff); }
+  .label {
+    position: absolute;
+    z-index: 1;
+    transform: translate(-50%, -100%);
+    margin-top: -10px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.09);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+  }
+  .cursor { position: absolute; left: 0; top: 0; will-change: transform; }
+  .cursor svg { display: block; overflow: visible; filter: drop-shadow(0 1.5px 2.2px rgba(0, 0, 0, 0.38)); }
+  .ripple { position: absolute; left: 0; top: 0; border-radius: 50%; box-sizing: border-box; will-change: transform; }
+
+  /* ── the subtitle ── */
+  #band {
+    top: 720px;
+    height: 120px;
+    box-sizing: border-box;
+    padding: 0 56px;
+    background: var(--band);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  #words { display: flex; flex-direction: column; gap: 7px; will-change: transform; }
+  #line { color: var(--text); font-size: 26px; font-weight: 500; line-height: 1.24; }
+  #line .who { color: var(--accent); font-weight: 700; }
+  #sees { color: var(--muted); font-size: 19px; line-height: 1.3; }
+  #sees .tag {
+    color: var(--accent);
+    opacity: 0.9;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    margin-right: 10px;
+    position: relative;
+    top: -1px;
+  }
+
+  /* ── the cards ── */
+  #card {
+    height: 840px;
+    overflow: hidden;
+    display: none;
+    color: var(--text);
+    background:
+      radial-gradient(1100px 640px at 50% 38%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%),
+      var(--bg);
+  }
+  #card .inner {
+    position: absolute;
+    z-index: 1;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 840px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    text-align: center;
+    padding: 0 120px;
+    box-sizing: border-box;
+  }
+  #card.has-hero .inner { height: 392px; gap: 14px; padding-top: 18px; }
+  #card .logo { max-height: 76px; max-width: 360px; margin-bottom: 18px; }
+  #card.has-hero .logo { max-height: 54px; margin-bottom: 6px; }
+  #card .tag {
+    color: var(--accent);
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+  #card .title { font-size: 54px; font-weight: 700; line-height: 1.1; letter-spacing: -0.015em; }
+  #card.test .title { font-size: 46px; }
+  #card.has-hero .title { font-size: 50px; }
+  #card .subtitle { color: var(--muted); font-size: 25px; line-height: 1.35; }
+  #card .rule { width: 72px; height: 4px; border-radius: 2px; background: var(--accent); margin: 6px 0 4px; }
+  #card .product { position: absolute; z-index: 1; left: 0; right: 0; bottom: 44px; text-align: center; color: var(--muted); font-size: 17px; letter-spacing: 0.04em; }
+  #card .hero { position: absolute; z-index: 1; inset: 0; }
+
+  /* The cover's screens: a flat browser, a flat phone. */
+  .browser {
+    position: absolute;
+    border-radius: 14px;
+    overflow: hidden;
+    background: #fff;
+    box-shadow: 0 44px 90px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.10);
+    will-change: transform;
+  }
+  .browser .bar { position: relative; height: 40px; background: #eef1f6; display: flex; align-items: center; gap: 8px; padding: 0 16px; box-shadow: inset 0 -1px 0 #dde2ea; }
+  .browser .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .browser .dot.r { background: #ff5f57; }
+  .browser .dot.y { background: #febc2e; }
+  .browser .dot.g { background: #28c840; }
+  .browser .address {
+    position: absolute;
+    left: 50%;
+    top: 8px;
+    transform: translateX(-50%);
+    width: 46%;
+    height: 24px;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: inset 0 0 0 1px #e1e6ee;
+    color: #5d6675;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .browser img, .phone img { display: block; }
+  .phone {
+    position: absolute;
+    box-sizing: content-box;
+    padding: 30px 11px 13px;
+    border-radius: 44px;
+    background: #0e131c;
+    box-shadow: 0 44px 90px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.12);
+    will-change: transform;
+  }
+  .phone .speaker { position: absolute; left: 50%; top: 12px; width: 62px; height: 6px; margin-left: -31px; border-radius: 3px; background: #2a3140; }
+  .phone img { border-radius: 30px; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div id="overlay"></div>
+<div id="band"><div id="words"><div id="line"></div><div id="sees"></div></div></div>
+<div id="card"><div class="inner"></div><div class="hero"></div><div class="product"></div></div>
+<div id="black"></div>
+<script>
+  // The macOS pointer: black, a white rim, a soft shadow. The tip is (3, 2).
+  const ARROW = `<svg width="26" height="30" viewBox="0 0 26 30"><path d="M3 2 L3 21.2 L7.9 16.6 L11.1 23.9 L14.3 22.5 L11.1 15.3 L17.8 15.3 Z" fill="#000" stroke="#fff" stroke-width="1.7" stroke-linejoin="round"/></svg>`;
+  // The text cursor: an I-beam, its centre at (8, 12).
+  const IBEAM = `<svg width="16" height="24" viewBox="0 0 16 24"><g fill="none" stroke-linecap="round"><path d="M4.5 3.2c2 0 3.5.7 3.5 2.3 0-1.6 1.5-2.3 3.5-2.3M8 5.5v13M4.5 20.8c2 0 3.5-.7 3.5-2.3 0 1.6 1.5 2.3 3.5 2.3M5.8 12h4.4" stroke="#fff" stroke-width="3.6"/><path d="M4.5 3.2c2 0 3.5.7 3.5 2.3 0-1.6 1.5-2.3 3.5-2.3M8 5.5v13M4.5 20.8c2 0 3.5-.7 3.5-2.3 0 1.6 1.5 2.3 3.5 2.3M5.8 12h4.4" stroke="#000" stroke-width="1.5"/></g></svg>`;
+  // A fingertip on a touch screen: its centre at (22, 22).
+  const TOUCH = `<svg width="44" height="44" viewBox="0 0 44 44"><circle cx="22" cy="22" r="17" fill="rgba(255,255,255,0.42)" stroke="rgba(20,26,38,0.35)" stroke-width="2"/><circle cx="22" cy="22" r="7" fill="rgba(20,26,38,0.18)"/></svg>`;
+  const HOT = { arrow: [3, 2], ibeam: [8, 12], touch: [22, 22] };
+  const LOCK = `<svg width="11" height="12" viewBox="0 0 11 12"><rect x="1" y="5" width="9" height="6.5" rx="1.6" fill="#8a93a3"/><path d="M3 5.2V3.8a2.5 2.5 0 0 1 5 0v1.4" fill="none" stroke="#8a93a3" stroke-width="1.5"/></svg>`;
+
+  // Motion: things arrive fast and slow down to rest.
+  const clamp01 = (x) => Math.max(0, Math.min(1, x));
+  const easeOutCubic = (x) => 1 - (1 - clamp01(x)) ** 3;
+  const easeOutQuint = (x) => 1 - (1 - clamp01(x)) ** 5;
+  const easeInQuad = (x) => clamp01(x) ** 2;
+
+  // Each element of a card: when it starts (s), how long it travels (s),
+  // from how far below (px). The cover's screens come from much further,
+  // and settle longer.
+  const ENTER = {
+    logo: { delay: 0.1, dur: 0.95, dist: 18 },
+    tag: { delay: 0.14, dur: 0.95, dist: 20 },
+    title: { delay: 0.22, dur: 1.05, dist: 28 },
+    rule: { delay: 0.36, dur: 0.85 },
+    subtitle: { delay: 0.44, dur: 1.0, dist: 22 },
+    browser: { delay: 0.55, dur: 1.6, dist: 560 },
+    phone: { delay: 0.75, dur: 1.6, dist: 620 },
+  };
+  const EXIT = 0.45;
+
+  const stage = document.getElementById('stage');
+  const overlay = document.getElementById('overlay');
+  const words = document.getElementById('words');
+  const line = document.getElementById('line');
+  const sees = document.getElementById('sees');
+  const cardEl = document.getElementById('card');
+  const inner = cardEl.querySelector('.inner');
+  const hero = cardEl.querySelector('.hero');
+  const product = cardEl.querySelector('.product');
+  const black = document.getElementById('black');
+  const panels = [];
+  const labels = [];
+  let lastSubtitle = '';
+  let lastCard = '';
+
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+  window.setTheme = (theme) => {
+    const root = document.documentElement.style;
+    for (const [k, v] of Object.entries(theme.colors ?? {})) root.setProperty(`--${k}`, v);
+    if (theme.font) root.setProperty('--font', theme.font);
+  };
+
+  /** A text in a box of `max` px high: smaller until it fits. */
+  function fit(el, sizes, max) {
+    for (const size of sizes) {
+      el.style.fontSize = `${size}px`;
+      if (el.scrollHeight <= max) return;
+    }
+  }
+
+  async function setImage(panel, src) {
+    if (panel.dataset.src === (src ?? '')) return;
+    panel.dataset.src = src ?? '';
+    panel.classList.toggle('empty', !src);
+    if (!src) {
+      panel.img.removeAttribute('src');
+      return;
+    }
+    const next = new Image();
+    next.src = src;
+    try {
+      await next.decode();
+    } catch {
+      return; // a frame that cannot be read: the previous one stays
+    }
+    panel.replaceChild(next, panel.img);
+    panel.img = next;
+  }
+
+  /** The cover's screens: where each goes, at rest. One browser, one phone, or both side by side. */
+  function heroHTML(list) {
+    const browser = list.find((h) => h.kind === 'browser');
+    const phone = list.find((h) => h.kind === 'phone');
+    let html = '';
+    if (browser) {
+      const w = phone ? 820 : 900;
+      const left = phone ? 118 : (1280 - w) / 2;
+      const h = Math.round((w * browser.vh) / browser.vw);
+      html += `<div class="browser" data-enter="browser" style="left:${left}px;top:400px;width:${w}px">
+        <div class="bar"><i class="dot r"></i><i class="dot y"></i><i class="dot g"></i>
+        <div class="address">${browser.address ? `${LOCK}<span>${esc(browser.address)}</span>` : ''}</div></div>
+        <img src="${esc(browser.src)}" style="width:${w}px;height:${h}px"></div>`;
+    }
+    if (phone) {
+      const w = browser ? 262 : 300;
+      const h = Math.round((w * phone.vh) / phone.vw);
+      const left = browser ? 870 : (1280 - w - 22) / 2;
+      const top = browser ? 366 : 388;
+      html += `<div class="phone" data-enter="phone" style="left:${left}px;top:${top}px;width:${w}px">
+        <i class="speaker"></i><img src="${esc(phone.src)}" style="width:${w}px;height:${h}px"></div>`;
+    }
+    return html;
+  }
+
+  /** Every element of the card where it is at `t` seconds, and on its way out in the last `out` seconds. */
+  function moveCard(c) {
+    const t = c.t ?? 10;
+    for (const el of cardEl.querySelectorAll('[data-enter]')) {
+      const m = ENTER[el.dataset.enter];
+      const k = (t - m.delay) / m.dur;
+      el.style.opacity = clamp01((t - m.delay) / Math.min(0.5, m.dur * 0.55));
+      if (el.dataset.enter === 'rule') {
+        el.style.transform = `scaleX(${easeOutCubic(k).toFixed(4)})`;
+      } else {
+        const curve = m.dist > 100 ? easeOutQuint : easeOutCubic;
+        el.style.transform = `translate3d(0, ${((1 - curve(k)) * m.dist).toFixed(2)}px, 0)`;
+      }
+    }
+    // Leaving for another card: what is on it fades, rising a touch.
+    const q = c.out == null ? 0 : 1 - clamp01(c.out / EXIT);
+    for (const wrap of [inner, hero, product]) {
+      wrap.style.opacity = 1 - easeInQuad(q);
+      wrap.style.transform = q ? `translate3d(0, ${(-12 * easeInQuad(q)).toFixed(2)}px, 0)` : '';
+    }
+  }
+
+  window.draw = async (state) => {
+    // The screens.
+    const want = state.panels ?? [];
+    while (panels.length < want.length) {
+      const el = document.createElement('div');
+      el.className = 'panel';
+      el.img = document.createElement('img');
+      el.appendChild(el.img);
+      stage.appendChild(el);
+      panels.push(el);
+      const label = document.createElement('div');
+      label.className = 'label';
+      stage.appendChild(label);
+      labels.push(label);
+    }
+    await Promise.all(
+      panels.map(async (el, i) => {
+        const p = want[i];
+        el.style.display = p ? 'block' : 'none';
+        labels[i].style.display = p && p.label ? 'block' : 'none';
+        if (!p) return;
+        el.classList.toggle('bleed', Boolean(p.bleed));
+        Object.assign(el.style, { left: `${p.x}px`, top: `${p.y}px`, width: `${p.w}px`, height: `${p.h}px` });
+        if (p.label) {
+          labels[i].textContent = p.label;
+          Object.assign(labels[i].style, { left: `${p.x + p.w / 2}px`, top: `${p.y}px` });
+        }
+        await setImage(el, p.src);
+      }),
+    );
+
+    // The cursors and the ripples.
+    let html = '';
+    for (const r of state.ripples ?? []) {
+      const e = 1 - (1 - r.p) ** 3;
+      const radius = 7 + 27 * e;
+      const ring = 0.9 * (1 - r.p) ** 1.4;
+      const dot = Math.max(0, 0.45 * (1 - r.p * 2.2));
+      html += `<div class="ripple" style="width:${radius * 2}px;height:${radius * 2}px;transform:translate(${r.x - radius}px,${r.y - radius}px);border:${2.5 + 1.5 * (1 - r.p)}px solid var(--accent);opacity:${ring}"></div>`;
+      if (dot > 0) html += `<div class="ripple" style="width:16px;height:16px;transform:translate(${r.x - 8}px,${r.y - 8}px);background:var(--accent);opacity:${dot}"></div>`;
+    }
+    for (const c of state.cursors ?? []) {
+      const [hx, hy] = HOT[c.shape] ?? HOT.arrow;
+      const svg = c.shape === 'ibeam' ? IBEAM : c.shape === 'touch' ? TOUCH : ARROW;
+      html += `<div class="cursor" style="transform:translate(${c.x - hx}px,${c.y - hy}px);opacity:${c.opacity ?? 1}">${svg}</div>`;
+    }
+    overlay.innerHTML = html;
+
+    // The subtitle: a new one rises into place and settles.
+    const s = state.subtitle;
+    const key = s ? JSON.stringify({ ...s, age: 0 }) : '';
+    if (key !== lastSubtitle) {
+      lastSubtitle = key;
+      line.innerHTML = s ? `${s.who ? `<span class="who">${esc(s.who)}</span>: ` : ''}${esc(s.text)}` : '';
+      sees.innerHTML = s && s.sees ? `<span class="tag">${esc(s.seesLabel)}</span>${esc(s.sees)}` : '';
+      sees.style.display = s && s.sees ? 'block' : 'none';
+      fit(line, [26, 23, 20, 18], s && s.sees ? 66 : 96);
+      fit(sees, [19, 17, 15], 26);
+    }
+    const age = s?.age ?? 1;
+    words.style.opacity = clamp01(age / 0.3);
+    words.style.transform = `translate3d(0, ${((1 - easeOutCubic(age / 0.55)) * 12).toFixed(2)}px, 0)`;
+
+    // A card over everything.
+    const c = state.card;
+    if (c) {
+      const ckey = JSON.stringify({ ...c, t: 0, out: 0, opacity: 0 });
+      if (ckey !== lastCard) {
+        lastCard = ckey;
+        const heroes = c.hero ?? [];
+        cardEl.className = `${c.kind}${heroes.length ? ' has-hero' : ''}`;
+        inner.innerHTML = [
+          c.logo && c.kind !== 'test' ? `<img class="logo" data-enter="logo" src="${esc(c.logo)}">` : '',
+          c.tag ? `<div class="tag" data-enter="tag">${esc(c.tag)}</div>` : '',
+          `<div class="title" data-enter="title">${esc(c.title)}</div>`,
+          c.kind !== 'test' ? '<div class="rule" data-enter="rule"></div>' : '',
+          c.subtitle ? `<div class="subtitle" data-enter="subtitle">${esc(c.subtitle)}</div>` : '',
+        ].join('');
+        hero.innerHTML = heroHTML(heroes);
+        product.textContent = c.footer ?? '';
+        await Promise.all([...cardEl.querySelectorAll('img')].map((i) => i.decode().catch(() => {})));
+      }
+      cardEl.style.display = 'block';
+      cardEl.style.opacity = c.opacity ?? 1;
+      moveCard(c);
+    } else {
+      cardEl.style.display = 'none';
+    }
+    black.style.opacity = state.fade ?? 0;
+  };
+
+  /** The contact sheet: the moments to check, with what each should show. */
+  window.sheet = async (items, columns) => {
+    document.body.innerHTML = '';
+    Object.assign(document.body.style, { height: 'auto', overflow: 'visible', padding: '24px', boxSizing: 'border-box', color: 'var(--text)' });
+    document.documentElement.style.height = 'auto';
+    const grid = document.createElement('div');
+    Object.assign(grid.style, { display: 'grid', gridTemplateColumns: `repeat(${columns}, 1fr)`, gap: '18px' });
+    for (const item of items) {
+      const fig = document.createElement('figure');
+      fig.style.margin = '0';
+      fig.innerHTML = `<img src="${esc(item.src)}" style="width:100%;display:block;border-radius:6px"><figcaption style="font-size:14px;margin-top:6px;color:var(--muted)">${esc(item.caption)}</figcaption>`;
+      grid.appendChild(fig);
+    }
+    document.body.appendChild(grid);
+    await Promise.all([...document.images].map((i) => i.decode().catch(() => {})));
+  };
+</script>
+</body>
+</html>

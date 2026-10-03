@@ -71,6 +71,9 @@ to agents.
   repo's `AGENTS.md` at it.
 - **`--in-docker`**: Playwright in the official image of the pinned version,
   the same browser and fonts on any machine (npm projects).
+- **Demo videos of the suites**: the app's real screens with a cursor,
+  subtitles, cards, music and, if you want, a narration; or in real time
+  with its animations. Made again in minutes when the app changes (below).
 
 <p align="center"><img src="docs/images/cockpit-suites.webp" alt="The suite picker: every suite with where it stands, ready to run, needing a new recording, or with no setup yet" width="900"></p>
 
@@ -108,7 +111,7 @@ The config is the whole contract between your app and the cockpit:
 |---|---|
 | `base` | `import.meta.url`: paths in the config are relative to its file |
 | `name`, `root` | the app's name; the repo's root, for the paths shown to people and agents |
-| `paths` | where the suites, recordings, setups, output and saved sessions live |
+| `paths` | where the suites, recordings, setups, video scripts, output and saved sessions live |
 | `cast` | the people of every suite: `{ alice: { name, email, password, badge, device, context } }`, `context` being Playwright's browser options for that person alone (a locale, a time zone, headers) |
 | `stack` | a copy of the app that tests may break: `composeStack(...)`, `processStack(...)`, or your own `urls()`, `up`, `down`, `reset`, `guard` |
 | `signIn({ page, person })` | the app's real sign-in; the package saves the session |
@@ -119,10 +122,46 @@ The config is the whole contract between your app and the cockpit:
 | `cockpit`, `cli` | the cockpit's port and language; how the project runs the CLI |
 | `commands` | commands of your own, next to the built-in ones |
 | `report` | notes the run report should carry |
+| `video` | how demo videos look: the product's name, each person's role, a logo, the colours, the address on the cover, the subtitles' words, the music, where ffmpeg is |
 
 Two copies of `@playwright/test` refuse to run together, so the package
 never imports Playwright itself: your project hands its own over, in
 `fixtures.mjs` and `playwright.config.mjs`, which `init` writes for you.
+
+## Demo videos, from the same suites
+
+A green suite already says who does what and what each person must see. QA
+Cockpit turns it into a video that shows the app to people, with nothing
+filmed and nothing edited by hand. Ask your agent: *«Make a demo video of
+the chat suite»*.
+
+- **Guide** (`video <suite>`), for training. A cover with the app itself
+  rising in a flat browser (and a phone, when somebody plays on one). Then,
+  before each press, the screen as it was, a macOS cursor gliding to the
+  control, a ripple and a soft tic; then the screen after. A subtitle per
+  step in the suite's own words, held as long as it takes to read; a card
+  per test; quiet music made on the spot. Nothing stops dead: what enters
+  slows down to rest.
+- **Narrated.** A video script (`video script <suite>`) with a narration
+  per step, its audio made by any text-to-speech your agent can call
+  (ElevenLabs, for one), or by the system's own voice (`video voices`).
+  Each step lasts what its voice does, and the music steps back while it
+  speaks.
+- **Motion** (`--motion`), for a richer demo. The app's animations on, the
+  pointer moved like a hand (hover effects and all), text typed key by key,
+  every frame the page painted, the still moments cut short.
+- **Clips** (`--clips`), for a designer who edits the final cut. Each step
+  of each person as it really played, at 60 fps, with nothing drawn on it,
+  and the pointer's path beside it as JSON, to draw a cursor of their own.
+
+The result is a 1280×840 MP4 (H.264 and AAC) for the web, and a contact
+sheet with every press and every step's end, to check before it is shown.
+It needs ffmpeg; `video check` says what is missing. When the app changes,
+the same command makes it again.
+
+Agents make one only when asked, and check first that they can: a video is
+done when somebody has looked at its contact sheet, so an agent that cannot
+see images says so instead.
 
 ## Commands
 
@@ -141,6 +180,11 @@ mcp                               .mcp.json: one Playwright MCP server per perso
 cockpit [--port p] [--no-open]    the cockpit
 cockpit --detach | --restart      the cockpit for a person, outliving whoever asked
 notes [run] [--list]              the notes pinned on a run's photos, as Markdown
+video <suite> [--motion|--clips]  a demo video: reset, setup, recording, drawn
+video render [capture]            the last capture drawn again (a new narration)
+video script <suite>              a first video script, in the suite's words
+video voices <suite> [--list]     its narration in the system's own voice
+video check                       what a video needs from this machine
 lock | unlock                     who holds the stack
 doctor                            what this machine and this config lack
 init [folder] [--claude]          a new project folder, from the templates

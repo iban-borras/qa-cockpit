@@ -57,6 +57,9 @@ export function resolveConfig(raw, file) {
     out: at(p.out, '.qa-cockpit/out'),
     state: at(p.state, '.qa-cockpit/state'),
     skill: p.skill ? at(p.skill) : null,
+    // The video scripts (`qa-cockpit video`): one JSON per video, with its
+    // narration's audio beside it.
+    videos: at(p.videos, 'videos'),
     playwrightConfig: p.playwrightConfig ? at(p.playwrightConfig) : null,
   };
 
@@ -129,6 +132,32 @@ export function resolveConfig(raw, file) {
     commands: raw.commands ?? {},
     report: { notes: raw.report?.notes ?? [] },
     playwright: raw.playwright ?? {},
+    // How the demo videos look (video/render.mjs). Everything has a default:
+    // a project that never makes a video never writes this.
+    video: {
+      product: raw.video?.product ?? raw.name ?? path.basename(paths.root),
+      roles: raw.video?.roles ?? {},
+      logo: raw.video?.logo ? at(raw.video.logo) : null,
+      // What the cover's browser shows in its address bar; the page's own
+      // address (scheme left out) when not said.
+      address: raw.video?.address ?? null,
+      colors: {
+        background: '#141a26',
+        band: '#0d121b',
+        accent: '#5b9dff',
+        text: '#f4f6fa',
+        muted: '#a9b3c4',
+        ...(raw.video?.colors ?? {}),
+      },
+      font: raw.video?.font ?? null,
+      labels: {
+        sees: 'Sees',
+        ...(raw.video?.labels ?? {}),
+      },
+      music: raw.video?.music === undefined ? 'generated' : raw.video.music && raw.video.music !== 'generated' ? at(raw.video.music) : raw.video.music,
+      ffmpeg: raw.video?.ffmpeg ?? 'ffmpeg',
+      keep: raw.video?.keep ?? 5,
+    },
   });
   resolved.set(raw, config);
   return config;

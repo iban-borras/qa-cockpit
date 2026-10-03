@@ -69,4 +69,15 @@ export default defineConfig({
   },
 
   browser: { locale: 'en-GB' },
+
+  // Demo videos of the suites (`qa-cockpit video`), if you ever make them:
+  // the product's name on the cards, each person's role on their label, a
+  // logo for a dark background, the colours, the words of the subtitles.
+  // video: {
+  //   product: '{{NAME}}',
+  //   roles: { alice: 'Host', bob: 'Guest' },
+  //   logo: 'brand/logo-on-dark.svg',
+  //   colors: { accent: '#5b9dff' },
+  //   labels: { sees: 'Sees' },
+  // },
 });

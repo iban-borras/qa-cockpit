@@ -388,6 +388,187 @@ export async function runCli(rawConfig, argv) {
       await playwright(['test', testFileArg(file), ...rest.slice(1)]);
     },
 
+    // A demo video of a suite (video/): its recording played again with a
+    // capture of each person's screen, then drawn into a video with a
+    // cursor, subtitles, cards and sound. Only when a person asks for one.
+    async video() {
+      const usage = [
+        `Usage: ${CLI} video <suite> [--motion] [--clips] [--script <file>] [--no-reset] [--out <file>]`,
+        `       ${CLI} video render [<capture> | latest] [--script <file>] [--clips] [--guide | --motion] [--out <file>]`,
+        `       ${CLI} video script <suite> [--force]`,
+        `       ${CLI} video voices <suite> [--script <file>] [--voice <name>] [--force] | video voices --list`,
+        `       ${CLI} video check`,
+      ].join('\n');
+      const sub = rest[0];
+      if (!sub) fail(usage);
+      const flag = (name) => rest.includes(name);
+      const value = (name) => {
+        const i = rest.indexOf(name);
+        if (i === -1) return null;
+        if (!rest[i + 1] || rest[i + 1].startsWith('--')) fail(usage);
+        return rest[i + 1];
+      };
+      const option = (name) => (value(name) ? path.resolve(process.cwd(), value(name)) : null);
+      const videosOut = path.join(P.out, 'videos');
+      const { ffmpegStatus, renderVideo } = await import('./video/render.mjs');
+
+      if (sub === 'check') {
+        // What a video needs from this machine. What it needs from the agent
+        // (eyes, for the contact sheet) only the agent can say.
+        const ff = ffmpegStatus(config);
+        const chromium = chromiumInstalled();
+        console.log(`${ff.ok ? ' ok ' : 'FAIL'}  ffmpeg: ${ff.detail}`);
+        console.log(`${chromium ? ' ok ' : 'FAIL'}  Chromium: ${chromium ? 'installed' : `missing (${CLI} doctor installs it)`}`);
+        // Only for a narration, and only when no voice service is at hand.
+        const { systemSpeech } = await import('./video/voices.mjs');
+        const speech = systemSpeech();
+        console.log(` --   System voice: ${speech ? `${speech} (${CLI} video voices --list)` : 'none (on Linux: espeak-ng)'}`);
+        console.log(`      Video scripts in ${shown(config, P.videos)}; videos in ${shown(config, videosOut)}`);
+        if (!ff.ok || !chromium) process.exitCode = 1;
+        return;
+      }
+
+      // The operating system's own voice for a script's narration, when no
+      // voice service is at hand (video/voices.mjs): each narration without
+      // its audio is spoken into a file beside the script, which then names it.
+      if (sub === 'voices') {
+        const { AUDIO_EXT, listVoices, speakAll, systemSpeech } = await import('./video/voices.mjs');
+        if (!systemSpeech()) fail('This system has no voice: Windows and macOS have one; on Linux, install espeak-ng.');
+        if (flag('--list')) {
+          for (const v of listVoices()) console.log(`${v.name}\t${v.lang}`);
+          return;
+        }
+        const suite = rest[1] && !rest[1].startsWith('--') ? rest[1] : null;
+        const scriptFile = option('--script') ?? (suite ? path.join(P.videos, `${suite}.json`) : null);
+        if (!scriptFile) fail(usage);
+        if (!fs.existsSync(scriptFile)) fail(`No video script ${shown(config, scriptFile)}: ${CLI} video script ${suite ?? '<suite>'} writes one, then its narration.`);
+        const script = JSON.parse(fs.readFileSync(scriptFile, 'utf8'));
+        const lang = script.language ?? config.browser.locale;
+        const dir = path.join(path.dirname(scriptFile), script.suite ?? suite ?? path.basename(scriptFile, '.json'));
+        const todo = [...Object.entries(script.cards ?? {}), ...Object.entries(script.steps ?? {})]
+          .filter(([, entry]) => entry?.narration?.trim() && (!entry.audio || flag('--force')))
+          .map(([key, entry]) => ({ entry, text: entry.narration.trim(), out: path.join(dir, `${key.replace(/[^\w.-]+/g, '-')}${AUDIO_EXT}`) }));
+        if (!todo.length) return console.log('Every narration has its audio already (--force: speak them again).');
+        const voice = speakAll(todo, { voice: value('--voice'), lang });
+        for (const item of todo) item.entry.audio = path.relative(path.dirname(scriptFile), item.out).split(path.sep).join('/');
+        fs.writeFileSync(scriptFile, `${JSON.stringify(script, null, 2)}\n`);
+        console.log(`${todo.length} narrations spoken by ${voice.name}${voice.lang ? ` (${voice.lang})` : ''} into ${shown(config, dir)}; the script names them.`);
+        if (lang && voice.lang && voice.lang.split('-')[0].toLowerCase() !== lang.split('-')[0].toLowerCase()) {
+          console.log(`No voice of this system speaks ${lang}: ${voice.name} did. ${CLI} video voices --list shows them; --voice <name> picks one.`);
+        }
+        return;
+      }
+
+      if (sub === 'script') {
+        const suite = rest[1];
+        if (!suite || !fs.existsSync(path.join(P.suites, `${suite}.md`))) fail(`Usage: ${CLI} video script <suite> [--force]  (a suite in ${shown(config, P.suites)})`);
+        const file = path.join(P.videos, `${suite}.json`);
+        if (fs.existsSync(file) && !flag('--force')) fail(`${shown(config, file)} exists already (--force to start it again).`);
+        const { starterScript } = await import('./video/script.mjs');
+        fs.mkdirSync(P.videos, { recursive: true });
+        fs.writeFileSync(file, `${JSON.stringify(starterScript(config, suite), null, 2)}\n`);
+        console.log(`${shown(config, file)}: every test and step of ${suite}, in the suite's words, no narration yet.`);
+        return;
+      }
+
+      const report = (r) => {
+        console.log(`\nVideo: ${r.out}`);
+        console.log(`Contact sheet: ${r.sheet}`);
+        console.log('  Look at it before showing the video: the cursor on each control, each step ending on its result.');
+        if (r.clips.length) console.log(`Clips: ${path.dirname(r.clips[0])}`);
+        const to = option('--out');
+        if (to) {
+          fs.mkdirSync(path.dirname(to), { recursive: true });
+          fs.copyFileSync(r.out, to);
+          console.log(`Copied to ${to}`);
+        }
+      };
+
+      if (sub === 'render') {
+        const named = rest[1] && !rest[1].startsWith('--') ? rest[1] : 'latest';
+        let dir;
+        if (named === 'latest') {
+          const all = fs.existsSync(videosOut)
+            ? fs
+                .readdirSync(videosOut)
+                .filter((d) => fs.existsSync(path.join(videosOut, d, 'capture.json')))
+                .sort((a, b) => fs.statSync(path.join(videosOut, a, 'capture.json')).mtimeMs - fs.statSync(path.join(videosOut, b, 'capture.json')).mtimeMs)
+            : [];
+          if (!all.length) fail(`No capture in ${shown(config, videosOut)}: ${CLI} video <suite> makes one.`);
+          dir = path.join(videosOut, all.at(-1));
+        } else {
+          dir = fs.existsSync(path.join(named, 'capture.json')) ? path.resolve(named) : path.join(videosOut, named);
+          if (!fs.existsSync(path.join(dir, 'capture.json'))) fail(`No capture «${named}» in ${shown(config, videosOut)}.`);
+        }
+        report(
+          await renderVideo(config, dir, {
+            script: option('--script'),
+            clips: flag('--clips'),
+            mode: flag('--motion') ? 'motion' : flag('--guide') ? 'guide' : undefined,
+          }),
+        );
+        return;
+      }
+
+      // A new video: the suite played again, captured, then drawn.
+      const suite = sub;
+      if (IN_DOCKER) fail('A video is captured on this machine: run it without --in-docker.');
+      const file = recordingOf(config, suite);
+      if (!file) fail(`No recording for the suite "${suite}" in ${P.recordings}`);
+      const verdict = decide(config, suite);
+      if (verdict.verdict !== 'REPLAY') fail(`${verdict.verdict} ${verdict.why}. A video shows a recording that matches its suite: record it first.`);
+      const ff = ffmpegStatus(config);
+      if (!ff.ok) fail(`ffmpeg: ${ff.detail}`);
+      const { readScript } = await import('./video/script.mjs');
+      const ownScript = path.join(P.videos, `${suite}.json`);
+      const scriptFile = option('--script') ?? (fs.existsSync(ownScript) ? ownScript : null);
+      const script = readScript(scriptFile);
+      const mode = flag('--motion') ? 'motion' : flag('--guide') ? 'guide' : script.data.quality === 'motion' ? 'motion' : 'guide';
+      const tests = Array.isArray(script.data.tests) && script.data.tests.length ? script.data.tests : null;
+      if (scriptFile) console.log(`Video script: ${shown(config, scriptFile)}`);
+
+      guard();
+      await takeStack('replay', suite, ['video', ...rest].join(' '));
+      // A video is a run like any other: fresh data, then the suite's setup.
+      if (!flag('--no-reset')) {
+        if (config.stack.reset) await commands.reset();
+        else console.log(`The stack "${STACK}" has no \`reset\`: the setup runs on the data it has.`);
+        if (setupOf(config, suite)) await commands.setup();
+      }
+      fs.mkdirSync(P.state, { recursive: true });
+      if (P.sessionsSetup && !sessionsFresh(config.sessions.freshFor)) await playwright(['test', testFileArg(P.sessionsSetup)]);
+
+      const stamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15);
+      const dir = path.join(videosOut, `${suite}-${mode}-${stamp}`);
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(
+        path.join(dir, 'capture.json'),
+        `${JSON.stringify({ suite, mode, startedAt: new Date().toISOString(), script: scriptFile, tests }, null, 2)}\n`,
+      );
+      console.log(`Capturing ${suite} (${mode})${tests ? `, tests ${tests.join(', ')}` : ''} in ${shown(config, dir)}`);
+      // A red run makes no video: playwright() ends this process with its code.
+      process.once('exit', (code) => {
+        if (code) console.error('No video: the run must be green. Its capture stays, for a look.');
+      });
+      noteData(config, { state: 'spent', suite });
+      process.env.QA_VIDEO_DIR = dir;
+      process.env.QA_VIDEO_MODE = mode;
+      const escapeRe = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const grep = tests ? ['-g', `(${tests.map(escapeRe).join('|')}) · `] : [];
+      await playwright(['test', testFileArg(file), ...grep]);
+      delete process.env.QA_VIDEO_DIR;
+      delete process.env.QA_VIDEO_MODE;
+
+      report(await renderVideo(config, dir, { script: scriptFile, clips: flag('--clips'), mode }));
+      // The newest few captures of a suite stay, to draw again with another script.
+      const keep = Math.max(1, config.video.keep);
+      const old = fs
+        .readdirSync(videosOut)
+        .filter((d) => d.startsWith(`${suite}-`) && fs.existsSync(path.join(videosOut, d, 'capture.json')))
+        .sort((a, b) => fs.statSync(path.join(videosOut, a, 'capture.json')).mtimeMs - fs.statSync(path.join(videosOut, b, 'capture.json')).mtimeMs);
+      for (const d of old.slice(0, Math.max(0, old.length - keep))) fs.rmSync(path.join(videosOut, d), { recursive: true, force: true });
+    },
+
     // «Play as …» from the terminal: a new browser window signed in as one
     // person, from their saved session (open-browser.mjs).
     async open() {
@@ -642,6 +823,13 @@ export async function runCli(rawConfig, argv) {
                    whoever asked (what an agent runs); --restart: a fresh one
   notes [run]      the notes pinned on a run's photos in the cockpit, as Markdown
                    (the newest run with notes; --list: every run that has some)
+  video <suite>    a demo video: reset, setup, the recording captured, then drawn with a
+                   cursor, subtitles, cards and sound (--motion: real time, animations on;
+                   --clips: each step as it played, for an editor; --script <file>)
+  video render [<capture>|latest]   draw a capture again (a new script, new narration)
+  video script <suite>              a first video script from the suite
+  video voices <suite>              its narration spoken by this system's own voice (--list)
+  video check      what a video needs from this machine (ffmpeg, Chromium)
   lock             who holds the stack: one run at a time (QA_WHO names you)
   unlock           remove the lock by hand, when its holder hangs
 ${own ? `\n${own}\n` : ''}
