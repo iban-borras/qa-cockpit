@@ -8,6 +8,8 @@
 //                       and AAC, ready for a browser or a shared drive
 //   <suite>-sheet.jpg   the contact sheet: each press just before it lands,
 //                       each step's end; what to check before showing it
+//   <suite>-poster.jpg  the finished cover, which is also the video's first
+//                       frame: what a player shows before play
 //   clips/              (--clips) each step of each person as it really
 //                       played, without cursor or subtitles, and the
 //                       pointer's path beside it as JSON: for an editor
@@ -68,7 +70,7 @@ export async function renderVideo(config, dir, opts = {}) {
   for (const [key, entry] of Object.entries(data.cards ?? {})) want(key, entry);
   for (const [key, entry] of Object.entries(data.steps ?? {})) want(key, entry);
 
-  const plan = buildPlan({ config, capture, suite, script, mode, voice: (key) => voices.get(key) ?? null });
+  const plan = buildPlan({ config, capture, suite, script, mode, fps, voice: (key) => voices.get(key) ?? null });
   const frames = Math.ceil(plan.duration * fps);
   log(`Video of ${suiteName} (${mode}): ${plan.steps} steps, ${plan.clicks} presses, ${plan.duration.toFixed(1)} s, ${frames} frames.`);
 
@@ -78,6 +80,7 @@ export async function renderVideo(config, dir, opts = {}) {
   const silent = path.join(work, 'picture.mp4');
   const out = path.join(dir, `${suiteName}.mp4`);
   const sheetFile = path.join(dir, `${suiteName}-sheet.jpg`);
+  const posterFile = path.join(dir, `${suiteName}-poster.jpg`);
 
   const { chromium } = playwrightOf(config);
   const browser = await chromium.launch();
@@ -123,6 +126,9 @@ export async function renderVideo(config, dir, opts = {}) {
         lastFrame = Buffer.from(shot.data, 'base64');
         lastState = json;
       }
+      // The first frame is the finished cover (plan.mjs): a picture of its own too,
+      // for a page's <video poster>, a README, a link's preview.
+      if (f === 0) fs.writeFileSync(posterFile, lastFrame);
       // The contact sheet: the frame nearest each moment to check.
       while (nextKey < keys.length && keys[nextKey].t <= t + 0.5 / fps) {
         const file = path.join(work, 'keys', `${String(sheet.length).padStart(3, '0')}.jpg`);
@@ -187,7 +193,7 @@ export async function renderVideo(config, dir, opts = {}) {
 
   const clips = opts.clips ? writeClips(config, capture, ff.bin, data, log) : [];
   fs.rmSync(work, { recursive: true, force: true });
-  return { out, sheet: sheetFile, duration: plan.duration, clicks: plan.clicks, steps: plan.steps, clips, mode };
+  return { out, sheet: sheetFile, poster: posterFile, duration: plan.duration, clicks: plan.clicks, steps: plan.steps, clips, mode };
 }
 
 /**

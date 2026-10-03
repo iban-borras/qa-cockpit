@@ -142,8 +142,9 @@ const smooth = (t) => {
  * @param {{ data: any }} o.script readScript()
  * @param {'guide'|'motion'} o.mode
  * @param {(key: string) => { file: string, duration: number } | null} o.voice the narration of a card or step
+ * @param {number} [o.fps] the video's frames per second: its first frame is the poster
  */
-export function buildPlan({ config, capture, suite, script, mode, voice }) {
+export function buildPlan({ config, capture, suite, script, mode, voice, fps = 25 }) {
   const data = script.data ?? {};
   const cards = data.cards ?? {};
   const stepsCfg = data.steps ?? {};
@@ -234,6 +235,19 @@ export function buildPlan({ config, capture, suite, script, mode, voice }) {
 
   const outro = cards.outro ?? {};
   card('outro', { title: outro.title ?? product, subtitle: outro.subtitle ?? '', logo }, 3, voice('outro'));
+
+  // The poster: one frame of the cover, finished, before it builds itself.
+  // A player shows the first frame until somebody presses play, and the
+  // cover's first frames are black (it fades in from black).
+  const cover = shots[0];
+  shots.unshift({
+    kind: 'poster',
+    duration: 1 / fps,
+    voice: null,
+    ticks: [],
+    keys: [],
+    at: () => ({ ...cover.at(SETTLED), fade: 0 }),
+  });
 
   // ── the clock ──
   let start = 0;

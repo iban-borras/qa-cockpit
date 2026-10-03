@@ -153,8 +153,10 @@ the chat suite»*.
   of each person as it really played, at 60 fps, with nothing drawn on it,
   and the pointer's path beside it as JSON, to draw a cursor of their own.
 
-The result is a 1280×840 MP4 (H.264 and AAC) for the web, and a contact
-sheet with every press and every step's end, to check before it is shown.
+The result is a 1280×840 MP4 (H.264 and AAC) for the web, which opens on its
+finished cover (what a player shows before play), the cover as an image
+for a page or a README, and a contact sheet with every press and every
+step's end, to check before it is shown.
 It needs ffmpeg; `video check` says what is missing. When the app changes,
 the same command makes it again.
 

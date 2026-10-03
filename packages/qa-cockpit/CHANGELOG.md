@@ -38,7 +38,9 @@ From the first project to use QA Cockpit outside CritKeep:
   of it rises from the bottom in a flat browser, a phone beside it when
   somebody plays on one, and rests under the title. Whatever enters a card
   slides in and slows down to rest, one element after the other, and each
-  subtitle rises into place: nothing stops dead.
+  subtitle rises into place: nothing stops dead. The first frame is the
+  cover finished, so a player shows it before play instead of black; it is
+  saved beside the video too, as `<suite>-poster.jpg`.
 - `video voices <suite>`: a script's narration in the system's own voice
   (Windows' System.Speech, macOS's `say`, espeak-ng on Linux), offline,
   for when no voice service is at hand. The skill says the order: a voice

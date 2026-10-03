@@ -474,6 +474,7 @@ export async function runCli(rawConfig, argv) {
       const report = (r) => {
         console.log(`\nVideo: ${r.out}`);
         console.log(`Contact sheet: ${r.sheet}`);
+        console.log(`Poster (its first frame): ${r.poster}`);
         console.log('  Look at it before showing the video: the cursor on each control, each step ending on its result.');
         if (r.clips.length) console.log(`Clips: ${path.dirname(r.clips[0])}`);
         const to = option('--out');

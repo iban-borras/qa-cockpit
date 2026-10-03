@@ -320,7 +320,9 @@ in each video's script.
   script's `cover`) rises from the bottom in a flat browser, with a phone
   beside it when somebody plays on one, and rests just under the title,
   cut by the frame's bottom edge: the viewer sees which app this is before
-  a word is said.
+  a word is said. The video's first frame is that cover, finished, so a
+  player shows it before play (not black); it is also saved beside the
+  video as `<suite>-poster.jpg`, for a page's `<video poster>` or a README.
 - **Nothing stops dead.** What enters slides in and slows down to rest,
   one element a beat after the other (the tag, the title, its rule, the
   subtitle, then the screens, from much further and settling longer); what
