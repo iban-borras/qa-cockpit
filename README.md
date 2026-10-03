@@ -135,8 +135,7 @@ Cockpit turns it into a video that shows the app to people, with nothing
 filmed and nothing edited by hand. Ask your agent: *«Make a demo video of
 the chat suite»*.
 
-The example's chat suite as a narrated guide, made by `qa-cockpit video`
-(narration and music by ElevenLabs):
+The example's chat suite as a narrated guide, made by `qa-cockpit video`:
 
 https://github.com/user-attachments/assets/0a750deb-9273-439e-90a2-46d8d7c6ff85
 
@@ -148,10 +147,9 @@ https://github.com/user-attachments/assets/0a750deb-9273-439e-90a2-46d8d7c6ff85
   per test; quiet music made on the spot. Nothing stops dead: what enters
   slows down to rest.
 - **Narrated.** A video script (`video script <suite>`) with a narration
-  per step, its audio made by any text-to-speech your agent can call
-  (ElevenLabs, for one), or by the system's own voice (`video voices`).
-  Each step lasts what its voice does, and the music steps back while it
-  speaks.
+  per step, its audio made by any text-to-speech your agent can call, or
+  by the system's own voice (`video voices`). Each step lasts what its
+  voice does, and the music steps back while it speaks.
 - **Motion** (`--motion`), for a richer demo. The app's animations on, the
   pointer moved like a hand (hover effects and all), text typed key by key,
   every frame the page painted, the still moments cut short.

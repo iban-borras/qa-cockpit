@@ -275,9 +275,9 @@ Say plainly which of these you lack, and stop there:
    `brew install ffmpeg`, `apt install ffmpeg`), or to name in the config's
    `video.ffmpeg`.
 3. **Only for a narration: a voice**, the first of these you have:
-   1. **A voice service among your tools**: ElevenLabs, or any other
-      text-to-speech a connector of the person's gives you (look at your
-      tools for one that makes speech). It speaks best, and it spends the
+   1. **A voice service among your tools**: any text-to-speech a
+      connector of the person's gives you (look at your tools for one that
+      makes speech). It speaks best, and it spends the
       person's credits: say which service and roughly how much text (the
       narration's characters), and wait for their yes. Its account and its
       sign-in are theirs, never yours.
@@ -292,8 +292,8 @@ Say plainly which of these you lack, and stop there:
 
    What goes to a service is the narration's text only: no customer names,
    no real data from the screens. The music is made by the package unless
-   the person wants another track: from the same service (ElevenLabs makes
-   music too), with the same yes, or a file of theirs; it goes in `music`.
+   the person wants another track: from the same service when it makes
+   music, with the same yes, or a file of theirs; it goes in `music`.
 
 ### The kinds
 
