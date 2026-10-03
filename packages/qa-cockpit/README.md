@@ -15,7 +15,7 @@ Agents write and run the multi-user tests; people watch every screen and judge.<
 > developer do not write tests: they watch each person's screen, step by
 > step, and pin a note on whatever is wrong for the agent to fix.
 
-<p align="center"><a href="https://github.com/user-attachments/assets/ade8aadc-df35-4c92-b7da-d0cec8c1caab"><img src="https://raw.githubusercontent.com/iban-borras/qa-cockpit/main/docs/images/demo-poster.webp" alt="Vibe testing: the 39-second demo of QA Cockpit. Click to watch it." width="900"></a></p>
+<p align="center"><a href="https://github.com/user-attachments/assets/cf63c079-fdde-4680-871e-3f2f245f8be6"><img src="https://raw.githubusercontent.com/iban-borras/qa-cockpit/main/docs/images/demo-poster.webp" alt="Vibe testing: the 39-second demo of QA Cockpit. Click to watch it." width="900"></a></p>
 
 **How it goes**
 
