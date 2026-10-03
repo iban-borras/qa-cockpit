@@ -134,6 +134,11 @@ Cockpit turns it into a video that shows the app to people, with nothing
 filmed and nothing edited by hand. Ask your agent: *«Make a demo video of
 the chat suite»*.
 
+The example's chat suite as a narrated guide, made by `qa-cockpit video`
+(narration and music by ElevenLabs):
+
+<p align="center"><a href="https://github.com/user-attachments/assets/0a750deb-9273-439e-90a2-46d8d7c6ff85"><img src="https://raw.githubusercontent.com/iban-borras/qa-cockpit/main/docs/images/video-demo-poster.webp" alt="A demo video QA Cockpit made from the example's chat suite: Alice at a laptop, Bob on a phone, narrated. Click to watch it." width="900"></a></p>
+
 - **Guide** (`video <suite>`), for training. A cover with the app itself
   rising in a flat browser (and a phone, when somebody plays on one). Then,
   before each press, the screen as it was, a macOS cursor gliding to the
