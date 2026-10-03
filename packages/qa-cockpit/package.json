@@ -1,6 +1,6 @@
 {
   "name": "qa-cockpit",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Vibe coding for integration tests: coding agents write and run multi-user Playwright suites, one browser per person; people watch every screen live in a cockpit and pin notes for the agent to fix.",
   "license": "MIT",
   "repository": {
