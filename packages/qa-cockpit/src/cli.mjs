@@ -721,6 +721,27 @@ export async function runCli(rawConfig, argv) {
       const major = Number(process.versions.node.split('.')[0]);
       line(major >= 20, 'Node', `${process.version}${major >= 20 ? '' : ' (20 or newer needed)'}`);
       line(true, 'Config', shown(config, config.file));
+      // This machine's own values (env.mjs): read by the config, or there
+      // and ignored because the config does not call loadEnv.
+      {
+        const { loadedEnvs } = await import('./env.mjs');
+        const beside = path.join(P.project, '.env');
+        const read = loadedEnvs().find((e) => e.file === beside);
+        const there = fs.existsSync(beside);
+        if (read && there) {
+          const keys = Object.keys(read.values);
+          const own = keys.filter((k) => !read.applied.includes(k));
+          line(
+            true,
+            'Env',
+            `${shown(config, beside)}: ${keys.length ? keys.join(', ') : 'empty'}${own.length ? ` (the environment's own: ${own.join(', ')})` : ''}`,
+          );
+        } else if (there) {
+          line(false, 'Env', `${shown(config, beside)} is there, but the config does not read it: loadEnv(import.meta.url) at its top`);
+        } else {
+          line(true, 'Env', `no .env beside the config: its defaults${fs.existsSync(path.join(P.project, '.env.example')) ? ' (.env.example lists what one may set)' : ''}`);
+        }
+      }
       line(config.cast.length > 0, 'Cast', config.cast.length ? config.people.join(', ') : 'nobody: add people to `cast`');
       line(typeof config.signIn === 'function', 'signIn', typeof config.signIn === 'function' ? 'defined' : 'missing: nobody can be signed in');
       line(fs.existsSync(P.suites), 'Suites', shown(config, P.suites));
@@ -760,7 +781,8 @@ export async function runCli(rawConfig, argv) {
         const urls = config.stack.urls();
         line(true, 'Stack', where(urls));
       } catch {
-        line(false, 'Stack', `down (${CLI} up)`);
+        const planned = config.stack.planned?.();
+        line(false, 'Stack', `down (${CLI} up)${planned ? `; it will answer on ${where(planned)}` : ''}`);
       }
       if (bad) process.exitCode = 1;
     },

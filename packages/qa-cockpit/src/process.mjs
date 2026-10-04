@@ -16,9 +16,31 @@
 // can be pointed at an app somebody else started.
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isAlive } from './lock.mjs';
+
+/** Whether something answers on a URL's host and port. */
+function answers(url) {
+  return new Promise((resolve) => {
+    let u;
+    try {
+      u = new URL(url);
+    } catch {
+      resolve(false);
+      return;
+    }
+    const socket = net.connect({ host: u.hostname, port: Number(u.port || (u.protocol === 'https:' ? 443 : 80)) });
+    const done = (yes) => {
+      socket.destroy();
+      resolve(yes);
+    };
+    socket.setTimeout(800, () => done(false));
+    socket.once('connect', () => done(true));
+    socket.once('error', () => done(false));
+  });
+}
 
 /**
  * @param {{
@@ -86,8 +108,25 @@ export function processStack(opts) {
     async urlsAsync() {
       return pid() ? urlsOf() : null;
     },
+    /** Where it answers once up, up or not (for `doctor`). */
+    planned() {
+      return urlsOf();
+    },
     async up() {
       if (pid()) return;
+      // Something else on its port (the developer's own server, most often):
+      // ours could not start, and the health check would be answered by the
+      // other one, so the suites would run against it.
+      const { app, api } = urlsOf();
+      for (const url of new Set([app, api].filter(Boolean))) {
+        if (await answers(url)) {
+          throw new Error(
+            `Something already answers on ${url}, and it is not this stack (another app, your own dev server?). ` +
+              'Give the QA copy a port of its own: in the .env beside the config (QA_APP_PORT, if the config reads it), ' +
+              'or stop what is there.',
+          );
+        }
+      }
       fs.mkdirSync(dir, { recursive: true });
       const log = fs.openSync(logFile, 'a');
       const child = spawn(opts.command, opts.args ?? [], {

@@ -18,6 +18,7 @@ without a person beside it.
 |---|---|
 | `bin/qa-cockpit.mjs` | the CLI's entry: finds the config, then `src/cli.mjs` |
 | `src/config.mjs` | `defineConfig`, `resolveConfig`: every key, its default, its checks |
+| `src/env.mjs` | `loadEnv`: the `.env` beside the config, for what differs per machine |
 | `src/cli.mjs` | every command |
 | `src/fixtures.mjs`, `src/playwright.mjs` | the cast as Playwright fixtures; the default Playwright config |
 | `src/reporter.mjs`, `src/worker.mjs` | what a run tells the cockpit: tests and steps; each person's photos, clicks and requests |

@@ -1,3 +1,5 @@
 node_modules/
 # Runs, photos, traces and saved sessions: never committed (sessions sign people in).
 .qa-cockpit/
+# This machine's own values (.env.example says which).
+.env

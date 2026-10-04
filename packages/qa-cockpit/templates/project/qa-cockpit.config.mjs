@@ -2,9 +2,15 @@
 // cockpit. Paths are relative to this file (`base`). Fill every TODO, then
 // run `npx qa-cockpit doctor` until everything says ok. SKILL.md, beside
 // this file, says how («Setting it up in a project»); an agent can do it.
-import { defineConfig } from 'qa-cockpit';
+import { defineConfig, loadEnv } from 'qa-cockpit';
 import { composeStack } from 'qa-cockpit/compose';
 import { processStack } from 'qa-cockpit/process';
+
+// What differs from one machine to the next (a port this machine's own dev
+// server already takes...) goes in .env beside this file, never committed;
+// .env.example lists what may go there. The environment wins over it.
+loadEnv(import.meta.url);
+const APP_PORT = process.env.QA_APP_PORT ?? '4400';
 
 export default defineConfig({
   base: import.meta.url,
@@ -40,14 +46,16 @@ export default defineConfig({
     command: 'npm',
     args: ['run', 'dev'],
     cwd: '{{ROOT}}',
-    env: { PORT: '4400' },
-    app: 'http://127.0.0.1:4400',
+    env: { PORT: APP_PORT },
+    app: `http://127.0.0.1:${APP_PORT}`,
     health: null,
     // Fresh data for a replay: a test-only endpoint of the app, a script...
     // reset: async ({ urls }) => { await fetch(`${urls.app}/api/test/reset`, { method: 'POST' }) },
   }),
   //
-  // Docker Compose, as a project of its own (its ports, its volumes):
+  // Docker Compose, as a project of its own (its ports, its volumes). Its
+  // host ports are the QA override's; there, `"${QA_APP_PORT:-4400}:3000"`
+  // takes this machine's port from .env too:
   // stack: composeStack({
   //   base: import.meta.url,
   //   project: '{{PROJECT}}-qa',

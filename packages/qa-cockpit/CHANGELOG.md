@@ -29,6 +29,18 @@
   −26. New config key `video.loudness` (LUFS, or `null` to leave the sound
   as mixed). A video of tics alone is left as it is.
 
+- `.env` beside the config, for what differs from one machine to the
+  next: `loadEnv(import.meta.url)`, exported by `qa-cockpit`, reads it into
+  the environment, whose own values win (a CI sets its own). The template
+  config reads `QA_APP_PORT` from it; `init` writes `.env.example` and
+  ignores `.env`; docker compose, started by the CLI, sees the values too.
+  `doctor` says what it read, or that a `.env` is there and ignored, and
+  where a stack that is down will answer.
+- `processStack` refuses to start when something else already answers on
+  its port: its own process could not listen there, and the other app (a
+  developer's own server, most often) answered the health check, so the
+  suites ran against it.
+
 ## 0.4.0 (2026-10-03)
 
 From the first project to use QA Cockpit outside CritKeep:

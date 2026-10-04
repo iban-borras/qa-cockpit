@@ -123,6 +123,15 @@ The config is the whole contract between your app and the cockpit:
 | `report` | notes the run report should carry |
 | `video` | how demo videos look: the product's name, each person's role, a logo, the colours, the address on the cover, the subtitles' words, the music, the loudness, where ffmpeg is |
 
+What differs from one machine to the next (a port your own dev server
+already takes here, the one a container publishes there) goes in `.env`
+beside the config, never committed: the config calls
+`loadEnv(import.meta.url)` and reads `process.env.QA_APP_PORT ?? '4400'`,
+and `.env.example` lists what may be set. The environment wins over the
+file, so a CI sets its own. And a stack never starts on a port something
+else already answers on: the other app would answer its health check, and
+the suites would run against it.
+
 Two copies of `@playwright/test` refuse to run together, so the package
 never imports Playwright itself: your project hands its own over, in
 `fixtures.mjs` and `playwright.config.mjs`, which `init` writes for you.

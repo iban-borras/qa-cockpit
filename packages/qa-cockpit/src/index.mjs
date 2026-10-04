@@ -2,6 +2,7 @@
 // watched live in a cockpit. The project's side of it is one config file;
 // see the README.
 export { defineConfig, loadConfig, resolveConfig } from './config.mjs';
+export { loadEnv } from './env.mjs';
 export { runCli, waitHealthy } from './cli.mjs';
 export { composeStack } from './compose.mjs';
 export { processStack } from './process.mjs';

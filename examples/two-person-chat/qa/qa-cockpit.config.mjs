@@ -1,9 +1,11 @@
 // QA Cockpit for the two-person chat in ../app: the whole contract between
 // the app and the cockpit. Paths are relative to this file (`base`).
-import { defineConfig } from 'qa-cockpit';
+import { defineConfig, loadEnv } from 'qa-cockpit';
 import { processStack } from 'qa-cockpit/process';
 
-const PORT = '4310';
+// This machine's own values, in .env beside this file (.env.example).
+loadEnv(import.meta.url);
+const PORT = process.env.QA_APP_PORT ?? '4310';
 
 export default defineConfig({
   base: import.meta.url,

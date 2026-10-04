@@ -58,13 +58,17 @@ export async function init(args) {
   };
 
   // The project's files, from templates/project (`gitignore` becomes
-  // `.gitignore`: npm leaves dotfiles named .gitignore out of a package).
+  // `.gitignore`: npm leaves dotfiles named .gitignore out of a package;
+  // `env.example` becomes `.env.example` the same way, to be safe).
   const walk = (dir) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const abs = path.join(dir, entry.name);
       if (entry.isDirectory()) walk(abs);
       else {
-        const rel = path.relative(path.join(TEMPLATES, 'project'), abs).replace(/(^|[\\/])gitignore$/, '$1.gitignore');
+        const rel = path
+          .relative(path.join(TEMPLATES, 'project'), abs)
+          .replace(/(^|[\\/])gitignore$/, '$1.gitignore')
+          .replace(/(^|[\\/])env\.example$/, '$1.env.example');
         put(rel, fill(fs.readFileSync(abs, 'utf8'), vars));
       }
     }

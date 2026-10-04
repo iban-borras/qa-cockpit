@@ -108,6 +108,17 @@ everything says ok:
      whose CORS allows only the dev app. Give the QA copy the same rules
      for its own ports, or a small proxy that serves the app and the API
      from one origin.
+   - **What differs from one machine to the next** (a port this
+     machine's dev server already takes, the one a container publishes
+     there) goes in `.env` beside the config, never in the config: the
+     config calls `loadEnv(import.meta.url)` at its top and reads
+     `process.env.QA_APP_PORT ?? '<its default>'`; `.env.example` lists
+     what may be set, and `.env` is never committed. The environment
+     wins over the file (a CI sets its own). Docker compose, started by
+     the CLI, sees the values too: `"${QA_APP_PORT:-5174}:5173"` in a QA
+     override. A config written before 0.5.0 does not read `.env`: add
+     those lines (`doctor` says so when a `.env` is there and ignored).
+     `doctor` also says where a stack that is down will answer.
    - Made-up data, not a copy of production: the photos, traces and
      reports keep whatever the screens show, and the report and the notes
      are written for an agent, which sends them to its model. With a copy
@@ -477,6 +488,12 @@ videos/                 <suite>.json: video scripts, and their narration's audio
 
 ## Gotchas
 
+- `up` refuses with «Something already answers on …»: another app has the
+  stack's port, most often the developer's own server. The QA copy could
+  not listen there, and the other app would answer its health check, so
+  the suites would run against it. Give the QA copy a port of its own in
+  `.env` (`QA_APP_PORT`, when the config reads it), or stop what is there;
+  never point the stack at it.
 - Saved sessions may go stale (short-lived tokens, rotated refresh tokens):
   `replay` renews them unless every one is younger than
   `sessions.freshFor`.
