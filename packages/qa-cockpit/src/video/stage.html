@@ -373,7 +373,8 @@
           Object.assign(labels[i].style, {
             left: `${p.x + p.w / 2}px`,
             top: `${p.y}px`,
-            opacity: String(opacity),
+            // In a swap the labels take turns (plan.mjs): their own opacity.
+            opacity: String(p.labelOpacity ?? opacity),
             transform: `translate(-50%, calc(-100% + ${dy}px))`,
           });
         }

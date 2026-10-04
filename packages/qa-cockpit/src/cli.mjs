@@ -560,7 +560,7 @@ export async function runCli(rawConfig, argv) {
       const before = played && tests ? played.filter((id) => !tests.includes(id)) : [];
       console.log(
         `Capturing ${suite} (${mode})${tests ? `, showing ${tests.join(', ')}` : ''}` +
-          `${before.length ? `; ${before.join(', ')} played first, uncaptured, to build its data` : ''} in ${shown(config, dir)}`,
+          `${before.length ? `; ${before.join(', ')} played too, uncaptured, for the data the shown ones start from` : ''} in ${shown(config, dir)}`,
       );
       // A red run makes no video: playwright() ends this process with its code.
       process.once('exit', (code) => {

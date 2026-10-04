@@ -15,6 +15,9 @@
 - When a step shows other screens than the step before (a laptop, then a
   phone), the new ones fade in over the old and settle into place, instead
   of a cut. The same screen changing still cuts: that is the app at work.
+  Their labels take turns rather than overlap, and the step's first press
+  waits for the swap, so the new screen is seen settled before a finger
+  lands on it.
 - `video script` no longer writes `"music": "generated"`: a script with no
   `music` plays the config's `video.music`, as it always should have. A
   project's own track there was hidden by every new script (found in
@@ -25,7 +28,8 @@
   against the music the person expects, and to ask them to listen: an
   agent cannot hear the video.
 - A video's sound is brought to −16 LUFS, the web's usual loudness, in
-  two passes of loudnorm (true peak −1.5 dBTP): a narration came out at
+  two passes of loudnorm (true peak −2 dBTP in the mix, about −1.5 once
+  encoded to AAC): a narration came out at
   −26. New config key `video.loudness` (LUFS, or `null` to leave the sound
   as mixed). A video of tics alone is left as it is.
 

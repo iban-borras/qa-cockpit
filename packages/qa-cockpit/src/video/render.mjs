@@ -45,7 +45,10 @@ function normalize(bin, input, output, target) {
   if (typeof target !== 'number' || !Number.isFinite(target) || target > -5 || target < -40) {
     throw new Error(`video.loudness is a loudness in LUFS (−16 is usual for the web), or null to leave the sound as mixed; not ${JSON.stringify(target)}.`);
   }
-  const filter = `loudnorm=I=${target}:TP=-1.5:LRA=11`;
+  // A true peak of −2 dBTP in the mix: the AAC encoding after it adds about
+  // half a dB (measured −1.0 from a −1.5 mix), and the video should stay
+  // under −1.
+  const filter = `loudnorm=I=${target}:TP=-2:LRA=11`;
   const r = spawnSync(bin, ['-hide_banner', '-nostats', '-i', input, '-af', `${filter}:print_format=json`, '-f', 'null', '-'], {
     encoding: 'utf8',
     windowsHide: true,
@@ -234,7 +237,7 @@ export async function renderVideo(config, dir, opts = {}) {
     } else {
       sound = path.join(work, 'sound-normalized.wav');
       const measured = normalize(ff.bin, mixed, sound, target);
-      log(`Sound: ${measured.toFixed(1)} LUFS, brought to ${target} LUFS (true peak −1.5 dBTP).`);
+      log(`Sound: ${measured.toFixed(1)} LUFS, brought to ${target} LUFS (true peak −2 dBTP before the AAC encoding).`);
     }
     run(
       ff.bin,

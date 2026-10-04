@@ -352,7 +352,9 @@ in each video's script.
   the app; several share it, scaled, each with its label (name · role).
   When a step shows other screens than the step before (Alice's laptop,
   then Bob's phone), the new ones fade in over the old and settle into
-  place; the same screen changing is the app at work, and cuts as it did.
+  place, their labels taking turns, and the step's first press waits until
+  they have; the same screen changing is the app at work, and cuts as it
+  did.
 
 That is the style of every video, for training and for showing the app. A
 promotional cut may want another montage: ask the person what they have in

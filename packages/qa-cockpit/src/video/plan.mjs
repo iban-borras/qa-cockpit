@@ -49,13 +49,22 @@ function swapped(before, after, k) {
   // Fading both at once would dim the picture halfway through.
   const e = 1 - (1 - c) ** 3;
   const gone = c ** 3;
+  // Their labels take turns: the old one is gone by halfway, the new one
+  // comes after it. Both at once, in the same place, read as one smudge
+  // («Marta · Game Master» over «Laia · Player»).
+  const smooth = (x) => {
+    const t = Math.max(0, Math.min(1, x));
+    return t * t * (3 - 2 * t);
+  };
+  const oldLabel = Number((1 - smooth(c / 0.5)).toFixed(3));
+  const newLabel = Number(smooth((c - 0.5) / 0.5).toFixed(3));
   return {
     ...after,
     panels: [
-      ...before.panels.map((p) => ({ ...p, opacity: Number((1 - gone).toFixed(3)) })),
-      ...after.panels.map((p) => ({ ...p, opacity: Number(e.toFixed(3)), dy: Number(((1 - e) * 14).toFixed(2)) })),
+      ...before.panels.map((p) => ({ ...p, opacity: Number((1 - gone).toFixed(3)), labelOpacity: oldLabel })),
+      ...after.panels.map((p) => ({ ...p, opacity: Number(e.toFixed(3)), labelOpacity: newLabel, dy: Number(((1 - e) * 14).toFixed(2)) })),
     ],
-    cursors: after.cursors.map((c) => ({ ...c, opacity: Number(((c.opacity ?? 1) * e).toFixed(3)) })),
+    cursors: after.cursors.map((cur) => ({ ...cur, opacity: Number(((cur.opacity ?? 1) * e).toFixed(3)) })),
   };
 }
 
@@ -276,6 +285,29 @@ export function buildPlan({ config, capture, suite, script, mode, voice, fps = 2
 
   const outro = cards.outro ?? {};
   card('outro', { title: outro.title ?? product, subtitle: outro.subtitle ?? '', logo }, 3, voice('outro'));
+
+  // A step that opens on other screens than the step before fades them in
+  // (SWAP): its first press waits for that, or the finger lands as the new
+  // screen settles, seen whole for a tenth of a second (found in CritKeep,
+  // a laptop then a phone). Its own clock starts SWAP later; its subtitle
+  // rises from the start.
+  for (let i = 1; i < shots.length; i += 1) {
+    const s = shots[i];
+    const prev = shots[i - 1];
+    if (s.kind !== 'step' || prev.kind !== 'step' || !s.clicks) continue;
+    if (screensOf(prev.at(prev.duration - 1e-3)) === screensOf(s.at(0))) continue;
+    const inner = s.at;
+    shots[i] = {
+      ...s,
+      duration: s.duration + SWAP,
+      ticks: s.ticks.map((u) => u + SWAP),
+      keys: s.keys.map((k) => ({ ...k, u: k.u + SWAP })),
+      at: (u) => {
+        const state = inner(Math.max(0, u - SWAP));
+        return state.subtitle ? { ...state, subtitle: { ...state.subtitle, age: Number(Math.min(u, SUBTITLE_IN).toFixed(3)) } } : state;
+      },
+    };
+  }
 
   // The poster: one frame of the cover, finished, before it builds itself.
   // A player shows the first frame until somebody presses play, and the
