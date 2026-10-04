@@ -23,12 +23,23 @@
 //     the pointer glides to a control (hover effects included), waits for
 //     the page's animations to end, and types what `fill` would paste.
 //     Slower, and for the video only: never a QA run.
+//
+// Only the tests the video shows are captured (QA_VIDEO_TESTS, when it
+// shows some). The tests played before them only build their data: they
+// run as in any replay, at their own pace, with nothing recorded.
 import fs from 'node:fs';
 import path from 'node:path';
+import { testIdOf } from './script.mjs';
 
 const DIR = process.env.QA_VIDEO_DIR || '';
 export const enabled = Boolean(DIR);
 export const MODE = !enabled ? null : process.env.QA_VIDEO_MODE === 'motion' ? 'motion' : 'guide';
+const SHOWN = process.env.QA_VIDEO_TESTS ? new Set(process.env.QA_VIDEO_TESTS.split(',')) : null;
+
+/** Whether the video shows this test («T4 · …»): only those are captured. */
+export function shows(testTitle) {
+  return enabled && (!SHOWN || SHOWN.has(testIdOf(testTitle)));
+}
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -57,7 +68,7 @@ export function stepRecorded(step) {
  * first, and the result stays on screen a moment.
  */
 export async function settleAll() {
-  if (!enabled) return;
+  if (!enabled || captures.size === 0) return;
   await Promise.all(
     [...captures.values()].map(async (c) => {
       if (MODE === 'motion') await settle(c.page);
@@ -73,9 +84,10 @@ export async function settleAll() {
  * @param {any} page their page, new and still blank
  * @param {{ name?: string, context?: any }} device
  * @param {(jpegBase64: string) => void} [onFrame] each frame, for the cockpit's live view
+ * @param {string} [testTitle] the test the page plays in: nothing is captured for one the video does not show
  */
-export async function startCapture(id, page, device, onFrame) {
-  if (!enabled) return null;
+export async function startCapture(id, page, device, onFrame, testTitle = '') {
+  if (!shows(testTitle)) return null;
   const started = Date.now();
   const dir = path.join(DIR, 'people', `${id}-${started}`);
   const framesDir = path.join(dir, 'frames');

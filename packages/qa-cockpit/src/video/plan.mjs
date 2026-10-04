@@ -156,6 +156,17 @@ export function buildPlan({ config, capture, suite, script, mode, voice, fps = 2
   const personByWord = (word) => config.cast.find((p) => fold(p.name) === fold(word) || p.id === fold(word));
   const url = (file) => (file ? pathToFileURL(file).href : null);
 
+  // A capture holds only the tests its own run showed (capture.mjs): a
+  // script drawn again over it cannot show one it does not have.
+  if (wanted) {
+    const held = new Set(capture.steps.map((s) => testIdOf(s.test)).filter(Boolean));
+    const missing = [...wanted].filter((id) => !held.has(id));
+    if (missing.length) {
+      const has = held.size ? `it has ${[...held].join(', ')}` : 'it has no test';
+      throw new Error(`This capture has no ${missing.join(', ')} (${has}): \`video ${capture.meta.suite}\` with this script makes a new one.`);
+    }
+  }
+
   // The steps of the run, grouped by test, in the order they ran.
   const tests = [];
   for (const step of capture.steps) {

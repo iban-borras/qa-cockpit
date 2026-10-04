@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.1 (unreleased)
+
+- A video that shows only some tests of a suite plays every test through
+  the last one it shows, since the earlier ones build the data it starts
+  from. It played the ones shown alone, and one that needed an earlier
+  test waited out its timeout with no video (found in CritKeep, whose
+  suites chain their tests). Only the tests shown are captured and drawn;
+  the others run at their own pace, uncaptured, with the config's
+  `reducedMotion` even in `--motion`. A video script's new `run` says it
+  otherwise: `"picked"` plays only the tests shown, a list plays its own.
+  A script that names a test the suite lacks is refused before the stack
+  is touched, and `video render` says when a capture lacks a test shown.
+
 ## 0.4.0 (2026-10-03)
 
 From the first project to use QA Cockpit outside CritKeep:

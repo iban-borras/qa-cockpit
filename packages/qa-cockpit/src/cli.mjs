@@ -517,15 +517,26 @@ export async function runCli(rawConfig, argv) {
       const file = recordingOf(config, suite);
       if (!file) fail(`No recording for the suite "${suite}" in ${P.recordings}`);
       const verdict = decide(config, suite);
-      if (verdict.verdict !== 'REPLAY') fail(`${verdict.verdict} ${verdict.why}. A video shows a recording that matches its suite: record it first.`);
+      const why = verdict.why.replace(/\.+$/, '');
+      if (verdict.verdict === 'ENV') fail(`ENV ${why}. A video replays the suite: the stack must be up (${CLI} up).`);
+      if (verdict.verdict !== 'REPLAY') fail(`${verdict.verdict} ${why}. A video shows a recording that matches its suite: record it first.`);
       const ff = ffmpegStatus(config);
       if (!ff.ok) fail(`ffmpeg: ${ff.detail}`);
-      const { readScript } = await import('./video/script.mjs');
+      const { readScript, readSuite, testsToRun } = await import('./video/script.mjs');
       const ownScript = path.join(P.videos, `${suite}.json`);
       const scriptFile = option('--script') ?? (fs.existsSync(ownScript) ? ownScript : null);
       const script = readScript(scriptFile);
       const mode = flag('--motion') ? 'motion' : flag('--guide') ? 'guide' : script.data.quality === 'motion' ? 'motion' : 'guide';
       const tests = Array.isArray(script.data.tests) && script.data.tests.length ? script.data.tests : null;
+      // The tests it shows, and the ones played before them to build their
+      // data (script.mjs, testsToRun): said wrong, refused before the stack
+      // is touched.
+      let played;
+      try {
+        played = testsToRun([...readSuite(config, suite).tests.keys()], tests, script.data.run ?? 'through');
+      } catch (e) {
+        fail(e instanceof Error ? e.message : String(e));
+      }
       if (scriptFile) console.log(`Video script: ${shown(config, scriptFile)}`);
 
       guard();
@@ -544,9 +555,13 @@ export async function runCli(rawConfig, argv) {
       fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(
         path.join(dir, 'capture.json'),
-        `${JSON.stringify({ suite, mode, startedAt: new Date().toISOString(), script: scriptFile, tests }, null, 2)}\n`,
+        `${JSON.stringify({ suite, mode, startedAt: new Date().toISOString(), script: scriptFile, tests, played }, null, 2)}\n`,
       );
-      console.log(`Capturing ${suite} (${mode})${tests ? `, tests ${tests.join(', ')}` : ''} in ${shown(config, dir)}`);
+      const before = played && tests ? played.filter((id) => !tests.includes(id)) : [];
+      console.log(
+        `Capturing ${suite} (${mode})${tests ? `, showing ${tests.join(', ')}` : ''}` +
+          `${before.length ? `; ${before.join(', ')} played first, uncaptured, to build its data` : ''} in ${shown(config, dir)}`,
+      );
       // A red run makes no video: playwright() ends this process with its code.
       process.once('exit', (code) => {
         if (code) console.error('No video: the run must be green. Its capture stays, for a look.');
@@ -554,11 +569,14 @@ export async function runCli(rawConfig, argv) {
       noteData(config, { state: 'spent', suite });
       process.env.QA_VIDEO_DIR = dir;
       process.env.QA_VIDEO_MODE = mode;
+      // Only the tests it shows are captured (video/capture.mjs).
+      if (tests) process.env.QA_VIDEO_TESTS = tests.join(',');
       const escapeRe = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const grep = tests ? ['-g', `(${tests.map(escapeRe).join('|')}) · `] : [];
+      const grep = played ? ['-g', `(${played.map(escapeRe).join('|')}) · `] : [];
       await playwright(['test', testFileArg(file), ...grep]);
       delete process.env.QA_VIDEO_DIR;
       delete process.env.QA_VIDEO_MODE;
+      delete process.env.QA_VIDEO_TESTS;
 
       report(await renderVideo(config, dir, { script: scriptFile, clips: flag('--clips'), mode }));
       // The newest few captures of a suite stay, to draw again with another script.

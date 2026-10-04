@@ -47,7 +47,9 @@ export function playwrightConfig(rawConfig, overrides = {}) {
   // more on the same page, and they starve each other: measured, the trace
   // got half its frames, late. The trace keeps its DOM snapshots, the part
   // that serves to debug. In «motion» the app's animations are what the
-  // video is for.
+  // video is for: the capture turns them on, page by page, in the tests the
+  // video shows (video/capture.mjs); the tests that only build their data
+  // keep the config's reducedMotion.
   const video = process.env.QA_VIDEO_DIR ? process.env.QA_VIDEO_MODE || 'guide' : null;
   const trace = video
     ? { mode: cockpit ? 'on' : 'retain-on-failure', screenshots: false, snapshots: true, sources: true }
@@ -79,7 +81,7 @@ export function playwrightConfig(rawConfig, overrides = {}) {
       timezoneId: config.browser.timezoneId,
       // An app that honours this preference turns its animations off: no
       // entrance animation to wait out, and photos come out settled.
-      reducedMotion: video === 'motion' ? 'no-preference' : config.browser.reducedMotion,
+      reducedMotion: config.browser.reducedMotion,
       trace,
       screenshot: 'only-on-failure',
       video: video ? 'off' : 'retain-on-failure',

@@ -10,7 +10,10 @@
 //     "language": "en-GB",             // the narration's; the config's browser.locale by default
 //     "title": "The chat",             // the opening card; the suite's title by default
 //     "subtitle": "Two people, one room, live",
-//     "tests": ["T1", "T3"],           // which, in the suite's order; all by default
+//     "tests": ["T1", "T3"],           // which it shows, in the suite's order; all by default
+//     "run": "through",                // which run: every test through the last one shown
+//                                      // (default: they build its data), "picked" (only the
+//                                      // ones shown), or a list of its own
 //     "cover": "T1/2",                 // the step whose end the cover shows, rising in a
 //                                      // flat browser (or { "step", "people" }, or false);
 //                                      // the one that shows most of the app by default
@@ -99,6 +102,34 @@ export function readSuite(config, suite) {
     current.rows.set(row[1], { who: cells[0] ?? '', does: cells[1] ?? '', sees: cells[2] ?? '' });
   }
   return { title, tests };
+}
+
+/**
+ * Which tests a video's run plays, in the suite's order, when it shows only
+ * some (`shown`): by default every test through the last one shown, since a
+ * suite goes in order on one database and the earlier tests build the data
+ * the later ones start from (a test shown alone waits for data nobody made).
+ * "picked" plays only the ones shown, for tests that stand on their own; a
+ * list plays its own tests, and the shown ones with them.
+ * @param {string[]} order the suite's test ids, in its order
+ * @param {string[] | null} shown the tests the video shows; null for all
+ * @param {'through' | 'picked' | string[]} [run]
+ * @returns {string[] | null} the tests to play; null for the whole suite
+ */
+export function testsToRun(order, shown, run = 'through') {
+  if (!shown) return null;
+  const unknown = (ids) => ids.filter((id) => !order.includes(id));
+  const absent = unknown(shown);
+  if (absent.length) throw new Error(`The video script shows ${absent.join(', ')}, which the suite does not have (it has ${order.join(', ')}).`);
+  if (Array.isArray(run)) {
+    const strange = unknown(run);
+    if (strange.length) throw new Error(`The video script runs ${strange.join(', ')}, which the suite does not have (it has ${order.join(', ')}).`);
+    const played = new Set([...run, ...shown]);
+    return order.filter((id) => played.has(id));
+  }
+  if (run === 'picked') return order.filter((id) => shown.includes(id));
+  if (run !== 'through') throw new Error(`The video script's "run" is "through", "picked" or a list of tests, not ${JSON.stringify(run)}.`);
+  return order.slice(0, Math.max(...shown.map((id) => order.indexOf(id))) + 1);
 }
 
 /**

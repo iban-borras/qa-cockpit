@@ -354,13 +354,22 @@ in each video's script.
    in that entry's `audio`; with the system's voice, `video voices <suite>`
    does all of that. The script's other keys: `quality` (`guide` or
    `motion`), `title`, `subtitle`, `cover` (the step whose end the cover
-   shows), `music` (`"generated"`, a file, or `null`), `musicVolume`,
-   `pace`, `idle` and `speed` (motion).
+   shows), `run` (below), `music` (`"generated"`, a file, or `null`),
+   `musicVolume`, `pace`, `idle` and `speed` (motion).
 3. **Make it:** `npx qa-cockpit video <suite>` (`--motion`, `--clips`,
    `--script <file>`, `--out <file>`). «Before you launch anything» holds:
    it takes the stack, resets it and runs the setup. A red run makes no
    video. It prints where the video and its contact sheet are, under
    `<out>/videos/<suite>-<kind>-<time>/`.
+
+   A video that shows only some tests (`tests`) plays every test of the
+   suite through the last one it shows: a suite goes in order on one
+   database, and the earlier tests build the data the later ones start
+   from. Only the tests it shows are captured and drawn; the others run at
+   their own pace, as in any replay. For tests that stand on their own,
+   `"run": "picked"` plays only the ones shown (faster); `"run": ["T1",
+   "T4"]` plays those, and the ones shown, when a test needs some earlier
+   tests and not others (to leave out a destructive one, say).
 4. **Look at the contact sheet before you say it is done.** For each press:
    the cursor on the very control the subtitle names, and the screen as it
    was before the press. For each step's end: that step's result, not the
@@ -374,6 +383,8 @@ in each video's script.
 |---|---|---|
 | The cursor lands where nothing is | The control was off screen and the action was not on a locator | Act through a locator; it is brought into view first |
 | A step is missing | Its `test.step` is not «n · Who: …», or its test is not «T1 · …» | Name it so |
+| A shown test waits for data that never comes | It needs an earlier test the script's `run` leaves out (`"picked"`, or a list without it) | Leave `run` out (it plays every test before the last shown), or list the test it needs |
+| «This capture has no T2» from `video render` | The capture was made for other tests: only the ones shown are captured | `video <suite>` with that script makes a new capture |
 | A step shows nobody | Its title names nobody of the cast before the colon | Name who acts |
 | «No video: the run must be green» | The recording failed | It is a red replay: the healer, not the video |
 | A voice speaks over the wrong step, or never | Its key in `steps` is not `<test id>/<row number>` (`"T1/2"`) | Key it by the suite's test and row |

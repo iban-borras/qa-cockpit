@@ -48,15 +48,15 @@ export function cockpitFixtures(base, rawConfig) {
   }
 
   const person = (id) =>
-    async ({ browser, devices }, use) => {
+    async ({ browser, devices }, use, testInfo) => {
       const device = deviceFor(config, id, devices);
       const context = await contextFor(browser, id, device);
       const page = await context.newPage();
       await cockpit.register(id, page, deviceLabel(device));
       // For `qa-cockpit video` (video/capture.mjs): the page's own frames,
       // which the cockpit's live view then shares: two screencasts on one
-      // page starve each other.
-      await video.startCapture(id, page, device, (frame) => cockpit.liveFrame(id, frame));
+      // page starve each other. Only in the tests the video shows.
+      await video.startCapture(id, page, device, (frame) => cockpit.liveFrame(id, frame), testInfo.title);
       if (video.capturing(page)) cockpit.sharedFrames(id);
       try {
         await use(page);
@@ -103,7 +103,7 @@ export function cockpitFixtures(base, rawConfig) {
           const began = Date.now();
           try {
             const result = await body(info);
-            if (video.enabled) {
+            if (video.shows(testInfo.title)) {
               await video.settleAll();
               video.stepRecorded({
                 test: testInfo.title,
