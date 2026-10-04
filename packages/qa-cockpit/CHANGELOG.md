@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.5.0 (unreleased)
+## 0.5.0 (2026-10-04)
 
 - A video that shows only some tests of a suite plays every test through
   the last one it shows, since the earlier ones build the data it starts
