@@ -36,6 +36,43 @@ export function ffmpegStatus(config) {
   return { ok: true, bin, detail: version };
 }
 
+/**
+ * Bring a mix to `target` LUFS with ffmpeg's loudnorm (EBU R128), in two
+ * passes: one to measure, one to apply, with a linear gain where the true
+ * peak allows (the mix keeps its dynamics). Returns the measured loudness.
+ */
+function normalize(bin, input, output, target) {
+  if (typeof target !== 'number' || !Number.isFinite(target) || target > -5 || target < -40) {
+    throw new Error(`video.loudness is a loudness in LUFS (−16 is usual for the web), or null to leave the sound as mixed; not ${JSON.stringify(target)}.`);
+  }
+  const filter = `loudnorm=I=${target}:TP=-1.5:LRA=11`;
+  const r = spawnSync(bin, ['-hide_banner', '-nostats', '-i', input, '-af', `${filter}:print_format=json`, '-f', 'null', '-'], {
+    encoding: 'utf8',
+    windowsHide: true,
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  const err = r.stderr ?? '';
+  const from = err.lastIndexOf('{');
+  let m = null;
+  try {
+    m = JSON.parse(err.slice(from, err.indexOf('}', from) + 1));
+  } catch {
+    // Said below.
+  }
+  if (r.status !== 0 || !m) throw new Error(`ffmpeg failed to measure the sound's loudness: ${err.trim().slice(-800)}`);
+  run(
+    bin,
+    [
+      '-hide_banner', '-loglevel', 'error', '-y', '-i', input,
+      '-af', `${filter}:measured_I=${m.input_i}:measured_TP=${m.input_tp}:measured_LRA=${m.input_lra}:measured_thresh=${m.input_thresh}:offset=${m.target_offset}:linear=true`,
+      // loudnorm works at 192 kHz: back to the mix's own rate.
+      '-ar', '44100', '-c:a', 'pcm_s16le', output,
+    ],
+    "set the sound's loudness",
+  );
+  return Number(m.input_i);
+}
+
 function run(bin, args, what) {
   const r = spawnSync(bin, args, { encoding: 'utf8', windowsHide: true, maxBuffer: 64 * 1024 * 1024 });
   if (r.status !== 0) throw new Error(`ffmpeg failed to ${what}: ${(r.stderr || r.error?.message || '').trim().slice(-1500)}`);
@@ -150,11 +187,14 @@ export async function renderVideo(config, dir, opts = {}) {
     const ticksWav = path.join(work, 'tics.wav');
     writeWav(ticksWav, ticks(plan.ticks, plan.duration));
     const musicChoice = data.music !== undefined ? (data.music && data.music !== 'generated' ? scriptPath(script, data.music) : data.music) : config.video.music;
-    // A script's `music` wins over the config's, and one written by 0.4.0's
-    // `video script` says "generated": said aloud, so a project's own track
-    // is not lost without anybody noticing.
+    // Which music plays, and from where, said every time: nobody can tell it
+    // from the picture, and a script's `music` wins over the config's (one
+    // written by 0.4.0's `video script` says "generated", which hid a
+    // project's own track through three videos before anybody heard it).
+    const source = data.music !== undefined ? "the script's music" : config.raw.video?.music !== undefined ? "the config's video.music" : 'the default (the config names no video.music)';
+    log(`Music: ${musicChoice === 'generated' ? 'made by the package' : musicChoice ? path.basename(musicChoice) : 'none'}, from ${source}.`);
     if (data.music !== undefined && config.video.music && config.video.music !== 'generated' && musicChoice !== config.video.music) {
-      log(`Music: the script's (${data.music ?? 'none'}), not the config's video.music (${path.basename(config.video.music)}). Leave "music" out of the script for the config's.`);
+      log(`  It hides the config's video.music (${path.basename(config.video.music)}): leave "music" out of the script for that one.`);
     }
     let musicTrack = null;
     let level = 0;
@@ -182,9 +222,23 @@ export async function renderVideo(config, dir, opts = {}) {
       }),
       'mix the sound',
     );
+    // At a loudness nobody has to turn up or down: a narration came out at
+    // −26 LUFS, the voice service's own level under its music.
+    let sound = mixed;
+    const target = config.video.loudness;
+    if (target === null) {
+      log('Sound: left as mixed (video.loudness is null).');
+    } else if (!musicTrack && !plan.voices.length) {
+      // Raised to −16 LUFS, a mix of tics alone would make every tic a shot.
+      log('Sound: tics alone, left as mixed.');
+    } else {
+      sound = path.join(work, 'sound-normalized.wav');
+      const measured = normalize(ff.bin, mixed, sound, target);
+      log(`Sound: ${measured.toFixed(1)} LUFS, brought to ${target} LUFS (true peak −1.5 dBTP).`);
+    }
     run(
       ff.bin,
-      ['-hide_banner', '-loglevel', 'error', '-y', '-i', silent, '-i', mixed, '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k', '-shortest', '-movflags', '+faststart', out],
+      ['-hide_banner', '-loglevel', 'error', '-y', '-i', silent, '-i', sound, '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k', '-shortest', '-movflags', '+faststart', out],
       'join picture and sound',
     );
 

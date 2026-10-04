@@ -79,5 +79,7 @@ export default defineConfig({
   //   logo: 'brand/logo-on-dark.svg',
   //   colors: { accent: '#5b9dff' },
   //   labels: { sees: 'Sees' },
+  //   music: 'brand/soundtrack.mp3',     // your own track; the package makes one otherwise
+  //   loudness: -16,                     // LUFS; null leaves the sound as mixed
   // },
 });

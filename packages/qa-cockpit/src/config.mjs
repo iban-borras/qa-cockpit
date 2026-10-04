@@ -155,6 +155,9 @@ export function resolveConfig(raw, file) {
         ...(raw.video?.labels ?? {}),
       },
       music: raw.video?.music === undefined ? 'generated' : raw.video.music && raw.video.music !== 'generated' ? at(raw.video.music) : raw.video.music,
+      // The video's sound, brought to this loudness (LUFS; −16 is usual for
+      // the web), or null to leave it as mixed.
+      loudness: raw.video?.loudness === undefined ? -16 : raw.video.loudness,
       ffmpeg: raw.video?.ffmpeg ?? 'ffmpeg',
       keep: raw.video?.keep ?? 5,
     },

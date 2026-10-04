@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.1 (unreleased)
+## 0.5.0 (unreleased)
 
 - A video that shows only some tests of a suite plays every test through
   the last one it shows, since the earlier ones build the data it starts
@@ -20,6 +20,14 @@
   project's own track there was hidden by every new script (found in
   CritKeep). A script that names its music still wins, and the render says
   so when that hides the config's.
+- Every render says which music played and where it came from (the
+  script, the config, the default). The skill asks agents to check it
+  against the music the person expects, and to ask them to listen: an
+  agent cannot hear the video.
+- A video's sound is brought to −16 LUFS, the web's usual loudness, in
+  two passes of loudnorm (true peak −1.5 dBTP): a narration came out at
+  −26. New config key `video.loudness` (LUFS, or `null` to leave the sound
+  as mixed). A video of tics alone is left as it is.
 
 ## 0.4.0 (2026-10-03)
 

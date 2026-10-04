@@ -121,7 +121,7 @@ The config is the whole contract between your app and the cockpit:
 | `cockpit`, `cli` | the cockpit's port and language; how the project runs the CLI |
 | `commands` | commands of your own, next to the built-in ones |
 | `report` | notes the run report should carry |
-| `video` | how demo videos look: the product's name, each person's role, a logo, the colours, the address on the cover, the subtitles' words, the music, where ffmpeg is |
+| `video` | how demo videos look: the product's name, each person's role, a logo, the colours, the address on the cover, the subtitles' words, the music, the loudness, where ffmpeg is |
 
 Two copies of `@playwright/test` refuse to run together, so the package
 never imports Playwright itself: your project hands its own over, in

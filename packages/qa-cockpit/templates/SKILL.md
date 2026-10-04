@@ -330,6 +330,10 @@ in each video's script.
   subtitle, then the screens, from much further and settling longer); what
   leaves fades. Each step's subtitle rises into place. The cursor glides as
   a hand does, easing in and out, and every press is a ripple and a tic.
+- **The sound:** the narration on top, the music stepping back while it
+  speaks, the tics; the whole brought to −16 LUFS, the web's usual
+  loudness (the config's `video.loudness`; `null` leaves it as mixed). A
+  video of tics alone is left as it is.
 - **The rhythm:** a step lasts what its subtitle takes to read (`pace`) or
   its narration to say, whichever is longer; a test's card 1.8 s; the cover
   3.8 s; the end 3 s. Cards fade over the steps beside them.
@@ -385,7 +389,14 @@ mind, case by case; the clips (`--clips`) are its raw material.
    next one's. The number of presses it printed matches the clicks of the
    recording (typing in a field counts as one in a guide; a file upload
    does not). Then say where the video is.
-5. **A new narration or wording, same run:** `npx qa-cockpit video render
+5. **The music that plays is not a given: check it.** A script's `music`
+   wins over the config's `video.music`, so a script that names one (a
+   0.4.0 `video script` wrote `"generated"` into every new one) plays that
+   and hides the project's own track. The render says which one played and
+   where it came from («Music: …, from …»): check it against the music the
+   person expects. You cannot hear the video: ask them to listen to it
+   before it is shown; a wrong track is easy to miss.
+6. **A new narration or wording, same run:** `npx qa-cockpit video render
    latest --script <file>` draws the capture again, without replaying.
 
 | What you see | Why | What to do |
