@@ -28,6 +28,36 @@ const FADE = 0.3; // s, a card in or out over a step
 const EXIT = 0.45; // s, a card's content leaving for another card
 const SETTLED = 2.6; // s, every card's entrance is over (stage.html)
 const SUBTITLE_IN = 0.6; // s, a new subtitle rising into place
+const SWAP = 0.45; // s, the screens of one step fading in over another's
+
+/** Which screens a picture shows, and where: a step that changes them fades the new ones in. */
+const screensOf = (state) => JSON.stringify(state.panels.map((p) => [p.who, p.x, p.y, p.w, p.h]));
+
+/**
+ * The first moments of a step that shows other screens than the step before
+ * (a laptop, then a phone): the new screens fade in over the old ones and
+ * rise a touch into place, instead of a cut. The same screens changing is
+ * the app at work, and cuts as it did.
+ * @param {any} before the last picture of the step before
+ * @param {any} after this step's picture
+ * @param {number} k 0..1 through the swap
+ */
+function swapped(before, after, k) {
+  if (screensOf(before) === screensOf(after)) return after;
+  const c = Math.max(0, Math.min(1, k));
+  // The new screens come in quickly and slow down; the old ones leave late.
+  // Fading both at once would dim the picture halfway through.
+  const e = 1 - (1 - c) ** 3;
+  const gone = c ** 3;
+  return {
+    ...after,
+    panels: [
+      ...before.panels.map((p) => ({ ...p, opacity: Number((1 - gone).toFixed(3)) })),
+      ...after.panels.map((p) => ({ ...p, opacity: Number(e.toFixed(3)), dy: Number(((1 - e) * 14).toFixed(2)) })),
+    ],
+    cursors: after.cursors.map((c) => ({ ...c, opacity: Number(((c.opacity ?? 1) * e).toFixed(3)) })),
+  };
+}
 
 /** What the cover's address bar says: the page's address, without its scheme. */
 function addressOf(href) {
@@ -285,9 +315,10 @@ export function buildPlan({ config, capture, suite, script, mode, voice, fps = 2
     const s = shots[i];
     const u = t - s.start;
     const state = s.at(u);
-    if (s.kind !== 'card') return state;
     const prev = shots[i - 1];
     const next = shots[i + 1];
+    if (s.kind === 'step') return u < SWAP && prev?.kind === 'step' ? swapped(prev.at(prev.duration - 1e-3), state, u / SWAP) : state;
+    if (s.kind !== 'card') return state;
     if (u < FADE && prev?.kind === 'step') {
       return { ...prev.at(prev.duration - 1e-3), card: { ...state.card, opacity: u / FADE }, fade: state.fade };
     }
@@ -373,6 +404,9 @@ export function buildPlan({ config, capture, suite, script, mode, voice, fps = 2
         ...boxes[i],
         src: url(frameAt(s, tReal)?.file ?? null),
         label: boxes[i].bleed ? null : `${castName(s.id)}${roleOf(s.id) ? ` · ${roleOf(s.id)}` : ''}`,
+        // Whose screen this is: a step that shows other screens than the
+        // one before fades them in (SWAP).
+        who: s.id,
       }));
     const toStage = (pi, x, y) => {
       const b = boxes[pi];

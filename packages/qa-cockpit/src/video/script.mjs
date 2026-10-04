@@ -26,7 +26,8 @@
 //       "T1/2": { "subtitle": "...", "sees": "...", "narration": "...", "audio": "chat/t1-2.mp3" },
 //       "T3/4": { "skip": true }
 //     },
-//     "music": "generated",            // a file (relative to this script), or null for none
+//     "music": "generated",            // a file (relative to this script), "generated", or
+//                                      // null for none; left out, the config's video.music
 //     "musicVolume": 1,                // 0..1, over the default level
 //     "pace": { "min": 2.8, "max": 6.5, "charsPerSecond": 18 },
 //     "idle": 0.8,                     // motion: a still moment longer than this is cut to it
@@ -175,6 +176,7 @@ export function starterScript(config, suite) {
     tests: [...tests.keys()],
     cards,
     steps,
-    music: 'generated',
+    // No `music`: left out, the config's `video.music` plays. A script that
+    // said "generated" here hid a project's own track.
   };
 }

@@ -291,9 +291,11 @@ Say plainly which of these you lack, and stop there:
    3. **No narration:** the subtitles tell the story on their own.
 
    What goes to a service is the narration's text only: no customer names,
-   no real data from the screens. The music is made by the package unless
-   the person wants another track: from the same service when it makes
-   music, with the same yes, or a file of theirs; it goes in `music`.
+   no real data from the screens. The music is the config's `video.music`
+   (the package makes one when it names none). A project's own track goes
+   there, once, for all its videos; a video that wants another says so in
+   its script's `music`, which wins: from the same service when it makes
+   music, with the same yes, or a file of theirs.
 
 ### The kinds
 
@@ -333,6 +335,13 @@ in each video's script.
   3.8 s; the end 3 s. Cards fade over the steps beside them.
 - **The screens:** one 1280×720 screen fills the picture 1:1, as sharp as
   the app; several share it, scaled, each with its label (name · role).
+  When a step shows other screens than the step before (Alice's laptop,
+  then Bob's phone), the new ones fade in over the old and settle into
+  place; the same screen changing is the app at work, and cuts as it did.
+
+That is the style of every video, for training and for showing the app. A
+promotional cut may want another montage: ask the person what they have in
+mind, case by case; the clips (`--clips`) are its raw material.
 
 ### Making it
 
@@ -354,8 +363,8 @@ in each video's script.
    in that entry's `audio`; with the system's voice, `video voices <suite>`
    does all of that. The script's other keys: `quality` (`guide` or
    `motion`), `title`, `subtitle`, `cover` (the step whose end the cover
-   shows), `run` (below), `music` (`"generated"`, a file, or `null`),
-   `musicVolume`, `pace`, `idle` and `speed` (motion).
+   shows), `run` (below), `music` (a file, `"generated"` or `null`; left
+   out, the config's), `musicVolume`, `pace`, `idle` and `speed` (motion).
 3. **Make it:** `npx qa-cockpit video <suite>` (`--motion`, `--clips`,
    `--script <file>`, `--out <file>`). «Before you launch anything» holds:
    it takes the stack, resets it and runs the setup. A red run makes no

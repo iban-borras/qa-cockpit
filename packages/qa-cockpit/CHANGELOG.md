@@ -12,6 +12,14 @@
   otherwise: `"picked"` plays only the tests shown, a list plays its own.
   A script that names a test the suite lacks is refused before the stack
   is touched, and `video render` says when a capture lacks a test shown.
+- When a step shows other screens than the step before (a laptop, then a
+  phone), the new ones fade in over the old and settle into place, instead
+  of a cut. The same screen changing still cuts: that is the app at work.
+- `video script` no longer writes `"music": "generated"`: a script with no
+  `music` plays the config's `video.music`, as it always should have. A
+  project's own track there was hidden by every new script (found in
+  CritKeep). A script that names its music still wins, and the render says
+  so when that hides the config's.
 
 ## 0.4.0 (2026-10-03)
 

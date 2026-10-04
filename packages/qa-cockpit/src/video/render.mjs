@@ -150,6 +150,12 @@ export async function renderVideo(config, dir, opts = {}) {
     const ticksWav = path.join(work, 'tics.wav');
     writeWav(ticksWav, ticks(plan.ticks, plan.duration));
     const musicChoice = data.music !== undefined ? (data.music && data.music !== 'generated' ? scriptPath(script, data.music) : data.music) : config.video.music;
+    // A script's `music` wins over the config's, and one written by 0.4.0's
+    // `video script` says "generated": said aloud, so a project's own track
+    // is not lost without anybody noticing.
+    if (data.music !== undefined && config.video.music && config.video.music !== 'generated' && musicChoice !== config.video.music) {
+      log(`Music: the script's (${data.music ?? 'none'}), not the config's video.music (${path.basename(config.video.music)}). Leave "music" out of the script for the config's.`);
+    }
     let musicTrack = null;
     let level = 0;
     if (musicChoice === 'generated') {

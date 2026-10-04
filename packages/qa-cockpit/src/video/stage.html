@@ -356,10 +356,26 @@
         labels[i].style.display = p && p.label ? 'block' : 'none';
         if (!p) return;
         el.classList.toggle('bleed', Boolean(p.bleed));
-        Object.assign(el.style, { left: `${p.x}px`, top: `${p.y}px`, width: `${p.w}px`, height: `${p.h}px` });
+        // A screen fading in over another's (plan.mjs, swapped): its
+        // opacity, and how far below its place it still is.
+        const opacity = p.opacity ?? 1;
+        const dy = p.dy ?? 0;
+        Object.assign(el.style, {
+          left: `${p.x}px`,
+          top: `${p.y}px`,
+          width: `${p.w}px`,
+          height: `${p.h}px`,
+          opacity: String(opacity),
+          transform: dy ? `translate3d(0, ${dy}px, 0)` : '',
+        });
         if (p.label) {
           labels[i].textContent = p.label;
-          Object.assign(labels[i].style, { left: `${p.x + p.w / 2}px`, top: `${p.y}px` });
+          Object.assign(labels[i].style, {
+            left: `${p.x + p.w / 2}px`,
+            top: `${p.y}px`,
+            opacity: String(opacity),
+            transform: `translate(-50%, calc(-100% + ${dy}px))`,
+          });
         }
         await setImage(el, p.src);
       }),
