@@ -36,8 +36,10 @@ From CritKeep's first look at its own network with `replay --network`
 - `network --against previous` compares what the steps asked, not how
   many times by a moment's play: two alike runs say «None», where they
   showed 5 steps and 23 findings changed. It says when nearly every step
-  took longer (a busier machine). A test's own findings (a timer, a
-  stream) are matched by test, whoever showed them most.
+  took longer (a busier machine), and counts the calls «slow on the
+  server» that came or went with it there, not among the findings. A
+  test's own findings (a timer, a stream) are matched by test, whoever
+  showed them most.
 - With `--bodies`, an error says its code: «403 ACCOUNT_PAUSED».
 - New config key `network.notSecret`: names that look like a secret's and
   are none in the app (a game's `session_id`), whose values stay. A JWT

@@ -774,9 +774,19 @@ export function compareText(now, before, { shown }) {
     .filter(([r, b]) => b && r.span > 50 && b.span > 50)
     .map(([r, b]) => r.span / b.span);
   const pace = median(ratios);
-  if (ratios.length >= 4 && (pace >= 1.5 || pace <= 1 / 1.5)) {
+  const busy = ratios.length >= 4 && (pace >= 1.5 || pace <= 1 / 1.5);
+  if (busy) {
+    // Its calls «slow on the server» came or went with the machine: said
+    // here, not among the findings new and gone (12 of 13 «new» were
+    // those, against a run made under load in CritKeep).
+    const slow = (a) => a.findings.filter((f) => f.kind === 'slow');
+    const keys = (a) => new Set(slow(a).map(findingKey));
+    // Counted by call, as the findings list them.
+    const calls = (list) => new Set(list.map((f) => callKey(f.call))).size;
+    const came = calls(slow(now).filter((f) => !keys(before).has(findingKey(f))));
+    const went = calls(slow(before).filter((f) => !keys(now).has(findingKey(f))));
     out.push(
-      `> Most steps took ${pace >= 1.5 ? `${pace.toFixed(1)} times as long` : `${(1 / pace).toFixed(1)} times less`} as before: the machine was busier one of the times, most likely. Its milliseconds, and the calls «slow on the server», say little here: run both again on a quiet machine.`,
+      `> Most steps took ${pace >= 1.5 ? `${pace.toFixed(1)} times as long` : `${(1 / pace).toFixed(1)} times less`} as before: the machine was busier one of the times, most likely. Its milliseconds, and the calls «slow on the server», say little here: run both again on a quiet machine.${came || went ? ` The calls slow on the server that ${came ? `came (${came})` : ''}${came && went ? ' or ' : ''}${went ? `went (${went})` : ''} with it are left out of the findings below.` : ''}`,
       '',
     );
   }
@@ -817,7 +827,7 @@ export function compareText(now, before, { shown }) {
     out.push('None: the same calls, and the milliseconds within their noise.', '');
   }
 
-  const compared = (list) => (dev ? list.filter((f) => f.kind !== 'chain') : list);
+  const compared = (list) => list.filter((f) => !(dev && f.kind === 'chain') && !(busy && f.kind === 'slow'));
   const keysBefore = new Set(compared(before.findings).map(findingKey));
   const keysNow = new Set(compared(now.findings).map(findingKey));
   const gone = compared(before.findings).filter((f) => !keysNow.has(findingKey(f)));
