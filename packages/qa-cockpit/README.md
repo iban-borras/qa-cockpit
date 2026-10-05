@@ -122,6 +122,7 @@ The config is the whole contract between your app and the cockpit:
 | `commands` | commands of your own, next to the built-in ones |
 | `report` | notes the run report should carry |
 | `video` | how demo videos look: the product's name, each person's role, a logo, the colours, the address on the cover, the subtitles' words, the music, the loudness, where ffmpeg is |
+| `network` | how many looks at the network of a suite stay (`keep`), to measure a change against |
 
 What differs from one machine to the next (a port your own dev server
 already takes here, the one a container publishes there) goes in `.env`
@@ -176,6 +177,32 @@ Agents make one only when asked, and check first that they can: a video is
 done when somebody has looked at its contact sheet, so an agent that cannot
 see images says so instead.
 
+## A look at the network
+
+Ask your agent *«Why does the fairs page feel slow?»* or *«Which calls does
+each screen make?»*. It replays the suite with `--network`: each person's
+requests, kept per test as a HAR (the browser's own record of a page's
+traffic), each one placed in the step that made it. Then `network` says,
+step by step:
+
+- the calls made one after another, where the page waited for an answer to
+  ask the next thing, and could have asked them together;
+- the same call again in one step, or one call per item of a list;
+- the calls slow on the server, the heavy responses, the errors, the polls
+  on a timer.
+
+The counts and the chains are the app's wherever it runs; the milliseconds
+are the QA copy's, on this machine. So the agent reads them as a hint,
+reports before it changes anything, and measures a change against the run
+before it (`network --against previous`).
+
+A HAR never keeps a secret: the values of cookies, tokens, passwords, API
+keys and signed URLs become `REDACTED-<id>` (one id per value, so a token
+that goes on forty calls still reads as one) before anything reaches the
+project. It is safe for an agent to read and for you to pass on. The text
+of the responses is kept only when asked (`--bodies`), cleaned the same
+way. Any HAR opens in DevTools as a waterfall (Network, Import HAR).
+
 ## Commands
 
 ```
@@ -186,6 +213,8 @@ setup <suite>                     the suite's setup, sessions saved
 sessions                          fresh saved sessions for the cast
 decide <suite>                    REPLAY | GENERATE <why> | ENV <why>
 replay <suite> [playwright args]  the recording (sessions renewed when old)
+replay <suite> --network          ... and each person's requests, as HARs without secrets (--bodies)
+network [run]                     what they show, step by step (--against previous: what a change changed)
 stamp <suite> | hash <suite>      the suite's hash in the recording's first line
 pass <suite> <who> <result> ...   a row in the suite's runs table
 open <person>                     a browser window signed in as that person

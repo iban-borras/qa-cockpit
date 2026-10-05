@@ -161,6 +161,11 @@ export function resolveConfig(raw, file) {
       ffmpeg: raw.video?.ffmpeg ?? 'ffmpeg',
       keep: raw.video?.keep ?? 5,
     },
+    // A look at the network (`replay --network`, network/): how many of a
+    // suite's stay, to compare a change with the run before it.
+    network: {
+      keep: raw.network?.keep ?? 5,
+    },
   });
   resolved.set(raw, config);
   return config;

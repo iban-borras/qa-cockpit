@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.6.0 (unreleased)
+
+- `replay <suite> --network`: each person's requests in each test, kept
+  as a HAR, each request placed in the step that made it, under
+  `<out>/network/<suite>-<time>/`. Then `network` says what they show,
+  step by step: calls made one after another (the page waiting for an
+  answer to ask the next thing; a call the person caused, by pressing or
+  typing in between, starts afresh), the same call again in one step, one
+  call per item of a list, calls slow on the server, heavy responses,
+  errors, calls on a timer, streams opened again and again; each finding as
+  a pattern with the places it shows up. `network --against previous`
+  measures a change: the steps whose calls changed, the findings gone and
+  new. A request's time runs to its last byte: Playwright's HAR leaves out
+  the time it waits for a connection, where calls sent together lose
+  theirs (`timings.blocked` here), and counts a TLS handshake for plain
+  HTTP. Asked for by a person who audited their endpoints by hand, from
+  HARs exported in the browser.
+- A HAR never keeps a secret. Playwright writes its own to the system's
+  temporary files; only a clean one reaches the project, where the values
+  of cookies, Authorization headers, and every header, query parameter,
+  form field or JSON key named like a secret (a token, a password, an API
+  key, a session id, a signature) are `REDACTED-<id>`, as are JWTs and
+  bearer tokens anywhere, each of those values wherever else it shows, and
+  this machine's own secrets (the environment's, the cast's passwords). One
+  id per value within a run, from a key the run never writes down: a token
+  on forty calls still reads as one. The text of the responses is kept only
+  with `--bodies`, cleaned the same way.
+- New config key `network.keep`: how many looks at a suite's network stay
+  (5).
+- The skill says when to look (a person asks), what to trust (the counts
+  and the chains; the milliseconds are the copy's), and that what comes out
+  is a report, cheap fixes first, with nothing changed until the person
+  chooses.
+
 ## 0.5.0 (2026-10-04)
 
 - A video that shows only some tests of a suite plays every test through

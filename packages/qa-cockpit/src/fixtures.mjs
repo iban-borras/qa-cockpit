@@ -26,6 +26,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { resolveConfig } from './config.mjs';
 import { contextOptions, deviceFor, deviceLabel } from './devices.mjs';
+import * as network from './network/capture.mjs';
 import * as video from './video/capture.mjs';
 import * as cockpit from './worker.mjs';
 
@@ -36,21 +37,32 @@ import * as cockpit from './worker.mjs';
 export function cockpitFixtures(base, rawConfig) {
   const config = resolveConfig(rawConfig);
   cockpit.configure(config);
+  network.configure(config);
 
   const statePath = (id) => path.join(config.paths.state, `${id}.json`);
 
-  async function contextFor(browser, id, device = deviceFor(config, id)) {
+  async function contextFor(browser, id, device = deviceFor(config, id), extra = {}) {
     const state = statePath(id);
     if (!fs.existsSync(state)) {
       throw new Error(`No saved session for ${id} (${state}). Run: ${config.cli} setup <suite>`);
     }
-    return browser.newContext({ ...contextOptions(config, id, device), storageState: state });
+    return browser.newContext({ ...contextOptions(config, id, device), ...extra, storageState: state });
   }
 
   const person = (id) =>
     async ({ browser, devices }, use, testInfo) => {
       const device = deviceFor(config, id, devices);
-      const context = await contextFor(browser, id, device);
+      // For `replay --network` (network/capture.mjs): Playwright's HAR of
+      // this person's context, cleaned of its secrets when it closes.
+      const har = network.harFor(id, testInfo);
+      let context;
+      try {
+        context = await contextFor(browser, id, device, har?.options);
+      } catch (e) {
+        network.discard(har);
+        throw e;
+      }
+      await network.watch(har, context);
       const page = await context.newPage();
       await cockpit.register(id, page, deviceLabel(device));
       // For `qa-cockpit video` (video/capture.mjs): the page's own frames,
@@ -63,7 +75,13 @@ export function cockpitFixtures(base, rawConfig) {
       } finally {
         await video.stopCapture(page);
         await cockpit.unregister(id);
-        await context.close();
+        try {
+          await context.close();
+        } finally {
+          // Playwright has written its HAR on closing: the clean one goes to
+          // the run, the raw one is deleted, even if the close went wrong.
+          await network.saved(har, { testInfo, device: deviceLabel(device) });
+        }
       }
     };
 
@@ -85,8 +103,9 @@ export function cockpitFixtures(base, rawConfig) {
   // so reports still point at the recording's line, not at this file.
   // Without COCKPIT_URL nothing is wrapped and a replay runs as it always did.
   // A video's run (video/capture.mjs) wraps them too: it notes when each
-  // step began and ended, on the clock of its frames.
-  if (cockpit.enabled || video.enabled) {
+  // step began and ended, on the clock of its frames. So does a look at the
+  // network (network/capture.mjs): each request goes in the step it began in.
+  if (cockpit.enabled || video.enabled || network.enabled) {
     const plainStep = extended.step;
     const withPhotos = async (title, body, options = {}) => {
       const location = options.location ?? cockpit.callerLocation();
@@ -101,8 +120,16 @@ export function cockpitFixtures(base, rawConfig) {
           // When the step began: its photo says how long it took, and each
           // click in it how long after the start it came.
           const began = Date.now();
+          let ended = null;
           try {
             const result = await body(info);
+            ended = Date.now();
+            network.stepRecorded(testInfo, {
+              title,
+              began,
+              ended,
+              status: testInfo.errors.length > softBefore ? 'failed' : 'passed',
+            });
             if (video.shows(testInfo.title)) {
               await video.settleAll();
               video.stepRecorded({
@@ -123,6 +150,7 @@ export function cockpitFixtures(base, rawConfig) {
             }
             return result;
           } catch (error) {
+            if (ended === null) network.stepRecorded(testInfo, { title, began, ended: Date.now(), status: 'failed' });
             await cockpit.stepEnded({ title, status: 'failed', error, began, ...where });
             throw error;
           }

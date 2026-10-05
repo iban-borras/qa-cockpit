@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { newRecordingPath, recordingOf, resolveConfig, setupOf, shown } from './config.mjs';
 import { depsStale, installDeps, packageManager, playwrightCli as playwrightCliOf } from './deps.mjs';
@@ -273,6 +274,49 @@ export async function runCli(rawConfig, argv) {
       : [];
   }
 
+  // `replay --network` (network/): a folder for this run's HARs, the run's
+  // own key for their placeholders (sanitize.mjs), and a word at the end on
+  // where they are. The newest few of a suite stay, to measure a change
+  // against.
+  async function lookAtNetwork(suite, bodies) {
+    const { networkRuns } = await import('./network/report.mjs');
+    const root = path.join(P.out, 'network');
+    const keep = Math.max(1, config.network.keep);
+    for (const old of networkRuns(root).filter((r) => r.meta.suite === suite).slice(keep - 1)) {
+      fs.rmSync(old.dir, { recursive: true, force: true });
+    }
+    const stamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15);
+    const dir = path.join(root, `${suite}-${stamp}`);
+    fs.mkdirSync(dir, { recursive: true });
+    const meta = {
+      suite,
+      startedAt: new Date().toISOString(),
+      command: ['replay', ...rest].join(' '),
+      bodies,
+      urls: config.stack.urls(),
+      // Its traces and photos slow a run a little: runs compare best with
+      // runs made the same way.
+      cockpit: Boolean(process.env.COCKPIT_URL),
+    };
+    const write = () => fs.writeFileSync(path.join(dir, 'run.json'), `${JSON.stringify(meta, null, 2)}\n`);
+    write();
+    process.env.QA_NETWORK_DIR = dir;
+    process.env.QA_NETWORK_SALT = randomBytes(16).toString('hex');
+    if (bodies) process.env.QA_NETWORK_BODIES = '1';
+    // A red run ends this process from playwright(): what it reached is kept.
+    process.once('exit', (code) => {
+      meta.status = code ? 'failed' : 'passed';
+      meta.endedAt = new Date().toISOString();
+      try {
+        write();
+      } catch {
+        // The HARs are there all the same.
+      }
+      console.log(`\nIts network, without secrets: ${shown(config, dir)}`);
+      console.log(`  ${CLI} network: what it found${code ? ' (the run failed: what it reached is there)' : ''}`);
+    });
+  }
+
   const ctx = { config, holdStack, clearSavedSessions, waitHealthy: () => waitHealthy(config), log: (...a) => console.log(...a) };
   const STACK = config.stack.name;
 
@@ -365,12 +409,20 @@ export async function runCli(rawConfig, argv) {
     },
 
     // Runs the recording of a suite, sessions first unless every saved one
-    // is younger than config.sessions.freshFor.
+    // is younger than config.sessions.freshFor. `--network`: each person's
+    // requests kept too, as HARs without their secrets (network/).
     async replay() {
       const suite = rest[0];
-      if (!suite) fail(`Usage: ${CLI} replay <suite> [--in-docker] [playwright args]`);
+      if (!suite) fail(`Usage: ${CLI} replay <suite> [--network [--bodies]] [--in-docker] [playwright args]`);
       const file = recordingOf(config, suite);
       if (!file) fail(`No recording for the suite "${suite}" in ${P.recordings}`);
+      const network = rest.includes('--network');
+      const bodies = rest.includes('--bodies');
+      const pwArgs = rest.slice(1).filter((a) => a !== '--network' && a !== '--bodies');
+      if (bodies && !network) fail('--bodies goes with --network: it keeps the text of the responses in its HARs.');
+      // In a container the requests cross another network, and the HARs
+      // would have to come back from it: a look is taken on this machine.
+      if (network && IN_DOCKER) fail('A look at the network is taken on this machine: run it without --in-docker.');
       guard();
       await takeStack('replay', suite, ['replay', ...rest].join(' '));
       fs.mkdirSync(P.state, { recursive: true });
@@ -385,7 +437,8 @@ export async function runCli(rawConfig, argv) {
       }
       // From its first test on, a recording changes the data.
       noteData(config, { state: 'spent', suite });
-      await playwright(['test', testFileArg(file), ...rest.slice(1)]);
+      if (network) await lookAtNetwork(suite, bodies);
+      await playwright(['test', testFileArg(file), ...pwArgs]);
     },
 
     // A demo video of a suite (video/): its recording played again with a
@@ -685,6 +738,46 @@ export async function runCli(rawConfig, argv) {
       );
     },
 
+    // What a `replay --network` found (network/report.mjs), for an agent
+    // asked about load times: the newest look, a suite's newest, or the one
+    // named; `--against` an earlier one, to measure what a change changed.
+    async network() {
+      const { analyse, compareText, findRun, networkRuns, readRun, reportJson, reportText } = await import('./network/report.mjs');
+      const usage = `Usage: ${CLI} network [<run> | <suite>] [--against <run> | <suite> | previous] [--test <id>] [--json]  |  ${CLI} network --list`;
+      const root = path.join(P.out, 'network');
+      const runs = networkRuns(root);
+      const valueOf = (name) => {
+        const i = rest.indexOf(name);
+        if (i === -1) return null;
+        if (!rest[i + 1] || rest[i + 1].startsWith('--')) fail(usage);
+        return rest[i + 1];
+      };
+      const against = valueOf('--against');
+      const test = valueOf('--test');
+      const named = rest.find((a, i) => !a.startsWith('--') && rest[i - 1] !== '--against' && rest[i - 1] !== '--test') ?? null;
+      const none = `${CLI} replay <suite> --network takes one`;
+      if (rest.includes('--list')) {
+        if (!runs.length) return console.log(`No look at the network yet: ${none}.`);
+        for (const r of runs) console.log(`${r.id}  ${r.meta.status ?? 'running or stopped'}  ${r.meta.command ?? ''}`);
+        return;
+      }
+      if (!runs.length) fail(`No look at the network yet in ${shown(config, root)}: ${none}.`);
+      const run = findRun(runs, named);
+      if (!run) fail(`No look at the network «${named}» in ${shown(config, root)} (--list shows them).`);
+      const how = { shown: (abs) => shown(config, abs), cli: CLI };
+      const now = analyse(readRun(run), { test });
+      if (against) {
+        // «previous», or a suite: its newest look before this one.
+        const before = runs.find((r) => r.id === against) ?? findRun(runs, against === 'previous' ? run.meta.suite : against, { before: run });
+        if (!before) fail(`No earlier look at ${against === 'previous' ? run.meta.suite : against} to compare ${run.id} with (--list shows them).`);
+        const then = analyse(readRun(before), { test });
+        if (rest.includes('--json')) return console.log(JSON.stringify({ now: reportJson(now), before: reportJson(then) }, null, 2));
+        return console.log(compareText(now, then, how));
+      }
+      if (rest.includes('--json')) return console.log(JSON.stringify(reportJson(now), null, 2));
+      console.log(reportText(now, how));
+    },
+
     // .mcp.json at the repo root: one Playwright MCP server per saved
     // session, for an agent that drives a person's browser by hand.
     // Generated, not committed: it must not prompt every developer who opens
@@ -853,7 +946,12 @@ export async function runCli(rawConfig, argv) {
   decide <suite>   REPLAY | GENERATE <why> | ENV <why>, from the recording's hash
   hash <suite>     the header line a recording of the suite must carry
   stamp <suite>    write that header into the recording's first line
-  replay <suite>   fresh sessions, then the suite's recording (extra args go to Playwright)
+  replay <suite>   fresh sessions, then the suite's recording (extra args go to Playwright);
+                   --network: each person's requests kept too, as HARs without their secrets
+                   (--bodies: with the text of the app's responses)
+  network [run]    what a replay --network found, step by step: calls one after another,
+                   repeated or per item, slow, heavy or failed (--against previous: what a
+                   change changed; --test <id>; --json; --list)
   pass <suite> <who> <result> <notes...>   a row in the suite's runs table
   mcp              write .mcp.json with one Playwright MCP server per saved session
   open <person>    a browser window signed in as that person, to use by hand

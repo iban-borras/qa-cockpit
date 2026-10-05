@@ -1,6 +1,6 @@
 ---
 name: qa-cockpit
-description: Set up, run, record and heal multi-person Playwright suites with QA Cockpit. Use when asked to configure QA Cockpit in a project, write a suite, record one (the director), repair a red replay (the healer), run a suite, start the stack or the cockpit, or make a demo video of a suite (only when a person asks for one). Read «Before you launch anything» first: one run at a time, through the cockpit when it is up.
+description: Set up, run, record and heal multi-person Playwright suites with QA Cockpit. Use when asked to configure QA Cockpit in a project, write a suite, record one (the director), repair a red replay (the healer), run a suite, start the stack or the cockpit, make a demo video of a suite (only when a person asks for one), or look at the network of a suite (load times, the calls each screen makes) when asked. Read «Before you launch anything» first: one run at a time, through the cockpit when it is up.
 ---
 
 # QA Cockpit
@@ -154,6 +154,8 @@ npx qa-cockpit sessions         # fresh saved sessions for the cast
 npx qa-cockpit decide <suite>   # REPLAY | GENERATE <why> | ENV <why>
 npx qa-cockpit replay <suite>   # fresh sessions if old, then the recording
 npx qa-cockpit replay <suite> -g T1   # one test; extra args go to Playwright
+npx qa-cockpit replay <suite> --network   # each person's requests kept as HARs, without secrets; «A look at the network»
+npx qa-cockpit network [run]    # what they show, step by step (--against previous, --test <id>, --json, --list)
 npx qa-cockpit open <person>    # a browser window signed in as that person
 npx qa-cockpit stamp <suite>    # write the suite's hash into the recording's first line
 npx qa-cockpit pass <suite> <who> <result> <notes...>   # a row in the suite's runs table
@@ -262,6 +264,50 @@ are asked to act on them:
    suite and GENERATE. Say which, note by note, in your answer.
 4. Notes stay until a person deletes them in the cockpit: never delete one
    yourself.
+
+## A look at the network (when a person asks)
+
+When somebody asks why a screen is slow, which calls a page makes, or how
+the app loads, look at the network of a suite that goes through it. Do not
+instrument the app, or write a test of your own for it.
+
+1. «Before you launch anything» holds: it is a replay. `reset`,
+   `setup <suite>`, then `npx qa-cockpit replay <suite> --network` (with
+   `-g T3` for one test). Each person's requests are kept per test as HARs,
+   each placed in the step that made it, under
+   `<out>/network/<suite>-<time>/`. A red run keeps what it reached.
+2. `npx qa-cockpit network` reads the newest: the findings first, each as a
+   pattern with the places it shows up (calls one after another, one call
+   per item, the same call again, slow on the server, heavy, errors, calls on
+   a timer), then a table per test, step by step. `--test T3` for one test,
+   `--json` for every finding.
+3. **What to trust.** The counts, the chains, the repeats and the sizes are
+   the app's, wherever it runs. The milliseconds are the QA copy's (its stack
+   on this machine, its small data, no distance to the server): a hint, never
+   a verdict. A call of 5 ms here can cost 150 in production; one of 900 here
+   may be the copy's doing.
+4. **What you deliver is a report, not a refactor.** The findings ranked by
+   what they cost the person who waits and what fixing them costs, the cheap
+   ones first: two calls that can go together, a call made twice, a list that
+   asks row by row, a response trimmed to what the screen shows. A change
+   that reaches deep (a new shape for an endpoint, a cache, the data model)
+   goes in as a proposal with its cost, for the person to choose. Change
+   nothing until they have.
+5. **After a change**, the same replay with `--network`, then
+   `npx qa-cockpit network --against previous`: the steps whose calls
+   changed, and the findings gone and new. Compare runs made the same way (on
+   this machine; both followed by the cockpit, or neither). Milliseconds move
+   from run to run: replay again before believing a small gain.
+
+The HARs are made to be read and passed on. The values of cookies, tokens,
+passwords, API keys, signed URLs and the like are `REDACTED-<id>` in them,
+one id per value: the same id is the same token. Read them with `jq` or
+`grep` for what the report does not say (a call's headers, its timings);
+DevTools draws one as a waterfall (Network, Import HAR). The text of the
+responses is kept only with `--bodies`: ask for it when a finding needs it
+(what a heavy response holds), cleaned the same way, its data the copy's.
+The Playwright traces under `<out>` are not cleaned: they keep everything
+the browser sent, to debug a failure. Never pass one on.
 
 ## Demo videos (only when a person asks)
 
@@ -483,7 +529,7 @@ suites/                 the suites (Markdown) and their guide, README.md
 setups/                 <suite>.setup.*: the setup table as code
 recordings/             <suite>.spec.*: the recordings, hash in line 1
 videos/                 <suite>.json: video scripts, and their narration's audio
-.qa-cockpit/            runs, photos, traces, videos, saved sessions (never committed)
+.qa-cockpit/            runs, photos, traces, videos, HARs, saved sessions (never committed)
 ```
 
 (Defaults; the config's `paths` can put each elsewhere.)
