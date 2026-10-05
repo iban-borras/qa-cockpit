@@ -441,7 +441,7 @@ function renderPicker() {
   });
   $('pickerList').innerHTML = html || `<p class="picker-empty">${esc(t('picker.empty'))}</p>`;
   const active = items[S.picker.active];
-  $('pickerSearch').setAttribute('aria-activedescendant', active ? `opt-${active.name}` : '');
+  for (const id of ['pickerSearch', 'pickerList']) $(id).setAttribute('aria-activedescendant', active ? `opt-${active.name}` : '');
   $('pickerList').querySelector('.picker-item.active')?.scrollIntoView({ block: 'nearest' });
 }
 
@@ -454,7 +454,9 @@ function openPicker() {
   $('pickerPop').hidden = false;
   $('pickerBtn').setAttribute('aria-expanded', 'true');
   renderPicker();
-  $('pickerSearch').focus();
+  // The list has the keys, not the box: nothing lit up nor blinking on
+  // opening. Typing goes to the box.
+  $('pickerList').focus({ preventScroll: true });
 }
 
 function closePicker() {
@@ -478,7 +480,10 @@ $('pickerSearch').oninput = (e) => {
   S.picker.active = 0;
   renderPicker();
 };
-$('pickerSearch').onkeydown = (e) => {
+// The keys, in the box and in the list alike; the filter's box keeps its
+// own but Escape. A letter typed in the list goes to the box.
+$('pickerPop').onkeydown = (e) => {
+  if (e.target === $('pickerHide') && e.key !== 'Escape') return;
   const items = pickerItems();
   if (e.key === 'ArrowDown') S.picker.active = Math.min(items.length - 1, S.picker.active + 1);
   else if (e.key === 'ArrowUp') S.picker.active = Math.max(0, S.picker.active - 1);
@@ -486,7 +491,10 @@ $('pickerSearch').onkeydown = (e) => {
   else if (e.key === 'Escape') {
     closePicker();
     return $('pickerBtn').focus();
-  } else return;
+  } else {
+    if (e.target !== $('pickerSearch') && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) $('pickerSearch').focus();
+    return;
+  }
   e.preventDefault();
   renderPicker();
 };

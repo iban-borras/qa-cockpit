@@ -20,6 +20,11 @@
   Playwright's report show the recording's actions alone, with no
   «Screenshot» or «Evaluate» between them.
 - A label clicked is one mark, not two (it clicks its field too).
+- The suite picker's search box keeps its size under a long list (with
+  CritKeep's twenty-odd suites it was squeezed to 21 px, its filter too),
+  a little taller, and no longer takes the focus when the picker opens:
+  the list has the keys (arrows, Enter, Escape), and typing goes to the
+  box.
 - The cockpit's scrollbars as macOS draws them: a thin pill over a track
   nobody sees, faint while the pointer is over its box, clearer while the
   box scrolls, a touch wider under the pointer, and gone a moment after;

@@ -427,8 +427,10 @@ dialog.ask p { margin: 0 0 16px; font-size: 14px; line-height: 1.5; }
 .picker-label { color: var(--faint); }
 .picker-name { font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .picker-pop { position: absolute; left: 0; top: 38px; z-index: 30; width: min(560px, 92vw); max-height: min(70vh, 640px); display: flex; flex-direction: column; background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 12px; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5); overflow: hidden; }
-.picker-search { margin: 10px 10px 0; height: 34px; padding: 0 10px; border-radius: var(--radius); border: 1px solid var(--line-2); background: var(--panel); color: var(--text); }
-.picker-list { overflow: auto; padding: 0 6px 8px; }
+/* The box and the filter keep their size; only the list gives way to a
+   long one (squeezed, the box was 21 px tall with CritKeep's suites). */
+.picker-search { flex: none; margin: 12px 12px 0; height: 38px; padding: 0 12px; border-radius: var(--radius); border: 1px solid var(--line-2); background: var(--panel); color: var(--text); font-size: 14px; }
+.picker-list { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 0 6px 8px; outline: none; }
 .picker-group { padding: 10px 8px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--faint); font-weight: 600; }
 .picker-item { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 4px 10px; align-items: start; padding: 8px 10px; border-radius: 8px; cursor: pointer; }
 .picker-item .sdot { margin-top: 6px; }
@@ -445,7 +447,7 @@ dialog.ask p { margin: 0 0 16px; font-size: 14px; line-height: 1.5; }
 .picker-item .tags .chip { height: 20px; font-size: 11px; }
 .picker-item.nosetup .t { color: var(--muted); }
 .picker-group .count { margin-left: 4px; color: var(--muted); letter-spacing: 0; }
-.picker-filter { display: flex; align-items: center; gap: 8px; margin: 8px 12px 2px; font-size: 12.5px; color: var(--muted); cursor: pointer; }
+.picker-filter { flex: none; display: flex; align-items: center; gap: 8px; margin: 10px 14px 4px; font-size: 12.5px; color: var(--muted); cursor: pointer; }
 .picker-filter input { accent-color: var(--accent); }
 .picker-empty { margin: 12px 10px; font-size: 13px; color: var(--faint); }
 .opts[open] > summary { border-color: var(--accent); }
