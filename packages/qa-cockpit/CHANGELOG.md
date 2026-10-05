@@ -8,6 +8,10 @@
   never Windows' arrows and grey gutters across the steps, the photo, the
   strip and the post-its. Light on the dark panels, dark on a post-it.
   Firefox gets a thin bar of the same colour.
+- The inspector, watching somebody live while they act, shows one pulsing
+  chip, «Live», instead of «Live» and «Acting now» side by side, which
+  said one thing twice (as a card already did). «Waiting» still shows
+  beside «Live», and «Acting now» beside a photo under review.
 
 ## 0.6.0 (2026-10-05)
 

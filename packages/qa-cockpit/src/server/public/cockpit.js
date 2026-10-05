@@ -1548,6 +1548,13 @@ function renderInsState() {
   if (el.hidden) return;
   if (isRunning()) {
     const acting = S.acting.has(ins.actor) || (S.run.current?.actors ?? []).includes(ins.actor);
+    // Watched live while they act: the «Live» chip beside it pulses for
+    // them already, and two of them say one thing (as a card shows no
+    // «Live» while its «Acting now» does).
+    if (ins.live && acting) {
+      el.hidden = true;
+      return;
+    }
     el.className = `chip ${acting ? 'accent live' : ''}`;
     el.innerHTML = `${acting ? '<span class="dot"></span>' : ''}${esc(t(acting ? 'card.acting' : 'card.waiting'))}`;
   } else {
