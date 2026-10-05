@@ -808,6 +808,47 @@ document.addEventListener('keydown', (e) => {
 window.addEventListener('scroll', hideTip, { capture: true, passive: true });
 window.addEventListener('resize', hideTip);
 
+// The scrollbars (cockpit.css): a box shows its own while it scrolls, and a
+// moment after, as macOS's do (the wheel or a key may move it with the
+// pointer elsewhere); and, fainter, while the pointer is over it, so that a
+// hand on a mouse finds it to drag. Classes, not :hover, which Chromium
+// does not repaint a scrollbar for.
+const scrolled = new WeakMap();
+window.addEventListener(
+  'scroll',
+  (e) => {
+    const box = e.target === document ? document.documentElement : e.target;
+    if (!(box instanceof Element)) return;
+    box.classList.add('scrolling');
+    clearTimeout(scrolled.get(box));
+    scrolled.set(box, setTimeout(() => box.classList.remove('scrolling'), 900));
+  },
+  { capture: true, passive: true },
+);
+let underPointer = [];
+const scrolls = (el) => {
+  if (el.scrollHeight <= el.clientHeight + 1 && el.scrollWidth <= el.clientWidth + 1) return false;
+  const s = getComputedStyle(el);
+  return /auto|scroll/.test(`${s.overflowX} ${s.overflowY}`);
+};
+const pointerOver = (boxes) => {
+  for (const el of underPointer) if (!boxes.includes(el)) el.classList.remove('scroll-hover');
+  for (const el of boxes) el.classList.add('scroll-hover');
+  underPointer = boxes;
+};
+document.addEventListener(
+  'pointerover',
+  (e) => {
+    const boxes = [];
+    for (let el = e.target; el instanceof Element && el !== document.documentElement; el = el.parentElement) {
+      if (scrolls(el)) boxes.push(el);
+    }
+    pointerOver(boxes);
+  },
+  { passive: true },
+);
+document.documentElement.addEventListener('pointerleave', () => pointerOver([]));
+
 /** Every `title` of the page becomes one of these tooltips, the moment it
  *  appears: written in the HTML, set by code, filled in from a language
  *  (`data-i18n-title`) or in a card drawn later. The browser's own would

@@ -43,6 +43,30 @@ button, select, input { font: inherit; color: inherit; }
 .muted { color: var(--muted); }
 .faint { color: var(--faint); }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Scrollbars as macOS draws them: a thin pill over a track nobody sees,
+   faint while the pointer is over its box, clearer while the box scrolls,
+   a touch wider under the pointer; never the platform's arrows and grey
+   gutters, which on Windows cut every panel with a light band. Its colour
+   is the box's own text: light on the dark panels, dark on a post-it.
+   cockpit.js marks the boxes («scroll-hover», «scrolling»): Chromium
+   repaints a scrollbar for a class, not for its box's :hover, which left
+   one shown for good, or never. Firefox has no such pseudo-elements: a
+   thin bar of its own colour. */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-button { display: none; }
+::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 999px; background-clip: padding-box; background-color: transparent; }
+::-webkit-scrollbar-thumb:vertical { min-height: 32px; }
+::-webkit-scrollbar-thumb:horizontal { min-width: 32px; }
+.scroll-hover::-webkit-scrollbar-thumb { background-color: color-mix(in srgb, currentColor 22%, transparent); }
+.scrolling::-webkit-scrollbar-thumb { background-color: color-mix(in srgb, currentColor 32%, transparent); }
+::-webkit-scrollbar-thumb:hover { border-width: 2px; background-color: color-mix(in srgb, currentColor 45%, transparent); }
+::-webkit-scrollbar-thumb:active { border-width: 2px; background-color: color-mix(in srgb, currentColor 55%, transparent); }
+@supports not selector(::-webkit-scrollbar) {
+  * { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, currentColor 30%, transparent) transparent; }
+}
 svg.i { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 svg.i.sm { width: 14px; height: 14px; }
 svg.i.lg { width: 18px; height: 18px; }

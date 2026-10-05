@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.1 (unreleased)
+
+- The cockpit's scrollbars as macOS draws them: a thin pill over a track
+  nobody sees, faint while the pointer is over its box, clearer while the
+  box scrolls, a touch wider under the pointer, and gone a moment after;
+  never Windows' arrows and grey gutters across the steps, the photo, the
+  strip and the post-its. Light on the dark panels, dark on a post-it.
+  Firefox gets a thin bar of the same colour.
+
 ## 0.6.0 (2026-10-05)
 
 - `replay <suite> --network`: each person's requests in each test, kept
