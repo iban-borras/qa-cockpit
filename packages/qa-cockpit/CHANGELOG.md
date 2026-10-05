@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.7.1 (2026-10-05)
+
+- A session is signed in on the device the suite gives the person, not on
+  the cast's: the sign-in, and the cockpit's photo of it, are on the phone
+  they play on. CritKeep's cast names no device (each suite gives its
+  own), so Bernat was signed in at a laptop for a suite he plays on an
+  iPhone, and his first photo of the run was a laptop's. The recording's
+  `test.use({ devices })` says which: a device named in quotes is read as
+  it is; a constant (a desk of the project's own size) as the suite's last
+  run used it, noted in `<out>/devices.json`; a person it never names
+  signs in on the cast's device, as before. No sign-in more than before
+  (CritKeep's `/login` takes twenty a minute): the same ones, on the right
+  device. `setup`, `replay` and `video` name the suite to their sessions.
+
 ## 0.7.0 (2026-10-05)
 
 - A photo of each action. A step's photo comes once its checks pass, and

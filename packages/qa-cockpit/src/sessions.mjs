@@ -10,7 +10,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { resolveConfig } from './config.mjs';
-import { contextOptions, deviceFor, deviceLabel, resolveDevice } from './devices.mjs';
+import { contextOptions, deviceFor, deviceLabel, resolveDevice, suiteDeviceOf } from './devices.mjs';
 import * as cockpit from './worker.mjs';
 
 /**
@@ -29,8 +29,13 @@ export async function saveSession(browser, rawConfig, id, override = {}) {
   const known = config.cast.find((p) => p.id === id);
   const person = { ...(known ?? { id, name: id, email: null, badge: null }), ...override };
   // Signed in on the person's own device: some apps sign a phone in
-  // through another screen.
-  const device = override.device ? resolveDevice(config, override.device) : deviceFor(config, id);
+  // through another screen, and the cockpit's photo of the sign-in is that
+  // device's. The one the suite being run gives them, when it says
+  // (devices.mjs); else the cast's.
+  const suite = process.env.QA_SUITE;
+  const device = override.device
+    ? resolveDevice(config, override.device)
+    : ((suite ? suiteDeviceOf(config, suite, id) : null) ?? deviceFor(config, id));
   const context = await browser.newContext(contextOptions(config, id, device));
   const page = await context.newPage();
   try {

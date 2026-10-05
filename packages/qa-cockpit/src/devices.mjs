@@ -10,6 +10,9 @@
 // config's `browser.device` (Desktop Chrome by default). Every browser is
 // Chromium: the size, the density, touch and the mobile flag are the
 // device's; the engine stays the same.
+import fs from 'node:fs';
+import path from 'node:path';
+import { recordingOf } from './config.mjs';
 import { playwrightOf } from './playwright.mjs';
 
 export const DEFAULT_DEVICE = 'Desktop Chrome';
@@ -83,4 +86,77 @@ export function contextOptions(config, id, device) {
 /** What the cockpit shows of a device: no context options, only what it is. */
 export function deviceLabel(device) {
   return { name: device.name, kind: device.kind, width: device.width, height: device.height };
+}
+
+// THE DEVICE A SUITE GIVES EACH PERSON, known before its recording runs: a
+// session is signed in on it (sessions.mjs), so that the sign-in, and the
+// cockpit's photo of it, are on the device the person plays on and not on
+// the cast's (found in CritKeep, whose cast says no device: each suite
+// gives its own). The recording says it in `test.use({ devices })`, read
+// here as text: the person's first mention, a device named in quotes; or
+// a constant, whose device is the one the suite's last run gave them,
+// which the fixtures note in <out>/devices.json. A person the recording
+// never names plays on the cast's. A suite run through the CLI is named in
+// QA_SUITE, each command's run in QA_RUN_ID.
+
+const devicesFileOf = (config) => path.join(config.paths.out, 'devices.json');
+
+function noted(config) {
+  try {
+    return JSON.parse(fs.readFileSync(devicesFileOf(config), 'utf8')) ?? {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Each person a recording's `test.use({ devices })` names, at their first
+ * mention in the file: the device's name when it is in quotes, else null
+ * (a constant, an object).
+ * @returns {Record<string, string | null>}
+ */
+function recordedDevices(config, suite) {
+  let text = '';
+  try {
+    text = fs.readFileSync(recordingOf(config, suite) ?? '', 'utf8');
+  } catch {
+    return {};
+  }
+  const first = {};
+  for (const [, block] of text.matchAll(/test\.use\(\s*\{[^)]*?\bdevices\s*:\s*\{([^}]*)\}/g)) {
+    for (const [, who, , quoted] of block.matchAll(/(\w+)\s*:\s*(?:(['"`])([^'"`]+)\2|[\w.[\]]+)/g)) {
+      if (!(who in first)) first[who] = quoted ?? null;
+    }
+  }
+  return first;
+}
+
+/** The device a suite gives a person, or null when its recording names none for them (the cast's, then). */
+export function suiteDeviceOf(config, suite, id) {
+  const recorded = recordedDevices(config, suite);
+  if (!(id in recorded)) return null;
+  const spec = recorded[id] ?? noted(config)[suite]?.[id]?.device;
+  if (!spec) return null;
+  try {
+    return resolveDevice(config, spec);
+  } catch {
+    // A name Playwright does not have: the cast's.
+    return null;
+  }
+}
+
+/** A test of the suite's recording gives a person this device: noted, the first one of each run. */
+export function noteSuiteDevice(config, suite, id, device) {
+  try {
+    const all = noted(config);
+    const run = process.env.QA_RUN_ID ?? null;
+    if (all[suite]?.[id] && all[suite][id].run === run) return;
+    all[suite] = { ...all[suite], [id]: { device: { ...device.context, name: device.name, kind: device.kind }, run } };
+    const file = devicesFileOf(config);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(`${file}.tmp`, JSON.stringify(all, null, 1));
+    fs.renameSync(`${file}.tmp`, file);
+  } catch {
+    // Not noted: the next session is signed in as the recording's text says, or on the cast's device.
+  }
 }

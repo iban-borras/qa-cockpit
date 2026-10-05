@@ -165,6 +165,13 @@ export async function runCli(rawConfig, argv) {
     );
   }
 
+  /** The suite this command runs, for the device its sessions are signed in
+   *  on, and the fixtures' note of it (devices.mjs); one id per command. */
+  function runsSuite(suite) {
+    process.env.QA_SUITE = suite;
+    process.env.QA_RUN_ID = `${Date.now().toString(36)}-${process.pid}`;
+  }
+
   /** The stack for this command, and the cockpit told when it is up. */
   async function takeStack(kind, suite, commandLine) {
     const who = holdStack(commandLine);
@@ -386,6 +393,7 @@ export async function runCli(rawConfig, argv) {
       if (!file) fail(`No setup for the suite "${suite}" in ${P.setups}`);
       guard();
       await takeStack('setup', suite, `setup ${suite}`);
+      runsSuite(suite);
       fs.mkdirSync(P.state, { recursive: true });
       // A setup that fails leaves «setting-up» behind (playwright() exits).
       noteData(config, { state: 'setting-up', suite });
@@ -425,6 +433,7 @@ export async function runCli(rawConfig, argv) {
       if (network && IN_DOCKER) fail('A look at the network is taken on this machine: run it without --in-docker.');
       guard();
       await takeStack('replay', suite, ['replay', ...rest].join(' '));
+      runsSuite(suite);
       fs.mkdirSync(P.state, { recursive: true });
       // Said, not refused: one test run again on purpose (`-g T3`) is a
       // replay after a replay too.
@@ -603,6 +612,7 @@ export async function runCli(rawConfig, argv) {
 
       guard();
       await takeStack('replay', suite, ['video', ...rest].join(' '));
+      runsSuite(suite);
       // A video is a run like any other: fresh data, then the suite's setup.
       if (!flag('--no-reset')) {
         if (config.stack.reset) await commands.reset();

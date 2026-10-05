@@ -24,8 +24,8 @@
 //   export { expect };
 import fs from 'node:fs';
 import path from 'node:path';
-import { resolveConfig } from './config.mjs';
-import { contextOptions, deviceFor, deviceLabel } from './devices.mjs';
+import { recordingOf, resolveConfig } from './config.mjs';
+import { contextOptions, deviceFor, deviceLabel, noteSuiteDevice } from './devices.mjs';
 import * as network from './network/capture.mjs';
 import * as video from './video/capture.mjs';
 import * as cockpit from './worker.mjs';
@@ -78,6 +78,12 @@ export function cockpitFixtures(base, rawConfig) {
     async ({ browser, devices }, use, testInfo) => {
       await warmOnce(browser);
       const device = deviceFor(config, id, devices);
+      // The device this suite gives the person, noted for the sessions of
+      // its next runs (devices.mjs): the recording's tests only, a setup's
+      // are not the suite's.
+      const suite = process.env.QA_SUITE;
+      const recording = suite ? recordingOf(config, suite) : null;
+      if (recording && path.relative(testInfo.file, recording) === '') noteSuiteDevice(config, suite, id, device);
       // For `replay --network` (network/capture.mjs): Playwright's HAR of
       // this person's context, cleaned of its secrets when it closes.
       const har = network.harFor(id, testInfo);

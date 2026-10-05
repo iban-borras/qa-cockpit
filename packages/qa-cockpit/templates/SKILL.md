@@ -598,13 +598,16 @@ isMobile, hasTouch }`). The nearest word wins:
 3. the config's `browser.device` (`Desktop Chrome` when nothing says).
 
 The suite's cast table says each person's device (a «Device» column), and
-the recording follows it. A phone is another screen: menus fold, panes
-stack, a button may move. **Moving a person to another device means
-recording their steps again**; never change a device under a recording that
-passes. Every browser is Chromium: size, density, touch and the mobile flag
-are the device's, the engine is not. The cockpit shows each card's device
-(icon and name), photographs each person's own window, and «Play as» opens
-at that device's size.
+the recording follows it. Each person's session is signed in on the device
+the suite gives them: a device named in quotes in the recording's
+`test.use` is read as it is; a constant, as the suite's last run used it
+(`<out>/devices.json`); a person it never names, on the cast's. A phone is
+another screen: menus fold, panes stack, a button may move. **Moving a
+person to another device means recording their steps again**; never change
+a device under a recording that passes. Every browser is Chromium: size,
+density, touch and the mobile flag are the device's, the engine is not. The
+cockpit shows each card's device (icon and name), photographs each person's
+own window, and «Play as» opens at that device's size.
 
 ## Files
 
