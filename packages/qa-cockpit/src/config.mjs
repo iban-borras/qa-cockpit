@@ -179,6 +179,9 @@ export function resolveConfig(raw, file) {
     // suite's stay, to compare a change with the run before it.
     network: {
       keep: raw.network?.keep ?? 5,
+      // Names that look like a secret's and are none in this app (a game's
+      // `session_id`): their values stay in the HARs (network/sanitize.mjs).
+      notSecret: raw.network?.notSecret ?? [],
     },
   });
   resolved.set(raw, config);

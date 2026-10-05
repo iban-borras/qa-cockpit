@@ -35,6 +35,7 @@ const BODIES = process.env.QA_NETWORK_BODIES === '1';
 const SALT = process.env.QA_NETWORK_SALT || randomBytes(16).toString('hex');
 
 let known = [];
+let plain = [];
 let projectDir = process.cwd();
 
 /** Tell it the project (a resolved config): its folder, and the secrets it knows. */
@@ -42,6 +43,7 @@ export function configure(config) {
   if (!enabled) return;
   projectDir = config.paths.project;
   known = machineSecrets(config);
+  plain = config.network.notSecret;
 }
 
 /** @type {Map<string, { title: string, file: string, began: number, steps: object[], people: Record<string, object> }>} */
@@ -255,7 +257,7 @@ export async function saved(har, { testInfo, device = null }) {
       placeSteps(log, t.steps);
       // Before the cleaning, so that it reaches these too.
       log.log._qaCockpit = { test: t.title, file: t.file, person: har.id, device, steps: t.steps, inputs: har.inputs };
-      const { secrets } = sanitizeHar(log, { salt: SALT, known, bodies: BODIES });
+      const { secrets } = sanitizeHar(log, { salt: SALT, known, bodies: BODIES, plain });
       fs.writeFileSync(path.join(dir, `${har.id}.har`), `${JSON.stringify(log, null, 2)}\n`);
       t.people[har.id] = { har: `${har.id}.har`, device, requests: log.log?.entries?.length ?? 0, secrets };
     }

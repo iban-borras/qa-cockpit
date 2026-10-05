@@ -116,12 +116,19 @@ function words(name) {
     .filter(Boolean);
 }
 
+// The names a project says are none of its secrets (its config's
+// `network.notSecret`): a game's `session_id`, whose every id came out
+// REDACTED in each of its addresses (found in CritKeep). Set by
+// sanitizeHar for the HAR it cleans.
+let notSecret = new Set();
+
 /**
  * Whether a header, a parameter, a field or a JSON key holds a secret.
  * @param {string} name
  * @param {'url' | 'other'} [where] in a URL's query, single words count too
  */
 export function secretName(name, where = 'other') {
+  if (notSecret.has(String(name).toLowerCase())) return false;
   const w = words(name);
   if (!w.length) return false;
   if (w.some((x) => SECRET_WORDS.has(x))) return true;
@@ -388,13 +395,24 @@ const MAX_BODY = 1024 * 1024;
 /**
  * Take the secrets out of a HAR, in place.
  * @param {any} har Playwright's HAR, as parsed
- * @param {{ salt?: string, known?: string[], bodies?: boolean }} [options]
+ * @param {{ salt?: string, known?: string[], bodies?: boolean, plain?: string[] }} [options]
  *   salt: the run's key (one id per value across its files); known: values
  *   to take out wherever they show (machineSecrets); bodies: keep the text
- *   of the app's own responses
+ *   of the app's own responses; plain: names that look like a secret's and
+ *   are not, in this app (`network.notSecret`). A JWT or a bearer token
+ *   under one of them is taken out all the same.
  * @returns {{ har: any, secrets: number }} the HAR, and how many distinct values were taken out
  */
-export function sanitizeHar(har, { salt, known = [], bodies = false } = {}) {
+export function sanitizeHar(har, { salt, known = [], bodies = false, plain = [] } = {}) {
+  notSecret = new Set(plain.map((n) => String(n).toLowerCase()));
+  try {
+    return clean(har, { salt, known, bodies });
+  } finally {
+    notSecret = new Set();
+  }
+}
+
+function clean(har, { salt, known, bodies }) {
   const { redact, ids } = redactor(salt);
   const entries = har?.log?.entries ?? [];
 

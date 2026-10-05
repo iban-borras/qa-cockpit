@@ -13,6 +13,38 @@
   said one thing twice (as a card already did). «Waiting» still shows
   beside «Live», and «Acting now» beside a photo under review.
 
+From CritKeep's first look at its own network with `replay --network`
+(no secret in any HAR, a positive control included; the look costs about
+5 %), what made noise:
+
+- On a development server (Vite, webpack, Next, found in the HARs) the
+  report says so at its top. A call asked twice at the same moment, as
+  React's StrictMode does in development, is left out (91 of them in one
+  run); a chain is not counted where code arrived between its calls (the
+  parts of a page that mount as theirs arrive ask in waves: 51 chains
+  became 24, the real ones kept). The comparison leaves chains out there.
+- «On a timer» counts a steady call within one page: one made for each
+  page a suite opens is none (three of three were that).
+- «The same call again» counts within one page, with nothing done
+  between: not a page opened again, not a page reading what an action
+  changed. Asked twice at once is a finding of its own on a built front.
+- Streams by address, a socket's ticket aside, and a development server's
+  own reload left out; «opened again and again» within one page.
+- Addresses read as the same call: `per_page=6` stays a number, a UUID
+  inside a value is an `{id}` too, `%3A` reads `:`; findings show them so,
+  never a raw id.
+- `network --against previous` compares what the steps asked, not how
+  many times by a moment's play: two alike runs say «None», where they
+  showed 5 steps and 23 findings changed. It says when nearly every step
+  took longer (a busier machine). A test's own findings (a timer, a
+  stream) are matched by test, whoever showed them most.
+- With `--bodies`, an error says its code: «403 ACCOUNT_PAUSED».
+- New config key `network.notSecret`: names that look like a secret's and
+  are none in the app (a game's `session_id`), whose values stay. A JWT
+  under one of them is still taken out.
+- Shorter: no rows without a call, a place said once (`×2`), «the slowest
+  of them» for «the longest alone».
+
 ## 0.6.0 (2026-10-05)
 
 - `replay <suite> --network`: each person's requests in each test, kept

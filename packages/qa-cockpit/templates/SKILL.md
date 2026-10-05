@@ -285,7 +285,14 @@ instrument the app, or write a test of your own for it.
    the app's, wherever it runs. The milliseconds are the QA copy's (its stack
    on this machine, its small data, no distance to the server): a hint, never
    a verdict. A call of 5 ms here can cost 150 in production; one of 900 here
-   may be the copy's doing.
+   may be the copy's doing. A copy whose front is a development server
+   (Vite, webpack, Next) shows some of its own, and the report says so at its
+   top: modules arriving one by one, the parts of a page mounting as theirs
+   arrive, React's StrictMode asking twice. It leaves those out (a chain
+   that began while code arrived, a call asked twice at once), and what is
+   left still deserves a look in the code before you call it the app's.
+   For a measure, the network of the built front, served at the same
+   address («A page that loads slowly», under the videos), is the one.
 4. **What you deliver is a report, not a refactor.** The findings ranked by
    what they cost the person who waits and what fixing them costs, the cheap
    ones first: two calls that can go together, a call made twice, a list that
@@ -297,7 +304,9 @@ instrument the app, or write a test of your own for it.
    `npx qa-cockpit network --against previous`: the steps whose calls
    changed, and the findings gone and new. Compare runs made the same way (on
    this machine; both followed by the cockpit, or neither). Milliseconds move
-   from run to run: replay again before believing a small gain.
+   from run to run: replay again before believing a small gain. It says when
+   nearly every step took longer (a busier machine), and on a development
+   server it leaves the chains out, which move there by chance.
 
 The HARs are made to be read and passed on. The values of cookies, tokens,
 passwords, API keys, signed URLs and the like are `REDACTED-<id>` in them,
@@ -305,9 +314,13 @@ one id per value: the same id is the same token. Read them with `jq` or
 `grep` for what the report does not say (a call's headers, its timings);
 DevTools draws one as a waterfall (Network, Import HAR). The text of the
 responses is kept only with `--bodies`: ask for it when a finding needs it
-(what a heavy response holds), cleaned the same way, its data the copy's.
-The Playwright traces under `<out>` are not cleaned: they keep everything
-the browser sent, to debug a failure. Never pass one on.
+(what a heavy response holds), cleaned the same way, its data the copy's;
+with it, an error says its code («403 ACCOUNT_PAUSED»), which tells a
+refusal the suite asks for from a failure. An app whose own words look
+like secrets (a game's `session_id`) names them in the config's
+`network.notSecret`, and their values stay. The Playwright traces under
+`<out>` are not cleaned: they keep everything the browser sent, to debug a
+failure. Never pass one on.
 
 ## Demo videos (only when a person asks)
 
