@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.6.0 (unreleased)
+## 0.6.0 (2026-10-05)
 
 - `replay <suite> --network`: each person's requests in each test, kept
   as a HAR, each request placed in the step that made it, under
