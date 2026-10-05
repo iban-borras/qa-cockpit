@@ -80,6 +80,22 @@ const stepShort = (s) => {
 const frameLabel = (f) => [testShort(f.test), stepShort(f.step)].filter(Boolean).join('·');
 const stepText = (f) => (stepShort(f.step) ? f.step.slice(f.step.indexOf(' · ') + 3) : f.step);
 const frameUrl = (f) => `/out/${f.file}`;
+// The photo of an ACTION (worker.mjs): the window just before a click, a
+// field typed in or a key pressed, with its mark; it belongs to the step
+// photographed after it (`of`). Its number is the action's in the step.
+const isAction = (f) => f?.kind === 'action';
+const actionNo = (f) => f?.marks?.[0]?.n ?? '';
+const actionsOf = (step) => S.frames.filter((x) => x.of === step.seq);
+// A mark's number: its action's in the step; in a run from before, its
+// place among the marks drawn.
+const markNo = (m, i) => m.n ?? i + 1;
+const verbOf = (m) => t(m.kind === 'type' ? 'mark.type' : 'mark.click');
+/** How long after its step began a mark came: where a slow screen shows. */
+function sinceStep(f, m) {
+  if (!Number.isFinite(m?.at) || !f.began) return '';
+  const d = m.at - Date.parse(f.began);
+  return `${d < 0 ? '-' : '+'}${fmtDur(Math.abs(d))}`;
+}
 
 // A person's device: the one of the photo on screen (a suite may put them on
 // another than their usual one), else the usual one the config gives them.
@@ -1061,11 +1077,12 @@ function people() {
   return st.cast.filter((p) => wanted.has(p.id));
 }
 
-/** The frame a person shows at the table's moment (or their newest). */
+/** The frame a person shows at the table's moment (or their newest): a
+ *  step's photo, the screen it left, not one of its actions'. */
 function frameAtTable(actor) {
   const limit = S.table.live || !S.moments.length ? Infinity : S.moments[S.table.idx].lastSeq;
   let best = null;
-  for (const f of S.frames) if (f.actor === actor && f.seq <= limit) best = f;
+  for (const f of S.frames) if (f.actor === actor && f.seq <= limit && !isAction(f)) best = f;
   return best;
 }
 
@@ -1318,22 +1335,37 @@ function renderInspector(first = false) {
   renderInsState();
 
   // Steps, grouped by test; each test says when it is over, each step how
-  // long it took (a slow one in amber).
+  // long it took (a slow one in amber). Under the step on screen, its
+  // actions, each with the photo from just before it.
+  const shown = ins.live ? null : f;
+  const open = shown ? (isAction(shown) ? shown.of : shown.seq) : null;
+  // A step folded counts the notes on its actions' photos too.
+  const actionPins = new Map();
+  for (const a of list) if (isAction(a)) actionPins.set(a.of, (actionPins.get(a.of) ?? 0) + pinsOf(a));
   let html = '';
   let lastTest = null;
   list.forEach((x, i) => {
+    if (isAction(x)) return;
     if (x.test !== lastTest) {
       html += `<h4><span class="tn" title="${esc(x.test)}">${esc(x.test)}</span>${testState(x.test)}</h4>`;
       lastTest = x.test;
     }
     const st = x.status === 'failed' ? 'failed' : x.status === 'context' ? 'context' : 'passed';
     const ic = st === 'failed' ? 'alert' : st === 'context' ? 'dot' : 'check';
-    const sel = !ins.live && i === ins.idx ? ' sel' : '';
+    const sel = x === shown ? ' sel' : x.seq === open ? ' open' : '';
     const dur = Number.isFinite(x.ms) ? `<span class="dur${x.ms >= SLOW_STEP_MS ? ' slow' : ''}">${esc(fmtDur(x.ms))}</span>` : '';
-    html += `<button class="step${sel}" data-i="${i}"><span class="st ${st}">${icon(ic, 'sm')}</span><span class="sx">${esc(x.step)}</span>${pinBadge(pinsOf(x))}${dur}</button>`;
+    const pins = pinsOf(x) + (x.seq === open ? 0 : (actionPins.get(x.seq) ?? 0));
+    html += `<button class="step${sel}" data-i="${i}"><span class="st ${st}">${icon(ic, 'sm')}</span><span class="sx">${esc(x.step)}</span>${pinBadge(pins)}${dur}</button>`;
+    if (x.seq !== open) return;
+    list.forEach((a, j) => {
+      if (a.of !== x.seq) return;
+      const m = a.marks?.[0];
+      const what = (a.marks ?? []).map((k) => `${verbOf(k)} «${k.label}»`).join(' · ');
+      html += `<button class="action${a === shown ? ' sel' : ''}" data-i="${j}"><span class="n ${m?.kind === 'type' ? 'type' : ''}">${esc(actionNo(a))}</span><span class="sx">${esc(what)}</span>${pinBadge(pinsOf(a))}<span class="at">${esc(sinceStep(a, m))}</span></button>`;
+    });
   });
   $('insSteps').innerHTML = html || `<p class="muted" style="margin:12px">${esc(t('ins.no_photos_long'))}</p>`;
-  $('insSteps').querySelector('.step.sel')?.scrollIntoView({ block: 'nearest' });
+  $('insSteps').querySelector('.action.sel, .step.sel')?.scrollIntoView({ block: 'nearest' });
 
   // Stage: the whole page, its seen part framed, the step's marks on it.
   const img = $('insImg');
@@ -1363,6 +1395,12 @@ function renderInspector(first = false) {
     const c = S.run?.current;
     $('insCap').textContent = c?.step ? t('ins.now', { test: c.test, step: c.step }) : t('ins.live');
     $('insWhere').textContent = f ? t('ins.last_photo', { label: frameLabel(f), time: hhmmss(f.time) }) : '';
+  } else if (isAction(f)) {
+    $('insCap').textContent = `${f.test} › ${f.step}`;
+    const into = sinceStep(f, f.marks?.[0]);
+    $('insWhere').textContent = [t('ins.before', { n: actionNo(f) }), pathOf(f.url), hhmmss(f.time), into && t('ins.into_step', { d: into }), f.location]
+      .filter(Boolean)
+      .join(' · ');
   } else if (f) {
     $('insCap').textContent = `${f.test} › ${f.step}`;
     const took = Number.isFinite(f.ms) ? t('ins.took', { d: fmtDur(f.ms) }) : null;
@@ -1380,11 +1418,17 @@ function renderInspector(first = false) {
   }
   $('insMarksList').innerHTML = !ins.live && f ? marksList(f) : '';
 
-  // Filmstrip
+  // Filmstrip: a step's actions, smaller, close before its own photo.
+  let group = null;
   $('insStrip').innerHTML = list
     .map((x, i) => {
-      const cls = ['thumb', !ins.live && i === ins.idx ? 'sel' : '', x.status === 'failed' ? 'failed' : ''].join(' ');
-      return `<button class="${cls}" data-i="${i}" title="${esc(`${x.test} › ${x.step}`)}"><img src="${esc(frameUrl(x))}" alt="" loading="lazy"><span>${esc(frameLabel(x) || '·')}</span>${pinBadge(pinsOf(x))}</button>`;
+      const g = isAction(x) ? x.of : x.seq;
+      const act = isAction(x);
+      const cls = ['thumb', act ? 'mini' : '', g === group ? 'tight' : '', !ins.live && i === ins.idx ? 'sel' : '', !act && x.status === 'failed' ? 'failed' : ''].join(' ');
+      group = g;
+      const title = act ? `${x.test} › ${x.step} · ${t('ins.before', { n: actionNo(x) })}` : `${x.test} › ${x.step}`;
+      const label = act ? `<i class="d ${x.marks?.[0]?.kind === 'type' ? 'type' : ''}"></i>${esc(actionNo(x))}` : esc(frameLabel(x) || '·');
+      return `<button class="${cls}" data-i="${i}" title="${esc(title)}"><img src="${esc(frameUrl(x))}" alt="" loading="lazy"><span>${label}</span>${pinBadge(pinsOf(x))}</button>`;
     })
     .join('');
   const selThumb = $('insStrip').querySelector('.thumb.sel') ?? $('insStrip').lastElementChild;
@@ -1412,9 +1456,6 @@ function renderInspector(first = false) {
   $('insDownload').disabled = !f;
 }
 
-/** The marks of a step: those on the page photographed are drawn and
- *  numbered; a click that took the person elsewhere is listed with where it
- *  happened. */
 // ---------------------------------------------------------------- the run's report
 
 /** The whole run as Markdown, written for a person or a model to read end
@@ -1446,7 +1487,9 @@ function runReport(notesMd = '') {
     'photo and includes the recording\'s own waits; the requests are the app\'s, with their own time, so a',
     'step slow because of the app shows there. A «page load» is the front\'s own server, not the API.',
     'Actions and requests carry their offset from the step\'s start. «context» photos are people a failed',
-    'step does not name, photographed as they were.',
+    'step does not name, photographed as they were. A step\'s photo is the whole page once its checks',
+    'passed; each action (a click, a field typed in, a key pressed) has a photo of its own, the window',
+    'just before it, with its mark on what it was done to.',
     ...(S.state.reportNotes?.length ? ['', ...S.state.reportNotes.map((n) => `Note: ${n}`)] : []),
     '',
     ...(notesMd ? [notesMd, ''] : []),
@@ -1493,7 +1536,7 @@ function runReport(notesMd = '') {
     lines.push(`## ${test}: ${info.status ?? 'not run'}${Number.isFinite(info.duration) ? ` (${secs(info.duration)})` : ''}`, '');
     if (info.trace) lines.push(`- Trace: \`${OUT}/${info.trace}\``);
     for (const e of info.errors ?? []) lines.push('- Test error:', '', '```text', String(e.message ?? e), '```', '');
-    const frames = S.frames.filter((f) => f.test === test);
+    const frames = S.frames.filter((f) => f.test === test && !isAction(f));
     const steps = [...new Set(frames.map((f) => f.step))];
     for (const step of steps) {
       const all = frames.filter((f) => f.step === step);
@@ -1508,11 +1551,20 @@ function runReport(notesMd = '') {
       for (const f of all) {
         const began = f.began ? Date.parse(f.began) : null;
         const off = (at) => (began && Number.isFinite(at) ? ` ${at < began ? '-' : '+'}${secs(Math.abs(at - began))}` : '');
-        const pins = notesOn(f.seq).filter(kept).map((n) => num.get(n.id));
-        const pinned = pins.length ? `, pinned notes ${pins.sort((a, b) => a - b).join(', ')} (see Notes)` : '';
-        lines.push(`- ${cap(f.actor)}${f.status === 'context' ? ' (context)' : ''}: page \`${pathOf(f.url)}\`, photo \`${OUT}/${f.file}\`${pinned}`);
-        const marks = f.marks ?? [];
-        if (marks.length) lines.push(`  - Actions: ${marks.map((m, i) => `${i + 1}. ${m.kind} «${m.label}»${off(m.at)}`).join('; ')}`);
+        const pinned = (seq) => {
+          const pins = notesOn(seq).filter(kept).map((n) => num.get(n.id));
+          return pins.length ? `, pinned notes ${pins.sort((a, b) => a - b).join(', ')} (see Notes)` : '';
+        };
+        lines.push(`- ${cap(f.actor)}${f.status === 'context' ? ' (context)' : ''}: page \`${pathOf(f.url)}\`, photo \`${OUT}/${f.file}\`${pinned(f.seq)}`);
+        // The step's actions in order: those with a photo of their own, and
+        // those without (a run from before them, the app's own click).
+        const acts = [...actionsOf(f).flatMap((a) => (a.marks ?? []).map((m) => ({ m, a }))), ...(f.marks ?? []).map((m) => ({ m }))].sort(
+          (p, q) => (p.m.n ?? 0) - (q.m.n ?? 0),
+        );
+        if (acts.some((x) => x.a)) {
+          lines.push('  - Actions, each with the window just before it:');
+          acts.forEach(({ m, a }, i) => lines.push(`    ${markNo(m, i)}. ${m.kind} «${m.label}»${off(m.at)}${a ? `: \`${OUT}/${a.file}\`${pinned(a.seq)}` : ''}`));
+        } else if (acts.length) lines.push(`  - Actions: ${acts.map(({ m }, i) => `${markNo(m, i)}. ${m.kind} «${m.label}»${off(m.at)}`).join('; ')}`);
         const reqs = [...(f.requests ?? [])].sort((a, b) => (b.ms ?? -1) - (a.ms ?? -1));
         if (reqs.length) {
           const shown = reqs.slice(0, 10).map((q) => `${q.kind === 'page' ? 'page load ' : ''}${q.method} ${q.path} ${q.status || 'failed'} in ${Number.isFinite(q.ms) ? `${q.ms} ms` : 'n/a'}${off(q.at)}`);
@@ -1578,6 +1630,8 @@ function testState(title) {
   return cls ? `<span class="tstate ${cls}">${icon(ic, 'sm')}${esc(t(key))}</span>` : '';
 }
 
+/** A photo's marks: those made on the page photographed, drawn on it, and
+ *  those made elsewhere (a click that took the person away). */
 function marksOf(f) {
   const here = (u) => {
     try {
@@ -1592,21 +1646,37 @@ function marksOf(f) {
   return { drawn: marks.filter((m) => here(m.url)), elsewhere: marks.filter((m) => !here(m.url)) };
 }
 
+/** Under a photo, its marks. An action's: its own. A step's: every action
+ *  of the step in order, each with its photo a click away; those this
+ *  photo shows, drawn and numbered on it; a click that took the person
+ *  elsewhere, with where it happened. */
 function marksList(f) {
-  const { drawn, elsewhere } = marksOf(f);
-  if (!drawn.length && !elsewhere.length) return '';
-  const verb = (m) => t(m.kind === 'type' ? 'mark.type' : 'mark.click');
+  const item = (m, i) => `<span class="n ${m.kind}">${esc(markNo(m, i))}</span>${esc(verbOf(m))} «${esc(m.label)}»`;
   // How long after the step's start each action came: the gaps between
   // them are where a slow screen shows.
   const at = (m) => {
-    if (!Number.isFinite(m.at) || !f.began) return '';
-    const d = m.at - Date.parse(f.began);
-    return ` <span class="at">${d < 0 ? '-' : '+'}${esc(fmtDur(Math.abs(d)))}</span>`;
+    const d = sinceStep(f, m);
+    return d ? ` <span class="at">${esc(d)}</span>` : '';
   };
-  const parts = drawn.map((m, i) => `<span class="n ${m.kind}">${i + 1}</span>${esc(verb(m))} «${esc(m.label)}»${at(m)}`);
-  for (const m of elsewhere) parts.push(`${esc(verb(m))} «${esc(m.label)}» ${esc(t('mark.elsewhere', { path: pathOf(m.url) }))}${at(m)}`);
-  return parts.join(' · ');
+  if (isAction(f)) return (f.marks ?? []).map((m, i) => `${item(m, i)}${at(m)}`).join(' · ');
+  const { drawn, elsewhere } = marksOf(f);
+  const parts = [
+    ...actionsOf(f).flatMap((a) =>
+      (a.marks ?? []).map((m) => ({ n: m.n ?? 0, html: `<button class="mk" data-seq="${a.seq}" title="${esc(t('mark.photo'))}">${item(m, 0)}</button>${at(m)}` })),
+    ),
+    ...drawn.map((m, i) => ({ n: m.n ?? 0, html: `${item(m, i)}${at(m)}` })),
+    ...elsewhere.map((m) => ({ n: m.n ?? 0, html: `${esc(verbOf(m))} «${esc(m.label)}» ${esc(t('mark.elsewhere', { path: pathOf(m.url) }))}${at(m)}` })),
+  ];
+  return parts
+    .sort((a, b) => a.n - b.n)
+    .map((p) => p.html)
+    .join(' · ');
 }
+// An action named under a step's photo opens its own.
+$('insMarksList').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-seq]');
+  if (b) insGo(insFrames().findIndex((x) => x.seq === Number(b.dataset.seq)));
+});
 
 /** Once the photo has its size: the seen frame, the dots, and the view
  *  scrolled to where the person was looking (once per photo). */
@@ -1630,7 +1700,7 @@ function placeOnSheet(f) {
   layer.innerHTML = drawn
     .map(
       (m, i) =>
-        `<span class="pin ${m.kind}" style="left:${(100 * m.x) / W}%;top:${(100 * m.y) / H}%" title="${esc(m.label)}">${i + 1}</span>`,
+        `<span class="pin ${m.kind}" style="left:${(100 * m.x) / W}%;top:${(100 * m.y) / H}%" title="${esc(m.label)}">${esc(markNo(m, i))}</span>`,
     )
     .join('');
   if (S.ins.placed !== f.seq) {
@@ -1705,7 +1775,7 @@ $('insDownload').onclick = () => {
   if (!f) return;
   const a = document.createElement('a');
   a.href = frameUrl(f);
-  a.download = `${S.ins.actor}-${frameLabel(f) || f.seq}.jpg`;
+  a.download = `${S.ins.actor}-${frameLabel(f) || f.seq}${isAction(f) ? `-${actionNo(f)}` : ''}.jpg`;
   a.click();
 };
 $('insTrace').onclick = () => {

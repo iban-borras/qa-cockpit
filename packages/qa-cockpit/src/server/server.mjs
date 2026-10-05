@@ -566,40 +566,96 @@ function onReport(e) {
   broadcast('run', summary(run));
 }
 
+// A photo's file, as the worker names it: inside this run's frames/, and there.
+function frameFile(name) {
+  const file = inside(path.join(run.dir, 'frames'), path.relative(path.join('cockpit', run.id, 'frames'), String(name ?? '')));
+  return file && fs.existsSync(file) ? path.relative(CFG.paths.out, file).split(path.sep).join('/') : null;
+}
+
+const viewportOf = (v) => (v && Number.isFinite(v.width) ? { width: v.width, height: v.height } : null);
+
+// A photo's marks, at its own pixels: the page's for a step's (`x`, `y`),
+// the window's for an action's (`vx`, `vy`).
+const marksOf = (list, inWindow = false) =>
+  (Array.isArray(list) ? list : []).slice(0, 50).map((m) => ({
+    kind: m.kind === 'type' ? 'type' : 'click',
+    x: Number(inWindow ? (m.vx ?? m.x) : m.x) || 0,
+    y: Number(inWindow ? (m.vy ?? m.y) : m.y) || 0,
+    url: String(m.url ?? ''),
+    label: String(m.label ?? '').slice(0, 60),
+    at: Number.isFinite(Number(m.at)) ? Number(m.at) : null,
+    // Its number among the step's actions (worker.mjs); none in older runs.
+    ...(Number.isInteger(m.n) && m.n > 0 ? { n: m.n } : {}),
+  }));
+
+/**
+ * A step's photo, and before it the photos of its actions (worker.mjs,
+ * ACTION PHOTOS): each a photo of its own, `kind: 'action'`, of the step
+ * photographed after it (`of`). An action's photo is the window, its marks
+ * at the window's pixels; one whose file is missing gives its marks back to
+ * the step's photo.
+ */
 function onFrame(f) {
   if (!run || run.closed || f.run !== run.id) return false;
-  const file = inside(path.join(run.dir, 'frames'), path.relative(path.join('cockpit', run.id, 'frames'), f.file ?? ''));
-  if (!file || !fs.existsSync(file)) return false;
-  const frame = {
-    seq: run.frames.length + 1,
+  const file = frameFile(f.file);
+  if (!file) return false;
+  const marks = marksOf(f.marks);
+  const shots = [];
+  for (const s of (Array.isArray(f.shots) ? f.shots : []).slice(0, 50)) {
+    const shot = frameFile(s.file);
+    if (shot) shots.push({ ...s, file: shot });
+    else marks.push(...marksOf(s.marks));
+  }
+  // In the order they were made, so that the step's list reads 1, 2, 3.
+  marks.sort((a, b) => (a.n ?? 0) - (b.n ?? 0));
+  const step = {
     actor: String(f.actor),
     test: String(f.test ?? ''),
     step: String(f.step ?? ''),
     status: String(f.status ?? ''),
+  };
+  // The device the person played on (devices.mjs): what it is, for the card.
+  const device =
+    f.device && typeof f.device.name === 'string'
+      ? {
+          name: f.device.name.slice(0, 60),
+          kind: ['phone', 'tablet', 'laptop', 'desktop'].includes(f.device.kind) ? f.device.kind : 'desktop',
+          width: Number(f.device.width) || null,
+          height: Number(f.device.height) || null,
+        }
+      : null;
+  const location = f.location ? String(f.location) : null;
+  const began = f.began ? String(f.began) : null;
+  const of = run.frames.length + shots.length + 1;
+  const frames = shots.map((s, i) => ({
+    seq: run.frames.length + i + 1,
+    kind: 'action',
+    of,
+    ...step,
+    error: null,
+    url: String(s.url ?? ''),
+    file: s.file,
+    location,
+    viewport: viewportOf(s.viewport),
+    scroll: { x: 0, y: 0 },
+    marks: marksOf(s.marks, true),
+    device,
+    requests: [],
+    began,
+    ms: null,
+    time: String(s.time ?? new Date().toISOString()),
+  }));
+  frames.push({
+    seq: of,
+    ...step,
     error: f.error ? String(f.error) : null,
     url: String(f.url ?? ''),
-    file: path.relative(CFG.paths.out, file).split(path.sep).join('/'),
-    location: f.location ? String(f.location) : null,
-    viewport: f.viewport && Number.isFinite(f.viewport.width) ? { width: f.viewport.width, height: f.viewport.height } : null,
+    file,
+    location,
+    viewport: viewportOf(f.viewport),
     scroll: f.scroll && Number.isFinite(f.scroll.y) ? { x: Number(f.scroll.x) || 0, y: Number(f.scroll.y) || 0 } : { x: 0, y: 0 },
-    marks: (Array.isArray(f.marks) ? f.marks : []).slice(0, 50).map((m) => ({
-      kind: m.kind === 'type' ? 'type' : 'click',
-      x: Number(m.x) || 0,
-      y: Number(m.y) || 0,
-      url: String(m.url ?? ''),
-      label: String(m.label ?? '').slice(0, 60),
-      at: Number.isFinite(Number(m.at)) ? Number(m.at) : null,
-    })),
-    // The device the person played on (devices.mjs): what it is, for the card.
-    device:
-      f.device && typeof f.device.name === 'string'
-        ? {
-            name: f.device.name.slice(0, 60),
-            kind: ['phone', 'tablet', 'laptop', 'desktop'].includes(f.device.kind) ? f.device.kind : 'desktop',
-            width: Number(f.device.width) || null,
-            height: Number(f.device.height) || null,
-          }
-        : null,
+    marks,
+    device,
     requests: (Array.isArray(f.requests) ? f.requests : []).slice(0, 200).map((r) => ({
       kind: r.kind === 'page' ? 'page' : 'api',
       method: String(r.method ?? '').slice(0, 10),
@@ -608,13 +664,15 @@ function onFrame(f) {
       ms: Number.isFinite(Number(r.ms)) && r.ms !== null ? Math.max(0, Math.round(Number(r.ms))) : null,
       at: Number.isFinite(Number(r.at)) ? Number(r.at) : null,
     })),
-    began: f.began ? String(f.began) : null,
+    began,
     ms: Number.isFinite(Number(f.ms)) && f.ms !== null ? Math.max(0, Math.round(Number(f.ms))) : null,
     time: String(f.time ?? new Date().toISOString()),
-  };
-  run.frames.push(frame);
-  fs.appendFileSync(path.join(run.dir, 'frames.jsonl'), JSON.stringify(frame) + '\n');
-  broadcast('frame', frame);
+  });
+  for (const frame of frames) {
+    run.frames.push(frame);
+    fs.appendFileSync(path.join(run.dir, 'frames.jsonl'), JSON.stringify(frame) + '\n');
+    broadcast('frame', frame);
+  }
   return true;
 }
 

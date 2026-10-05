@@ -26,8 +26,8 @@ Agents write and run the multi-user tests; people watch every screen and judge.<
    person, replayed after every change, repaired when a screen moves. The
    skill that `init` writes tells it how.
 3. **You watch and judge** in the cockpit: every person's screen at every
-   step, with the clicks, the requests and the errors. A tack on the photo
-   and a note, and the agent knows exactly what to change.
+   step and just before every click, with the requests and the errors. A
+   tack on the photo and a note, and the agent knows exactly what to change.
 
 <p align="center"><img src="https://raw.githubusercontent.com/iban-borras/qa-cockpit/main/docs/images/cockpit-note.webp" alt="The inspector: one person's screen at one step, the step's click numbered on it, and a note pinned where something should change" width="900"></p>
 
@@ -55,7 +55,8 @@ to agents.
 - **The cockpit**, on `localhost` only:
   - a card per person, and a timeline over every step of the run;
   - live screens while a step runs;
-  - an inspector with each photo, the clicks, the requests and their times;
+  - an inspector with each step's photo, one of each click and field typed
+    in from just before it, the requests and their times;
   - notes pinned on the photos: a tack dropped on the very point a note is
     about, and a post-it to write it on; the report and `notes` hand them
     to an agent, with a copy of the photo showing each tack;

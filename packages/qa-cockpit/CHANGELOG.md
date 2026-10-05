@@ -2,6 +2,24 @@
 
 ## 0.6.1 (unreleased)
 
+- A photo of each action. A step's photo comes once its checks pass, and
+  the clicks of a modal opened and closed in between were drawn on what
+  was left behind, over nothing (found in CritKeep: five clicks in three
+  modals, floating over the list). Now each click, field filled and key
+  pressed inside a step has a photo of its own: the window just before
+  it, its target brought into view as the action would, its mark on it.
+  The step's photo keeps the result. In the inspector, the step on screen
+  lists its actions under it, the strip shows them small before the
+  step's photo, and the arrows and «play» go through them all; a note can
+  be pinned on one, and the run's report and `notes` say which action a
+  photo was taken before. About 35 ms an action (50 when its target must
+  be scrolled to); a key that marks nothing (Escape, Tab) keeps no photo.
+  Runs from before show as they did.
+- The cockpit's own calls on a page (these photos, the step's, where the
+  page was scrolled) are Playwright's internal ones now: the trace and
+  Playwright's report show the recording's actions alone, with no
+  «Screenshot» or «Evaluate» between them.
+- A label clicked is one mark, not two (it clicks its field too).
 - The cockpit's scrollbars as macOS draws them: a thin pill over a track
   nobody sees, faint while the pointer is over its box, clearer while the
   box scrolls, a touch wider under the pointer, and gone a moment after;

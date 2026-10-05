@@ -255,8 +255,10 @@ are asked to act on them:
 1. `npx qa-cockpit notes` prints the newest run's notes (`notes <run>`
    for another, `--list` for the runs that have some). Per photo: the
    photo, the copy «with the pins», the page, the device and the recording
-   line. Per pin: its point in the page's CSS pixels, whether it was on
-   screen, the action of the step it falls on, and the text.
+   line. A step's photo is the whole page as the step left it; an action's
+   is the window just before that action (the report names it). Per pin:
+   its point in the photo's CSS pixels, whether it was on screen, the
+   action of the step it falls on, and the text.
 2. Look at the copy with the pins first: the numbered tack shows the thing
    the note means, where bare coordinates are easy to misread. No copy yet:
    the cockpit draws it when the run is open there.
@@ -572,7 +574,9 @@ test('T1 · Bob sees Alice\'s message', async ({ alice, bob }) => {
 - Only the people a test names get a browser.
 - **The step title is a contract**: «n · Who[, Who]: what they do», with the
   cast's names before the colon. The cockpit photographs the people it
-  names when the step ends (and every open page when it fails).
+  names when the step ends (and every open page when it fails), and each
+  action inside a step just before it is taken (a click, a field filled, a
+  key pressed): an action outside every step has no photo of its own.
 - Cross-person waits use `toBeVisible({ timeout: 30_000 })` and never a
   blind reload: what is being proven is that it arrives on its own.
 - **An absence is proven only after a presence.** `toHaveCount(0)` right

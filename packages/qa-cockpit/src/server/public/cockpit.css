@@ -297,6 +297,17 @@ dialog#inspector::backdrop { background: rgba(4, 4, 6, 0.72); }
 .step .sx { min-width: 0; }
 .step .dur { flex: none; margin-left: auto; padding-left: 6px; font: 11px/1.6 var(--mono); color: var(--faint); }
 .step .dur.slow { color: var(--warn); }
+/* The step whose action is on screen, and under it its actions, each with
+   its photo: numbered as their marks, clicks red and typing violet. */
+.step.open { background: color-mix(in srgb, var(--accent-soft) 45%, transparent); }
+.steps .action { display: flex; gap: 8px; align-items: flex-start; width: 100%; text-align: left; padding: 4px 12px 4px 34px; border: 0; border-left: 2px solid transparent; background: transparent; font-size: 12px; line-height: 1.35; cursor: pointer; color: var(--muted); }
+.steps .action:hover { background: var(--panel-2); color: var(--text); }
+.steps .action.sel { background: var(--accent-soft); border-left-color: var(--accent); color: var(--text); }
+.steps .action .n { flex: none; min-width: 16px; height: 16px; margin-top: 0.5px; border-radius: 50%; background: var(--accent); color: #fff; font: 700 10px/16px var(--sans); text-align: center; }
+.steps .action .n.type { background: #7c3aed; }
+.steps .action .sx { min-width: 0; }
+.steps .action .at { flex: none; margin-left: auto; padding-left: 6px; font: 11px/1.6 var(--mono); color: var(--faint); }
+.steps .action .nt { margin: 1px 0 0 6px; }
 .st.passed { color: var(--ok); }
 .st.failed { color: var(--err); }
 .st.context { color: var(--faint); }
@@ -365,6 +376,8 @@ dialog.ask p { margin: 0 0 16px; font-size: 14px; line-height: 1.5; }
 .caption .marks-list .n { display: inline-block; min-width: 16px; height: 16px; border-radius: 50%; background: var(--accent); color: #fff; font: 700 10px/16px var(--sans); text-align: center; margin-right: 4px; }
 .caption .marks-list .n.type { background: #7c3aed; }
 .caption .marks-list .at { font: 11px var(--mono); color: var(--faint); }
+.caption .marks-list .mk { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
+.caption .marks-list .mk:hover { color: var(--text); }
 .toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); cursor: pointer; }
 .toggle input { accent-color: var(--accent); }
 .view .empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--faint); font-size: 13px; text-align: center; padding: 24px; }
@@ -379,6 +392,13 @@ dialog.ask p { margin: 0 0 16px; font-size: 14px; line-height: 1.5; }
 .thumb.sel { border: 2px solid var(--accent); }
 .thumb.failed { border-color: var(--err); }
 .thumb.failed span { color: var(--err); }
+/* A step's actions, smaller, and close to each other and to the step's
+   own photo after them: one group per step. */
+.thumb.mini { width: 64px; align-self: flex-end; }
+.thumb.mini img { height: 36px; }
+.thumb.tight { margin-left: -3px; }
+.thumb .d { display: inline-block; width: 7px; height: 7px; margin-right: 3px; border-radius: 50%; background: var(--accent); vertical-align: 0; }
+.thumb .d.type { background: #7c3aed; }
 .transport { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .transport .grp { display: flex; align-items: center; gap: 4px; }
 .transport .count { font: 12px var(--mono); color: var(--muted); margin-left: 8px; }

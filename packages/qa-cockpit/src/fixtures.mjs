@@ -127,9 +127,10 @@ export function cockpitFixtures(base, rawConfig) {
   const extended = base.extend(fixtures);
 
   // With the cockpit on, every step of a recording ends in a photo of the
-  // people its title names (worker.mjs). The recordings keep calling
-  // `test.step`; only this wrapper knows. The step's location is passed on
-  // so reports still point at the recording's line, not at this file.
+  // people its title names, after one of each action it took (worker.mjs).
+  // The recordings keep calling `test.step`; only this wrapper knows. The
+  // step's location is passed on so reports still point at the recording's
+  // line, not at this file.
   // Without COCKPIT_URL nothing is wrapped and a replay runs as it always did.
   // A video's run (video/capture.mjs) wraps them too: it notes when each
   // step began and ended, on the clock of its frames. So does a look at the
@@ -150,6 +151,7 @@ export function cockpitFixtures(base, rawConfig) {
           // click in it how long after the start it came.
           const began = Date.now();
           let ended = null;
+          cockpit.stepBegan();
           try {
             const result = await body(info);
             ended = Date.now();

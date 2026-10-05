@@ -21,7 +21,7 @@ without a person beside it.
 | `src/env.mjs` | `loadEnv`: the `.env` beside the config, for what differs per machine |
 | `src/cli.mjs` | every command |
 | `src/fixtures.mjs`, `src/playwright.mjs` | the cast as Playwright fixtures; the default Playwright config |
-| `src/reporter.mjs`, `src/worker.mjs` | what a run tells the cockpit: tests and steps; each person's photos, clicks and requests |
+| `src/reporter.mjs`, `src/worker.mjs` | what a run tells the cockpit: tests and steps; each person's photos (a step's, and one before each action), clicks and requests |
 | `src/devices.mjs` | a person's device, from Playwright's profiles or the project's own sizes, and their own context options |
 | `src/deps.mjs` | the project's package manager: which one, whether `node_modules` match its lockfile, how to heal them |
 | `src/suites.mjs` | the Markdown suites: their cast, their hash, `decide` |

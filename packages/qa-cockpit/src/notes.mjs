@@ -6,10 +6,11 @@
 // already and the package has no image library. A run with notes is kept
 // past `keepRuns` (server.mjs): somebody is still working on it.
 //
-// A pin is a point of the PAGE, in its own CSS pixels from its top-left
-// corner: a photo is the whole page at CSS scale. The copy with the pins
-// drawn is what tells an agent, beyond doubt, which thing a note means;
-// bare coordinates alone are easy to misread.
+// A pin is a point of its photo, in CSS pixels from its top-left corner: a
+// step's photo is the whole page at CSS scale, an action's the window just
+// before it (worker.mjs). The copy with the pins drawn is what tells an
+// agent, beyond doubt, which thing a note means; bare coordinates alone are
+// easy to misread.
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -106,20 +107,23 @@ function drawnMarks(frame) {
   return (frame.marks ?? []).filter((m) => here !== null && key(m.url) === here);
 }
 
-/** The action of the step nearest the pin, if it is on it or near it. */
+/** The action of the step nearest the pin, if it is on it or near it: its
+ *  number among the step's actions (in a run from before, among the marks
+ *  drawn). */
 export function markAt(frame, x, y) {
   let best = null;
   drawnMarks(frame).forEach((m, i) => {
     const d = Math.hypot(m.x - x, m.y - y);
-    if (d <= NEAR_MARK && (!best || d < best.d)) best = { n: i + 1, mark: m, d: Math.round(d) };
+    if (d <= NEAR_MARK && (!best || d < best.d)) best = { n: m.n ?? i + 1, mark: m, d: Math.round(d) };
   });
   return best;
 }
 
-/** Whether the pin was on the person's screen when the photo was taken. */
+/** Whether the pin was on the person's screen when the photo was taken: an
+ *  action's photo is that screen, so nothing to say. */
 function onScreen(frame, y) {
   const vh = frame.viewport?.height;
-  if (!vh) return null;
+  if (!vh || frame.kind === 'action') return null;
   const top = frame.scroll?.y ?? 0;
   return y < top ? 'above what was on screen' : y > top + vh ? 'below what was on screen' : 'on screen';
 }
@@ -174,9 +178,10 @@ export function notesMarkdown({ runId, dir, frames, notes, out, project, level =
     `${h} Notes (${written.length})`,
     '',
     'Left on the photos of this run by whoever reviewed it. Each is pinned to one point of one photo, and',
-    'that point is what the note is about. A position is the page\'s own CSS pixels from its top-left',
-    'corner (a photo is the whole page at CSS scale). The copy «with the pins» shows each pin where it was',
-    'dropped, numbered: look at it before acting on a note.',
+    'that point is what the note is about. A position is CSS pixels from the photo\'s top-left corner: a',
+    'step\'s photo is the whole page as the step left it, an action\'s photo the window just before that',
+    'action. The copy «with the pins» shows each pin where it was dropped, numbered: look at it before',
+    'acting on a note.',
     '',
   ];
   const seqs = [...new Set(written.map((n) => n.seq))].sort((a, b) => a - b);
@@ -196,11 +201,15 @@ export function notesMarkdown({ runId, dir, frames, notes, out, project, level =
     } catch {
       // The URL as it came.
     }
+    // An action's photo: the window just before it, and what it was.
+    const action = f.kind === 'action' ? f.marks?.[0] : null;
+    const before = action ? `, just before action ${action.n ?? 1}` : '';
+    const what = action ? `; the window just before action ${action.n ?? 1}: ${action.kind} «${action.label}»` : '';
     lines.push(
-      `${h}# ${cap(f.actor)} · ${f.test} › ${f.step} (photo ${seq})`,
+      `${h}# ${cap(f.actor)} · ${f.test} › ${f.step} (photo ${seq}${before})`,
       '',
       `- Photo: \`${out}/${f.file}\`${pinned}`,
-      `- Page \`${page}\`${device}${f.scroll?.y ? `, scrolled down ${f.scroll.y} px` : ''}`,
+      `- Page \`${page}\`${device}${f.scroll?.y ? `, scrolled down ${f.scroll.y} px` : ''}${what}`,
     );
     if (f.location) lines.push(`- Recording line: \`${project}/${f.location}\``);
     lines.push('');
