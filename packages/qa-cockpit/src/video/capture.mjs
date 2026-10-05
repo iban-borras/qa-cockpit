@@ -10,7 +10,10 @@
 //     CSS pixels, at JPEG quality 92.
 //   - events.jsonl: every real click and the first keystroke in a field, as
 //     the page saw them (viewport pixels, wall clock), and in «motion» the
-//     path the pointer was moved along.
+//     path the pointer was moved along; and for each page loaded, when it
+//     first painted, and first painted content (`paint`), so that the
+//     frames before, a blank page or its bare background, are never shown
+//     (plan.mjs).
 // And <QA_VIDEO_DIR>/steps.jsonl: each step of the recording, its test, and
 // when it began and ended, on the same clock as the frames.
 //
@@ -64,18 +67,61 @@ export function stepRecorded(step) {
 /**
  * The end of a step, made visible: the last paint of every captured page
  * reaches its screencast before the step's end is noted, so the frame that
- * closes the step shows its result. In «motion», the page's animations end
- * first, and the result stays on screen a moment.
+ * closes the step shows its result. Its images and fonts first: a step's
+ * last frame may stay on screen for seconds (a narration longer than the
+ * step), and a check that passes before the logo has arrived would hold a
+ * page half drawn (found in CritKeep: a header image 1.3 s after the first
+ * paint, missing through a whole step). In «motion», the page's animations
+ * end too, and the result stays on screen a moment.
  */
 export async function settleAll() {
   if (!enabled || captures.size === 0) return;
   await Promise.all(
     [...captures.values()].map(async (c) => {
+      await loaded(c.page);
       if (MODE === 'motion') await settle(c.page);
       else await twoFrames(c.page);
     }),
   );
   await sleep(MODE === 'motion' ? 450 : 120);
+}
+
+/**
+ * Until the images on screen have arrived (or failed) and the fonts are
+ * ready, 1.5 s at most. Only those on screen: a lazy image below the fold
+ * never loads until it is scrolled to.
+ */
+async function loaded(page) {
+  await page
+    .evaluate(
+      () =>
+        new Promise((resolve) => {
+          const timer = setTimeout(resolve, 1500);
+          const onScreen = (img) => {
+            // Not shown at all (display: none) has no box.
+            if (!img.getClientRects().length) return false;
+            // Where it is, not how big: an image still loading may have no
+            // width yet (a logo with its height set and its width auto,
+            // found in CritKeep), and it is what the step must wait for.
+            const r = img.getBoundingClientRect();
+            return r.bottom >= 0 && r.right >= 0 && r.top <= innerHeight && r.left <= innerWidth;
+          };
+          const waiting = [...document.images]
+            .filter((img) => !img.complete && onScreen(img))
+            .map(
+              (img) =>
+                new Promise((done) => {
+                  img.addEventListener('load', done, { once: true });
+                  img.addEventListener('error', done, { once: true });
+                }),
+            );
+          Promise.all([...waiting, document.fonts.ready]).then(() => {
+            clearTimeout(timer);
+            resolve();
+          });
+        }),
+    )
+    .catch(() => {});
 }
 
 /**
@@ -155,6 +201,85 @@ export async function startCapture(id, page, device, onFrame, testTitle = '') {
     c.cdp = null;
   }
   return c;
+}
+
+// ── a warm run ──
+//
+// Every person in every test opens a browser context of their own, with an
+// empty cache: on a development server (Vite: hundreds of modules) each
+// page is fetched whole again, and an image waits in line behind the
+// modules (found in CritKeep). In a video's run, the files of the kinds the
+// config names (`video.cache`: the app's code, styles and fonts) are kept
+// in memory from the first time any context fetches them, and every
+// context after gets them from there at once. The run's own: filled from
+// the server as it is now, so a video never films an earlier build's code,
+// and gone with the run.
+/** @type {Map<string, { status: number, headers: Record<string, string>, body: Buffer }>} */
+const kept = new Map();
+
+/**
+ * A person's context in a video's run, served from the run's cache.
+ * Routing turns the browser's own cache off; the run's replaces it. The
+ * first fetch of a file is the browser's own, as fast as without a cache,
+ * and a copy of its answer is kept: fetched by Playwright instead (its
+ * `route.fetch`, in Node), images made a run slower, from 3.0 to 3.7
+ * minutes (measured in CritKeep).
+ * @param {any} context
+ * @param {string[]} kinds Playwright's resource types to keep
+ */
+export async function cacheFor(context, kinds) {
+  if (!enabled || !kinds?.length) return;
+  const keep = new Set(kinds);
+  const keeps = (request) => request.method() === 'GET' && keep.has(request.resourceType());
+  context.on('requestfinished', async (request) => {
+    if (!keeps(request) || kept.has(request.url())) return;
+    try {
+      const response = await request.response();
+      if (response?.status() !== 200) return;
+      const body = await response.body();
+      // As the browser had it once decoded, and without the cookies of
+      // somebody else's request.
+      const headers = Object.fromEntries(
+        Object.entries(response.headers()).filter(([k]) => !/^(content-encoding|content-length|transfer-encoding|set-cookie)$/i.test(k)),
+      );
+      kept.set(request.url(), { status: 200, headers, body });
+    } catch {
+      // Not kept (its page closed first): fetched again next time.
+    }
+  });
+  await context
+    .route('**/*', (route) => {
+      const request = route.request();
+      const hit = keeps(request) ? kept.get(request.url()) : undefined;
+      return hit ? route.fulfill(hit) : route.fallback();
+    })
+    .catch(() => {});
+}
+
+/**
+ * Before a video's run films anything: the pages the config names
+ * (`video.warm`), opened and left, to fill the run's cache, so that the
+ * first screen filmed loads as fast as the rest.
+ * @param {any} context a person's, signed in
+ * @param {string[]} urls
+ * @param {string[]} kinds `video.cache`
+ */
+export async function warm(context, urls, kinds) {
+  if (!enabled || !urls.length || !kinds?.length) return;
+  await cacheFor(context, kinds);
+  const page = await context.newPage();
+  for (const url of urls) {
+    try {
+      await page.goto(url, { waitUntil: 'load', timeout: 30_000 });
+      await loaded(page);
+      // The code a page imports once it runs.
+      await sleep(500);
+    } catch {
+      // A page that does not open warms nothing; the run goes on.
+    }
+  }
+  await page.close().catch(() => {});
+  console.log(`qa-cockpit: the video's cache is warm (${kept.size} files from ${urls.length} page${urls.length === 1 ? '' : 's'}).`);
 }
 
 /** Where each captured person is: the cover's address bar shows it. */
@@ -265,6 +390,29 @@ function eventScript() {
     },
     true,
   );
+  // When this document first painted, and first painted content (a text,
+  // an image), and when it replaced the one before (the first byte of its
+  // response): the frames before its content show a blank page (Chromium's
+  // about:blank before the first navigation, white), or its bare background
+  // (a dark app paints its html's colour first: an empty screen, both found
+  // in CritKeep), or hold the page before. The top document's only: a frame
+  // inside paints into its picture.
+  if (window.top === window) {
+    try {
+      new PerformanceObserver((list) => {
+        for (const e of list.getEntries()) {
+          if (location.href === 'about:blank') continue;
+          const contentful = e.name === 'first-contentful-paint';
+          if (!contentful && e.name !== 'first-paint') continue;
+          const origin = performance.timeOrigin;
+          const nav = performance.getEntriesByType('navigation')[0];
+          send({ kind: 'paint', start: Math.round(origin + (nav?.responseStart || 0)), at: Math.round(origin + e.startTime), contentful });
+        }
+      }).observe({ type: 'paint', buffered: true });
+    } catch {
+      // Without it, a page's first frames may show it blank.
+    }
+  }
   addEventListener(
     'input',
     (e) => {
@@ -315,7 +463,11 @@ function installPacing(page) {
 
 async function act(c, locator, name, original, args) {
   // The lesson that cost most: bring the target into view first, so a frame
-  // shows it before it is pressed.
+  // shows it before it is pressed. In «motion» the way a person does, with
+  // a scroll: Playwright's own jumps there in one frame, and a page that
+  // leaps reads as the app's fault (found in CritKeep, on a phone). Then
+  // Playwright's, which has nothing left to do.
+  if (MODE === 'motion') await scrollSmoothly(locator);
   await locator.scrollIntoViewIfNeeded({ timeout: 5_000 }).catch(() => {});
   await twoFrames(c.page);
   if (MODE !== 'motion') return original.apply(locator, args);
@@ -342,21 +494,59 @@ async function act(c, locator, name, original, args) {
   return result;
 }
 
-/** The pointer to (x, y), eased, as a hand moves; every point is an event. */
+/**
+ * A target out of view, brought into it by a smooth scroll, which the
+ * browser eases (motion turns reduced motion off, so the page does not cut
+ * it short); until it stands still for six frames, 1.5 s at most. Nothing
+ * when it is in view already.
+ */
+async function scrollSmoothly(locator) {
+  await locator
+    .evaluate(
+      (el) =>
+        new Promise((done) => {
+          const r = el.getBoundingClientRect();
+          if (r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth) return done();
+          el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+          const began = performance.now();
+          let last = null;
+          let still = 0;
+          const tick = () => {
+            const top = el.getBoundingClientRect().top;
+            still = last !== null && Math.abs(top - last) < 0.5 ? still + 1 : 0;
+            last = top;
+            if (still >= 6 || performance.now() - began > 1500) done();
+            else requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick);
+        }),
+      undefined,
+      { timeout: 5_000 },
+    )
+    .catch(() => {});
+}
+
+/**
+ * The pointer to (x, y), eased, as a hand moves; every point is an event.
+ * By the clock, not by a count of steps: each move is a round trip to the
+ * browser (30 to 45 ms, measured), and steps planned at 16 ms took a long
+ * way 1.7 to 2.5 s (found in CritKeep). Now under 0.7 s.
+ */
 async function glide(c, x, y) {
   const from = c.mouse;
   const distance = Math.hypot(x - from.x, y - from.y);
   if (distance < 2) return;
-  const ms = Math.min(800, 300 + distance * 0.55);
-  const n = Math.max(8, Math.round(ms / 16));
-  for (let i = 1; i <= n; i += 1) {
-    const t = i / n;
+  const ms = Math.min(650, 250 + distance * 0.45);
+  const start = Date.now();
+  for (;;) {
+    const t = Math.min(1, (Date.now() - start) / ms);
     const e = t * t * (3 - 2 * t);
     const px = from.x + (x - from.x) * e;
     const py = from.y + (y - from.y) * e;
     await c.page.mouse.move(px, py).catch(() => {});
     append(c.events, { kind: 'move', at: Date.now(), x: Math.round(px), y: Math.round(py) });
-    await sleep(ms / n - 4);
+    if (t >= 1) break;
+    await sleep(8);
   }
   c.mouse = { x: Math.round(x), y: Math.round(y) };
 }

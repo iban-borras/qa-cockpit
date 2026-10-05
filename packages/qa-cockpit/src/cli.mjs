@@ -517,10 +517,19 @@ export async function runCli(rawConfig, argv) {
         if (!suite || !fs.existsSync(path.join(P.suites, `${suite}.md`))) fail(`Usage: ${CLI} video script <suite> [--force]  (a suite in ${shown(config, P.suites)})`);
         const file = path.join(P.videos, `${suite}.json`);
         if (fs.existsSync(file) && !flag('--force')) fail(`${shown(config, file)} exists already (--force to start it again).`);
-        const { starterScript } = await import('./video/script.mjs');
+        const { readSuite, recordingSteps, starterScript, stepsApart } = await import('./video/script.mjs');
         fs.mkdirSync(P.videos, { recursive: true });
         fs.writeFileSync(file, `${JSON.stringify(starterScript(config, suite), null, 2)}\n`);
         console.log(`${shown(config, file)}: every test and step of ${suite}, in the suite's words, no narration yet.`);
+        // A step's subtitle is the row with its number: said now, before a
+        // capture of minutes shows the wrong words under the steps.
+        const recording = recordingOf(config, suite);
+        const apart = recording ? stepsApart(readSuite(config, suite), recordingSteps(recording), { cast: config.cast }) : [];
+        if (apart.length) {
+          console.log("\nA step's subtitle is the suite's row with its number, and the recording's steps and the rows do not match:");
+          for (const line of apart) console.log(`  ${line}`);
+          console.log('  Number each step as its row, or give the step its own "subtitle" in this script.');
+        }
         return;
       }
 
@@ -632,11 +641,20 @@ export async function runCli(rawConfig, argv) {
       delete process.env.QA_VIDEO_TESTS;
 
       report(await renderVideo(config, dir, { script: scriptFile, clips: flag('--clips'), mode }));
-      // The newest few captures of a suite stay, to draw again with another script.
+      // The newest few captures of a suite stay, to draw again with another
+      // script. A suite by its capture's word, not its folder's name: «chat-»
+      // begins «chat-admin-» too.
       const keep = Math.max(1, config.video.keep);
+      const suiteOf = (d) => {
+        try {
+          return JSON.parse(fs.readFileSync(path.join(videosOut, d, 'capture.json'), 'utf8')).suite;
+        } catch {
+          return null;
+        }
+      };
       const old = fs
         .readdirSync(videosOut)
-        .filter((d) => d.startsWith(`${suite}-`) && fs.existsSync(path.join(videosOut, d, 'capture.json')))
+        .filter((d) => suiteOf(d) === suite)
         .sort((a, b) => fs.statSync(path.join(videosOut, a, 'capture.json')).mtimeMs - fs.statSync(path.join(videosOut, b, 'capture.json')).mtimeMs);
       for (const d of old.slice(0, Math.max(0, old.length - keep))) fs.rmSync(path.join(videosOut, d), { recursive: true, force: true });
     },

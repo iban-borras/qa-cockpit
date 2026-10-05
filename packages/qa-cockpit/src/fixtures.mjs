@@ -49,8 +49,34 @@ export function cockpitFixtures(base, rawConfig) {
     return browser.newContext({ ...contextOptions(config, id, device), ...extra, storageState: state });
   }
 
+  // A video's run, before the first person's browser opens: the pages the
+  // config names (`video.warm`), opened by the first person with a saved
+  // session, so the first screen filmed comes from a warm cache
+  // (video/capture.mjs). Here and not in a fixture of the worker's: one
+  // would start a browser for every run, videos or not.
+  let warmed = false;
+  async function warmOnce(browser) {
+    if (warmed || !video.enabled || !config.video.warm.length) return;
+    warmed = true;
+    const id = config.people.find((p) => fs.existsSync(statePath(p)));
+    if (!id) return;
+    try {
+      const app = config.stack.urls().app;
+      const context = await contextFor(browser, id);
+      await video.warm(
+        context,
+        config.video.warm.map((u) => new URL(u, app).href),
+        config.video.cache,
+      );
+      await context.close();
+    } catch {
+      // Cold, then: the video is made all the same.
+    }
+  }
+
   const person = (id) =>
     async ({ browser, devices }, use, testInfo) => {
+      await warmOnce(browser);
       const device = deviceFor(config, id, devices);
       // For `replay --network` (network/capture.mjs): Playwright's HAR of
       // this person's context, cleaned of its secrets when it closes.
@@ -63,6 +89,9 @@ export function cockpitFixtures(base, rawConfig) {
         throw e;
       }
       await network.watch(har, context);
+      // A video's run serves the app's code from memory after its first
+      // fetch, to every person (video/capture.mjs).
+      await video.cacheFor(context, config.video.cache);
       const page = await context.newPage();
       await cockpit.register(id, page, deviceLabel(device));
       // For `qa-cockpit video` (video/capture.mjs): the page's own frames,

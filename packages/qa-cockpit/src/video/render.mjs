@@ -20,7 +20,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { playwrightOf } from '../playwright.mjs';
 import { mediaDuration, mixArgs, music, ticks, writeWav } from './audio.mjs';
-import { BAND, buildPlan, frameAt, H, loadCapture, W } from './plan.mjs';
+import { BAND, buildPlan, frameAt, H, loadCapture, pageLoads, W } from './plan.mjs';
 import { readScript, readSuite, scriptPath, stepParts, testIdOf } from './script.mjs';
 
 const STAGE = fileURLToPath(new URL('./stage.html', import.meta.url));
@@ -113,6 +113,16 @@ export async function renderVideo(config, dir, opts = {}) {
   const plan = buildPlan({ config, capture, suite, script, mode, fps, voice: (key) => voices.get(key) ?? null });
   const frames = Math.ceil(plan.duration * fps);
   log(`Video of ${suiteName} (${mode}): ${plan.steps} steps, ${plan.clicks} presses, ${plan.duration.toFixed(1)} s, ${frames} frames.`);
+  for (const line of plan.notes) log(line);
+  // How long its pages took to show something: on a development server
+  // (modules unbundled), what a video loses most, and what the skill tells
+  // an agent to measure before filming («A page that loads slowly»).
+  const loads = capture.sessions.flatMap((s) => pageLoads(s.paints ?? [])).sort((a, b) => a - b);
+  if (loads.length) {
+    const median = loads[Math.floor(loads.length / 2)];
+    log(`Pages: ${loads.length} loaded, ${median} ms from their response to their first content (the slowest ${loads.at(-1)} ms).`);
+    if (median > 300) log('  Over 300 ms is, most likely, the app in development mode, not the app: the skill says what to try.');
+  }
 
   const work = path.join(dir, 'render');
   fs.rmSync(work, { recursive: true, force: true });

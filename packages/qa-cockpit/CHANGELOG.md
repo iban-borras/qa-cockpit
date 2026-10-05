@@ -34,6 +34,88 @@
   is a report, cheap fixes first, with nothing changed until the person
   chooses.
 
+From CritKeep's first `--motion` video, each checked there frame by frame:
+
+- The config's `video.colors.background` was set where the stage never
+  read it: every video came out on the default's. It is the video's
+  background now.
+- A screen's rounded corners no longer let a white notch through on a dark
+  app: the screens have no background of their own, and an empty one is
+  the video's.
+- A person's screen shows their page from its first content (a text, an
+  image). Before it, the screen showed the white about:blank a browser
+  opens with, or the page's bare background (a dark app paints its html's
+  colour first: an empty screen), whenever somebody came on screen before
+  their page had painted; and so did the moment between two pages. The
+  capture notes when each page first painted, and first painted content; a
+  capture made before keeps every frame. In motion, a page's load until
+  its content takes a quarter of a second, however long it took: the
+  screen shows that content already, or the page before.
+- A step of a video ends once the images on its screens have arrived and
+  its fonts are ready (1.5 s at most): its last frame may stay on screen
+  for seconds while a narration finishes, and a check that passed before
+  the header's logo arrived held the page without it through a whole step.
+- No more squashed screens: a screenshot of the whole page (the cockpit's
+  photo of a step, a suite's own) made the screencast send the tall page
+  squeezed into the screen's height for a moment, and the video stretched
+  it back. A page's frames of another size than its own are left out, also
+  in a capture made before.
+- In motion, the cursor's long ways took 1.7 to 2.5 s: each move is a
+  round trip to the browser, and the glide counted its steps instead of
+  timing them. Now by the clock, under 0.7 s.
+- In motion, a target out of view is scrolled to smoothly, as a person
+  does: Playwright's own scroll jumped there in one frame, which read as
+  the app's fault.
+- `video script` and the render say when a recording's steps and its
+  suite's rows part ways. A step's subtitle is the row with its number, so
+  a recording that merged rows showed each step another step's words.
+- A step's narration can start on one of its presses, or a number of
+  seconds into it (the script's `voiceAt`): the step then lasts until the
+  voice is done.
+- The skill: one step per row; and two races a motion video shows and a
+  replay hides (find by `data-testid` what a page repeats or translates;
+  click a rich editor's editable area and wait for its focus before
+  typing).
+- The cover shows the moment the script's `cover` names, not only a step's
+  end: `"T5/3 press 2"` (half a second after its second press, `+0.8` for
+  longer), `"T5/3 2.4"` (seconds into the step), `"T5/3"` (its end, as
+  before). The skill asks agents to choose it: the moment that, seen alone,
+  tells what the video is about (in CritKeep, the burst of stars when a
+  game resumes), and to look at it on the poster.
+- A video ends on its last card, still, instead of fading to black: its
+  last frame is what a player shows once it is over. New config key
+  `video.fadeOut` (false) for the black.
+- A video's run is a warm one. The files of the kinds the new config key
+  `video.cache` names (by default the app's code, styles and fonts) are
+  kept in memory from the first time any person's browser fetches them,
+  and served from there to everybody after: on a development server, a
+  page no longer fetches its hundreds of modules again for every person
+  and every test, with an image waiting in line behind them. The run's
+  own, filled from the server as it is: a video never films an earlier
+  build's code. The first fetch of a file is the browser's own, and a copy
+  of it is kept: fetched through Playwright instead, images made a run 20%
+  slower in CritKeep; this way, within the noise, and the header's logo
+  came 33 ms after its page's first content instead of 931. Images only
+  when asked (`'image'`), for an app that never replaces one at the same
+  address during a run. And the new `video.warm` names pages to open
+  before the first test (ones whose opening changes nothing), so the first
+  screen filmed loads warm too.
+- The render says how long the captured pages took from their response to
+  their first content («Pages: …»). The skill tells agents what a slow one
+  means (over about 300 ms: most likely the app's development mode, its
+  modules unbundled, evaluated again at every `goto`), how to measure it,
+  and what to try before filming: the project's production build served
+  at the same address for the recording only, asking the person first,
+  and the development server back afterwards, also after a failure (in a
+  compose stack, the front's own service recreated from a temporary
+  override). In CritKeep, the render said 524 ms a page, and its warning;
+  with the build, 173 ms, a static file in 5 ms instead of 600, and the
+  recording in 1.9 minutes instead of 3.1.
+- A new video of a suite no longer deletes the captures of another suite
+  whose name begins with its own and a dash (`chat`, `chat-admin`): the
+  captures kept (`video.keep`) are counted by the suite their capture
+  names.
+
 ## 0.5.0 (2026-10-04)
 
 - A video that shows only some tests of a suite plays every test through

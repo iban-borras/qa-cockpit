@@ -14,7 +14,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { plain, stepParts, testIdOf, testTitleOf } from './script.mjs';
+import { plain, stepParts, stepsApart, testIdOf, testTitleOf } from './script.mjs';
 
 export const W = 1280;
 export const H = 720;
@@ -29,6 +29,7 @@ const EXIT = 0.45; // s, a card's content leaving for another card
 const SETTLED = 2.6; // s, every card's entrance is over (stage.html)
 const SUBTITLE_IN = 0.6; // s, a new subtitle rising into place
 const SWAP = 0.45; // s, the screens of one step fading in over another's
+const LOAD = 0.25; // s, motion: a page's load until its content, however long it took
 
 /** Which screens a picture shows, and where: a step that changes them fades the new ones in. */
 const screensOf = (state) => JSON.stringify(state.panels.map((p) => [p.who, p.x, p.y, p.w, p.h]));
@@ -94,6 +95,100 @@ function readJsonl(file) {
     });
 }
 
+/** A JPEG's size, from its frame header, or null. */
+function jpegSize(file) {
+  let fd;
+  try {
+    fd = fs.openSync(file, 'r');
+    const buf = Buffer.alloc(16384);
+    const n = fs.readSync(fd, buf, 0, buf.length, 0);
+    for (let i = 2; i + 8 < n; ) {
+      if (buf[i] !== 0xff) return null;
+      const marker = buf[i + 1];
+      // The start of a frame (SOF0..SOF15; C4, C8 and CC are other markers).
+      if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+        return { w: buf.readUInt16BE(i + 7), h: buf.readUInt16BE(i + 5) };
+      }
+      i += 2 + buf.readUInt16BE(i + 2);
+    }
+    return null;
+  } catch {
+    return null;
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
+}
+
+/**
+ * A page's frames, without those of another size than its own. A
+ * screenshot of the whole page (the cockpit's photo of a step, a suite's
+ * own) makes the screencast send the tall page squeezed into the
+ * viewport's height (507×720 where the page is 1280×720), which the video
+ * stretched back: the page squashed for a moment (found in CritKeep). The
+ * page's own size is the one most of its frames have.
+ */
+function sameSizeFrames(framesDir, frames) {
+  const sizes = frames.map((ms) => jpegSize(path.join(framesDir, `${ms}.jpg`)));
+  const count = new Map();
+  for (const s of sizes) if (s) count.set(`${s.w}x${s.h}`, (count.get(`${s.w}x${s.h}`) ?? 0) + 1);
+  const own = [...count].sort((a, b) => b[1] - a[1])[0]?.[0];
+  if (!own) return frames;
+  return frames.filter((_, i) => !sizes[i] || `${sizes[i].w}x${sizes[i].h}` === own);
+}
+
+/**
+ * A page's frames, without those before it first painted content (a text,
+ * an image; capture.mjs, `paint`): Chromium's about:blank before the first
+ * navigation, white, which showed whenever a person came on screen before
+ * their page had painted, and the page's bare background before its
+ * content, an empty screen (both found in CritKeep); and, at each later
+ * navigation, the moments between the new page's arrival and its content,
+ * which show the page before or nothing. The frame before them stays on
+ * screen instead, as a browser does. A page that never paints content
+ * counts from its first paint. A capture made before 0.6.0 says no paint,
+ * and keeps every frame.
+ * @returns {{ frames: number[], loads: number[] }} the frames kept, and the
+ *   first of each page: the end of its load (`motion` cuts the wait for it short)
+ */
+function paintedFrames(frames, paints) {
+  if (!paints.length) return { frames, loads: [] };
+  // One per page (its start): its first content, or its first paint.
+  const pages = new Map();
+  for (const p of paints) {
+    const had = pages.get(p.start);
+    if (!had || (p.contentful && !had.contentful)) pages.set(p.start, p);
+  }
+  // The frame that shows a paint is the one nearest to it: the page's clock
+  // and the frames' differ by a few milliseconds (1 to 4, measured), and on
+  // a page that loads fast the blank frame comes only 27 ms before.
+  const shownAt = (at) => {
+    let best = null;
+    for (const ms of frames) if (Math.abs(ms - at) <= 40 && (best === null || Math.abs(ms - at) < Math.abs(best - at))) best = ms;
+    return best ?? at - 5;
+  };
+  const shown = [...pages.values()].map((p) => ({ start: p.start, from: shownAt(p.at) }));
+  const first = Math.min(...shown.map((p) => p.from));
+  const between = shown.filter((p) => Number.isFinite(p.start) && p.start < p.from).map((p) => [p.start, p.from]);
+  const kept = frames.filter((ms) => ms >= first && !between.some(([a, b]) => ms >= a && ms < b));
+  const loads = shown.map((p) => kept.find((ms) => ms >= p.from)).filter((ms) => ms !== undefined);
+  return { frames: kept, loads };
+}
+
+/**
+ * How long each page a person loaded took, from its response to its first
+ * content (its first paint, when it painted no content), in ms.
+ * @param {{ start: number, at: number, contentful?: boolean }[]} paints
+ */
+export function pageLoads(paints) {
+  const pages = new Map();
+  for (const p of paints) {
+    if (!Number.isFinite(p.start)) continue;
+    const had = pages.get(p.start);
+    if (!had || (p.contentful && !had.contentful)) pages.set(p.start, p);
+  }
+  return [...pages.values()].map((p) => Math.max(0, p.at - p.start));
+}
+
 /** A run's capture, as the video reads it. */
 export function loadCapture(dir) {
   const metaFile = path.join(dir, 'capture.json');
@@ -112,8 +207,11 @@ export function loadCapture(dir) {
       .map((f) => Number.parseInt(f, 10))
       .filter(Number.isFinite)
       .sort((a, b) => a - b);
-    const events = readJsonl(path.join(sdir, 'events.jsonl')).sort((a, b) => a.at - b.at);
-    sessions.push({ ...s, ended: s.ended ?? Number.POSITIVE_INFINITY, dir: sdir, framesDir, frames, events });
+    const all = readJsonl(path.join(sdir, 'events.jsonl')).sort((a, b) => a.at - b.at);
+    const paints = all.filter((e) => e.kind === 'paint' && Number.isFinite(e.at));
+    const events = all.filter((e) => e.kind !== 'paint');
+    const painted = paintedFrames(sameSizeFrames(framesDir, frames), paints);
+    sessions.push({ ...s, ended: s.ended ?? Number.POSITIVE_INFINITY, dir: sdir, framesDir, frames: painted.frames, loads: painted.loads, paints, events });
   }
   return { dir, meta, steps, sessions };
 }
@@ -134,6 +232,47 @@ export function frameAt(session, t) {
     }
   }
   return best === -1 ? null : { ms: f[best], index: best, file: path.join(session.framesDir, `${f[best]}.jpg`) };
+}
+
+/**
+ * What a person's screen shows at `t`: the last frame painted, or, before
+ * their page painted at all, its first one (never an empty box).
+ */
+function screenAt(session, t) {
+  const f = frameAt(session, t);
+  if (f || !session.frames.length) return f;
+  return { ms: session.frames[0], index: 0, file: path.join(session.framesDir, `${session.frames[0]}.jpg`) };
+}
+
+/**
+ * The cover a script asks for: «T5/3» or «T5/3 end» (the step's end),
+ * «T5/3 press 2» (half a second after its second press: what it did, a
+ * second press of the same, an effect), «T5/3 press 2 +0.8» (that long
+ * after it), «T5/3 2.4» (seconds after the step began, as it played); or
+ * the same as `{ "step": "T5/3", "at": "press 2", "people": [...] }`.
+ */
+function coverWanted(cover) {
+  const spec = typeof cover === 'string' ? { step: cover } : (cover ?? {});
+  if (!spec.step) return { people: spec.people };
+  const [step, ...rest] = String(spec.step).trim().split(/\s+/);
+  const at = spec.at !== undefined ? String(spec.at) : rest.join(' ');
+  const m = /^(?:(end)|press(?:\s+(\d+))?(?:\s*\+\s*(\d+(?:\.\d+)?))?|(\d+(?:\.\d+)?))?$/.exec(at.trim());
+  if (!m) throw new Error(`The video script's cover is ${JSON.stringify(cover)}: a step ("T5/3"), and "end", "press", "press 2", "press 2 +0.8" or seconds into it ("T5/3 2.4").`);
+  if (m[4] !== undefined) return { step, people: spec.people, seconds: Number(m[4]) };
+  if (at.trim().startsWith('press')) return { step, people: spec.people, press: Number(m[2] ?? 1), after: m[3] !== undefined ? Number(m[3]) : 0.5 };
+  return { step, people: spec.people };
+}
+
+/**
+ * When a step's narration starts (its script's `voiceAt`): a number of
+ * seconds into the step, or one of its presses («press», «press 2»).
+ * @returns {number | null} seconds into the step, or null when the step has no such press
+ */
+function voiceStart(key, voiceAt, presses) {
+  if (typeof voiceAt === 'number' && Number.isFinite(voiceAt) && voiceAt >= 0) return voiceAt;
+  const m = /^press(?:\s+(\d+))?$/.exec(String(voiceAt).trim());
+  if (!m) throw new Error(`The video script's step ${key} says "voiceAt": ${JSON.stringify(voiceAt)}: seconds into the step, "press" or "press 2".`);
+  return presses[Number(m[1] ?? 1) - 1] ?? null;
 }
 
 /** The session of a person that was open at `t`. */
@@ -224,6 +363,21 @@ export function buildPlan({ config, capture, suite, script, mode, voice, fps = 2
   }
   if (!tests.length) throw new Error('The capture has no step to show: are the steps named «n · Who: what they do», and the tests «T1 · …»?');
 
+  // What the render says before it draws: what the video may get wrong.
+  const notes = [];
+  const apart = stepsApart(
+    suite,
+    capture.steps.filter((step) => !wanted || wanted.has(testIdOf(step.test))),
+    { cast: config.cast, scriptSteps: stepsCfg },
+  );
+  if (apart.length) {
+    notes.push(
+      "A step's subtitle is the suite's row with its number, and these steps and rows do not match:",
+      ...apart.map((line) => `  ${line}`),
+      '  Number each step as its row, or give the step its own "subtitle" in the video script.',
+    );
+  }
+
   /** @type {any[]} */
   const shots = [];
   const cursorAt = new Map(); // person → last cursor position, viewport pixels
@@ -257,7 +411,10 @@ export function buildPlan({ config, capture, suite, script, mode, voice, fps = 2
           out: next?.kind === 'card' && left < EXIT ? Number(left.toFixed(3)) : null,
           opacity: 1,
         },
-        fade: kind === 'intro' ? Math.max(0, 1 - u / 0.5) : kind === 'outro' ? Math.max(0, 1 - left / 0.8) : 0,
+        // The video ends on its last card, still: its last frame is the
+        // card, what a player shows once it is over. To black only when the
+        // config asks (`video.fadeOut`).
+        fade: kind === 'intro' ? Math.max(0, 1 - u / 0.5) : kind === 'outro' && config.video.fadeOut ? Math.max(0, 1 - left / 0.8) : 0,
       };
     };
     shots.push(shot);
@@ -302,6 +459,8 @@ export function buildPlan({ config, capture, suite, script, mode, voice, fps = 2
       duration: s.duration + SWAP,
       ticks: s.ticks.map((u) => u + SWAP),
       keys: s.keys.map((k) => ({ ...k, u: k.u + SWAP })),
+      // A voice that starts on a press waits with it.
+      voice: s.voice?.onPress ? { ...s.voice, at: s.voice.at + SWAP } : s.voice,
       at: (u) => {
         const state = inner(Math.max(0, u - SWAP));
         return state.subtitle ? { ...state, subtitle: { ...state.subtitle, age: Number(Math.min(u, SUBTITLE_IN).toFixed(3)) } } : state;
@@ -364,25 +523,27 @@ export function buildPlan({ config, capture, suite, script, mode, voice, fps = 2
   const voices = shots.filter((s) => s.voice).map((s) => ({ file: s.voice.file, at: s.start + s.voice.at }));
   const keys = shots.flatMap((s) => s.keys.map((k) => ({ t: s.start + k.u, caption: k.caption })));
   const clicks = shots.reduce((a, s) => a + (s.clicks ?? 0), 0);
-  return { duration, shots, at, ticks, voices, keys, clicks, steps: shots.filter((s) => s.kind === 'step').length };
+  return { duration, shots, at, ticks, voices, keys, clicks, steps: shots.filter((s) => s.kind === 'step').length, notes };
 
   /**
-   * The cover's screens: the end of the step the script names (`cover`), or
-   * of the one that shows most of the app (a computer counts more than a
-   * phone, both more than either). Of equals, the last of the first test
-   * that has one: a story's result rather than its empty start.
+   * The cover's screens: the moment the script names (`cover`): the step
+   * that, seen alone, tells what the video is about, at its end or at one
+   * of its presses; or, unnamed, the end of the step that shows most of the
+   * app (a computer counts more than a phone, both more than either). Of
+   * equals, the last of the first test that has one: a story's result
+   * rather than its empty start.
    */
   function coverOf() {
     if (data.cover === false || data.cover === null) return [];
-    const want = typeof data.cover === 'string' ? { step: data.cover } : (data.cover ?? {});
+    const want = coverWanted(data.cover);
     const all = tests.flatMap((t, ti) => t.steps.map((step) => ({ step, ti })));
-    const screensOf = (step, ids) =>
-      ids.map((id) => sessionAt(capture.sessions, id, step.ended)).filter((s) => s && frameAt(s, step.ended));
+    const screensOf = (step, ids, t = step.ended) => ids.map((id) => sessionAt(capture.sessions, id, t)).filter((s) => s && frameAt(s, t));
     const score = (step) => {
       const ss = screensOf(step, step.people ?? []);
       return (ss.some((s) => !s.touch) ? 2 : 0) + (ss.some((s) => s.touch) ? 1 : 0);
     };
     let pick = want.step ? all.find((x) => x.step.key === want.step) : null;
+    if (want.step && !pick) notes.push(`The script's cover is ${want.step}, a step this video does not show: the cover shows the one that shows most of the app.`);
     if (!pick) {
       let best = 0;
       for (const x of all) {
@@ -395,10 +556,25 @@ export function buildPlan({ config, capture, suite, script, mode, voice, fps = 2
     }
     if (!pick) return [];
     const { step } = pick;
-    const ss = screensOf(step, want.people ?? step.people ?? []);
+    const ids = want.people ?? step.people ?? [];
+    // The moment: the step's end, or a while after one of its presses (the
+    // press itself shows the screen before it), or seconds into the step.
+    let t = step.ended;
+    if (want.seconds !== undefined) t = step.began + want.seconds * 1000;
+    if (want.press !== undefined) {
+      const presses = ids
+        .map((id) => sessionAt(capture.sessions, id, step.began))
+        .filter(Boolean)
+        .flatMap((s) => s.events.filter((e) => e.kind === 'click' && e.at >= step.began && e.at <= step.ended))
+        .sort((a, b) => a.at - b.at);
+      const press = presses[want.press - 1];
+      if (press) t = press.at + want.after * 1000;
+      else notes.push(`The script's cover is press ${want.press} of ${step.key}, which has ${presses.length}: the cover shows the step's end.`);
+    }
+    const ss = screensOf(step, ids, t);
     const screen = (s, kind) => ({
       kind,
-      src: url(frameAt(s, step.ended).file),
+      src: url(frameAt(s, t).file),
       vw: s.viewport.width,
       vh: s.viewport.height,
       address: kind === 'browser' ? (config.video.address ?? addressOf(step.urls?.[s.id])) : undefined,
@@ -423,6 +599,20 @@ export function buildPlan({ config, capture, suite, script, mode, voice, fps = 2
       seesLabel: config.video.labels.sees,
     };
     const v = voice(step.key);
+    // When its narration starts, when the script says (`voiceAt`): then the
+    // step is not stretched for the voice ahead of the action; it lasts
+    // until the voice is done instead.
+    const voiceAt = v && cfg.voiceAt !== undefined && cfg.voiceAt !== null ? cfg.voiceAt : null;
+    const placeVoice = (D, presses, fallback) => {
+      if (!v) return { D, voice: null };
+      if (voiceAt === null) return { D, voice: { file: v.file, at: fallback } };
+      let at = voiceStart(step.key, voiceAt, presses);
+      if (at === null) {
+        notes.push(`${step.key}: "voiceAt": ${JSON.stringify(voiceAt)}, and the step has ${presses.length} press${presses.length === 1 ? '' : 'es'}: its voice starts with the step.`);
+        at = fallback;
+      }
+      return { D: Math.max(D, at + v.duration + 0.7), voice: { file: v.file, at, onPress: typeof voiceAt === 'string' } };
+    };
 
     // The screens: the people the step names, as they were at that moment.
     let ids = (step.people ?? []).filter((id) => sessionAt(capture.sessions, id, step.began));
@@ -434,7 +624,7 @@ export function buildPlan({ config, capture, suite, script, mode, voice, fps = 2
     const panelsAt = (tReal) =>
       shown.map((s, i) => ({
         ...boxes[i],
-        src: url(frameAt(s, tReal)?.file ?? null),
+        src: url(screenAt(s, tReal)?.file ?? null),
         label: boxes[i].bleed ? null : `${castName(s.id)}${roleOf(s.id) ? ` · ${roleOf(s.id)}` : ''}`,
         // Whose screen this is: a step that shows other screens than the
         // one before fades them in (SWAP).
@@ -469,7 +659,7 @@ export function buildPlan({ config, capture, suite, script, mode, voice, fps = 2
       });
       events.sort((a, b) => a.at - b.at);
       const k = events.length;
-      let D = Math.max(readSeconds(chars), v ? v.duration + 0.7 : 0);
+      let D = Math.max(readSeconds(chars), v && voiceAt === null ? v.duration + 0.7 : 0);
       const hold = 0.35 * D + 0.6;
       let S = 0;
       if (k) {
@@ -541,13 +731,17 @@ export function buildPlan({ config, capture, suite, script, mode, voice, fps = 2
         return { panels: panelsAt(tReal), cursors, ripples, subtitle: { ...subtitle, age }, card: null, fade: 0 };
       };
 
+      // The voice, and the result held until it is done.
+      const ticks = events.map((e, i) => i * S + waitOf(e));
+      const placed = placeVoice(D, ticks, 0.15);
+      D = placed.D;
       return {
         kind: 'step',
         key: step.key,
         duration: D,
         clicks: k,
-        voice: v ? { file: v.file, at: 0.15 } : null,
-        ticks: events.map((e, i) => i * S + waitOf(e)),
+        voice: placed.voice,
+        ticks,
         keys: [
           ...events.map((e, i) => ({ u: i * S + waitOf(e) - 0.02, caption: `${step.key} · press ${i + 1}` })),
           { u: D - 0.05, caption: `${step.key} · end` },
@@ -568,16 +762,22 @@ export function buildPlan({ config, capture, suite, script, mode, voice, fps = 2
       }
       times.sort((a, b) => a - b);
       // Real time to video time: as it was, except stillness longer than
-      // `idle`, which is cut to it.
+      // `idle`, which is cut to it; and a page's load until its content,
+      // cut to LOAD: its screen shows that content already, or the page
+      // before (paintedFrames), and a person coming on screen with a phone
+      // that stays put for a second reads as the app stuck (found in
+      // CritKeep, on a development server).
+      const loads = new Set(shown.flatMap((s) => s.loads ?? []));
       const knots = [{ r: times[0], v: 0 }];
       for (let i = 1; i < times.length; i += 1) {
         const gap = times[i] - times[i - 1];
         if (gap <= 0) continue;
-        knots.push({ r: times[i], v: knots.at(-1).v + Math.min(gap, idle) / 1000 / speed });
+        const most = loads.has(times[i]) ? Math.min(idle, LOAD * 1000) : idle;
+        knots.push({ r: times[i], v: knots.at(-1).v + Math.min(gap, most) / 1000 / speed });
       }
       const V = knots.at(-1).v;
       const tail = 0.7;
-      const D = Math.max(V + tail, readSeconds(chars), v ? v.duration + 0.7 : 0);
+      let D = Math.max(V + tail, readSeconds(chars), v && voiceAt === null ? v.duration + 0.7 : 0);
       // A narration longer than the action: part of the wait before it, the
       // rest on the result.
       const lead = Math.min(1.5, (D - V - tail) * 0.4);
@@ -663,12 +863,19 @@ export function buildPlan({ config, capture, suite, script, mode, voice, fps = 2
         return { panels: panelsAt(tReal), cursors, ripples, subtitle: { ...subtitle, age }, card: null, fade: 0 };
       };
 
+      // The voice, and the result held until it is done.
+      const placed = placeVoice(
+        D,
+        presses.map((e) => videoAt(e.at)),
+        Math.max(0.1, lead - 0.4),
+      );
+      D = placed.D;
       return {
         kind: 'step',
         key: step.key,
         duration: D,
         clicks: presses.length,
-        voice: v ? { file: v.file, at: Math.max(0.1, lead - 0.4) } : null,
+        voice: placed.voice,
         ticks: presses.map((e) => videoAt(e.at)),
         keys: [
           ...presses.map((e, i) => ({ u: videoAt(e.at) - 0.04, caption: `${step.key} · press ${i + 1}` })),

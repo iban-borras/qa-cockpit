@@ -89,5 +89,7 @@ export default defineConfig({
   //   labels: { sees: 'Sees' },
   //   music: 'brand/soundtrack.mp3',     // your own track; the package makes one otherwise
   //   loudness: -16,                     // LUFS; null leaves the sound as mixed
+  //   warm: ['/dashboard'],              // pages opened first, to load warm (no side effects)
+  //   cache: ['script', 'stylesheet', 'font', 'image'], // 'image' if no image changes at the same address
   // },
 });

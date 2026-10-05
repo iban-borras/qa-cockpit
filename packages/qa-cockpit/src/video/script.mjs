@@ -14,9 +14,13 @@
 //     "run": "through",                // which run: every test through the last one shown
 //                                      // (default: they build its data), "picked" (only the
 //                                      // ones shown), or a list of its own
-//     "cover": "T1/2",                 // the step whose end the cover shows, rising in a
-//                                      // flat browser (or { "step", "people" }, or false);
-//                                      // the one that shows most of the app by default
+//     "cover": "T1/2 press 2",         // the moment the cover shows, rising in a flat
+//                                      // browser: a step's end ("T1/2"), half a second
+//                                      // after one of its presses ("T1/2 press 2", and
+//                                      // "+0.8" for longer), seconds into it ("T1/2 2.4");
+//                                      // or { "step", "at", "people" }, or false. By
+//                                      // default, the end of the step that shows most of
+//                                      // the app
 //     "cards": {
 //       "intro": { "narration": "...", "audio": "chat/intro.mp3" },
 //       "T1": { "title": "A message, live", "narration": "...", "audio": "chat/t1.mp3" },
@@ -24,6 +28,10 @@
 //     },
 //     "steps": {
 //       "T1/2": { "subtitle": "...", "sees": "...", "narration": "...", "audio": "chat/t1-2.mp3" },
+//       "T1/3": { "narration": "...", "audio": "chat/t1-3.mp3", "voiceAt": "press" },
+//                                      // when the voice starts: seconds into the step, or
+//                                      // "press" (its first), "press 2"...; with the step
+//                                      // by default
 //       "T3/4": { "skip": true }
 //     },
 //     "music": "generated",            // a file (relative to this script), "generated", or
@@ -103,6 +111,78 @@ export function readSuite(config, suite) {
     current.rows.set(row[1], { who: cells[0] ?? '', does: cells[1] ?? '', sees: cells[2] ?? '' });
   }
   return { title, tests };
+}
+
+const fold = (s) =>
+  String(s)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * The tests and steps a recording names, in its order, read from its text:
+ * `test('T1 · …'`, then each `test.step('1 · Who: …'` under it.
+ * @param {string} file
+ * @returns {{ test: string, title: string }[]}
+ */
+export function recordingSteps(file) {
+  const text = fs.readFileSync(file, 'utf8');
+  const out = [];
+  let test = null;
+  for (const m of text.matchAll(/\btest(\.(?:only|skip|fixme|step))?\s*\(\s*(['"`])((?:\\.|(?!\2)[^\\])*)\2/g)) {
+    const title = m[3].replace(/\\(.)/g, '$1');
+    if (m[1] === '.step') {
+      if (test) out.push({ test, title });
+    } else if (testIdOf(title)) {
+      test = title;
+    }
+  }
+  return out;
+}
+
+/**
+ * Where a recording's steps and its suite's rows part ways. A step's
+ * subtitle is the row with its number, so a recording numbered apart from
+ * the rows (rows merged into one step, or left out) shows another step's
+ * words under each step: Bernat accepting a call, under «Marta sends the
+ * invitations» (found in CritKeep, 7 steps over 11 rows). A step whose
+ * script gives it its own `subtitle` is left alone.
+ * @param {ReturnType<typeof readSuite>} suite
+ * @param {{ test: string, title: string }[]} steps the recording's, as written or as they ran
+ * @param {{ cast?: { id: string, name: string }[], scriptSteps?: Record<string, any> }} [options]
+ * @returns {string[]} one sentence per thing that does not match
+ */
+export function stepsApart(suite, steps, { cast = [], scriptSteps = {} } = {}) {
+  const named = (text) => cast.filter((p) => [p.name, p.id].some((w) => w && new RegExp(`\\b${escapeRe(fold(w))}\\b`).test(fold(text)))).map((p) => p.id);
+  const out = [];
+  const seen = new Map();
+  for (const step of steps) {
+    const id = testIdOf(step.test);
+    const parts = stepParts(step.title);
+    const test = id ? suite.tests.get(id) : null;
+    if (!test || !parts) continue;
+    if (!seen.has(id)) seen.set(id, new Set());
+    seen.get(id).add(parts.n);
+    if (scriptSteps[`${id}/${parts.n}`]?.subtitle !== undefined) continue;
+    const row = test.rows.get(parts.n);
+    if (!row) {
+      out.push(`${id}/${parts.n} «${step.title}»: ${id} has no row ${parts.n}, so its subtitle is its own title.`);
+      continue;
+    }
+    // A step may name more people than its row (those it photographs too):
+    // only a step and a row with nobody in common are apart.
+    const mine = named(parts.who);
+    const theirs = named(row.who);
+    if (mine.length && theirs.length && !theirs.some((id) => mine.includes(id))) {
+      out.push(`${id}/${parts.n} «${step.title}» gets row ${parts.n}'s words: «${row.who}: ${row.does}».`);
+    }
+  }
+  for (const [id, ns] of seen) {
+    const rows = suite.tests.get(id).rows.size;
+    if (ns.size !== rows) out.unshift(`${id}: ${ns.size} steps in the recording, ${rows} rows in the suite.`);
+  }
+  return out;
 }
 
 /**

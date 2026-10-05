@@ -121,7 +121,7 @@ The config is the whole contract between your app and the cockpit:
 | `cockpit`, `cli` | the cockpit's port and language; how the project runs the CLI |
 | `commands` | commands of your own, next to the built-in ones |
 | `report` | notes the run report should carry |
-| `video` | how demo videos look: the product's name, each person's role, a logo, the colours, the address on the cover, the subtitles' words, the music, the loudness, where ffmpeg is |
+| `video` | how demo videos look: the product's name, each person's role, a logo, the colours, the address on the cover, the subtitles' words, the music, the loudness, the ending; what a video's run keeps in memory and the pages it opens first to fill it; where ffmpeg is |
 | `network` | how many looks at the network of a suite stay (`keep`), to measure a change against |
 
 What differs from one machine to the next (a port your own dev server

@@ -158,6 +158,20 @@ export function resolveConfig(raw, file) {
       // The video's sound, brought to this loudness (LUFS; −16 is usual for
       // the web), or null to leave it as mixed.
       loudness: raw.video?.loudness === undefined ? -16 : raw.video.loudness,
+      // A video ends on its last card, still; true fades it to black.
+      fadeOut: raw.video?.fadeOut ?? false,
+      // What a video's run keeps in memory, shared by every person's
+      // browser, from the first time one fetches it (video/capture.mjs):
+      // Playwright's resource types, or false for nothing. Images too
+      // ('image') for an app that never changes one at the same address
+      // during a run (each upload at an address of its own): an avatar
+      // replaced in place would show the old one. They cost next to nothing
+      // (CritKeep: 3.0 to 3.2 minutes, within the noise), and a logo comes
+      // with its page instead of a second later.
+      cache: raw.video?.cache === undefined || raw.video.cache === true ? ['script', 'stylesheet', 'font'] : raw.video.cache || [],
+      // Pages a video's run opens before its first test, to fill that
+      // cache: ones whose opening changes nothing (a dashboard, a list).
+      warm: raw.video?.warm ?? [],
       ffmpeg: raw.video?.ffmpeg ?? 'ffmpeg',
       keep: raw.video?.keep ?? 5,
     },

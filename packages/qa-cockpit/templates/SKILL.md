@@ -375,13 +375,14 @@ logo for a dark background, the colours, the address the cover shows) and
 in each video's script.
 
 - **The cover:** the product's name, the title and its subtitle over the
-  app itself. The end of the step that shows most of the app (or the
-  script's `cover`) rises from the bottom in a flat browser, with a phone
-  beside it when somebody plays on one, and rests just under the title,
-  cut by the frame's bottom edge: the viewer sees which app this is before
-  a word is said. The video's first frame is that cover, finished, so a
-  player shows it before play (not black); it is also saved beside the
-  video as `<suite>-poster.jpg`, for a page's `<video poster>` or a README.
+  app itself. The moment the script's `cover` names (or, unnamed, the end
+  of the step that shows most of the app) rises from the bottom in a flat
+  browser, with a phone beside it when somebody plays on one, and rests
+  just under the title, cut by the frame's bottom edge: the viewer sees
+  which app this is before a word is said. The video's first frame is that
+  cover, finished, so a player shows it before play (not black); it is
+  also saved beside the video as `<suite>-poster.jpg`, for a page's
+  `<video poster>` or a README.
 - **Nothing stops dead.** What enters slides in and slows down to rest,
   one element a beat after the other (the tag, the title, its rule, the
   subtitle, then the screens, from much further and settling longer); what
@@ -393,14 +394,31 @@ in each video's script.
   video of tics alone is left as it is.
 - **The rhythm:** a step lasts what its subtitle takes to read (`pace`) or
   its narration to say, whichever is longer; a test's card 1.8 s; the cover
-  3.8 s; the end 3 s. Cards fade over the steps beside them.
+  3.8 s; the end 3 s. Cards fade over the steps beside them. The video ends
+  on its last card, still: what a player shows once it is over (the
+  config's `video.fadeOut: true` fades it to black).
+- **A warm run:** a video's run keeps the app's code, styles and fonts in
+  memory from their first fetch, for every person after (the config's
+  `video.cache`), and first opens the pages the config's `video.warm`
+  names (pages whose opening changes nothing): the first screen filmed
+  loads as fast as the last, on a development server too. Add `'image'`
+  when the app never replaces an image at the same address during a run
+  (each upload gets an address of its own): it costs next to nothing, and
+  a logo comes with its page instead of a second later. An avatar
+  replaced in place would show the old one: then leave images out.
 - **The screens:** one 1280×720 screen fills the picture 1:1, as sharp as
   the app; several share it, scaled, each with its label (name · role).
   When a step shows other screens than the step before (Alice's laptop,
   then Bob's phone), the new ones fade in over the old and settle into
   place, their labels taking turns, and the step's first press waits until
   they have; the same screen changing is the app at work, and cuts as it
-  did.
+  did. A screen shows its page from the page's first content (a text, an
+  image): never the blank page a browser opens with, nor a bare
+  background, nor the moment between two pages.
+- **In motion**, a person scrolls to what they press: smoothly, never in
+  one jump. A page's load until its first content takes a quarter of a
+  second, however long it took; what the page does after it, spinners
+  included, plays as it was.
 
 That is the style of every video, for training and for showing the app. A
 promotional cut may want another montage: ask the person what they have in
@@ -412,7 +430,19 @@ mind, case by case; the clips (`--clips`) are its raw material.
    Recordings film well when their actions are on locators
    (`page.getByRole(...).click()`, `.fill()`): those are the ones the video
    paces and brings into view before acting. Never `waitForTimeout`: the
-   video sets the rhythm, not the recording.
+   video sets the rhythm, not the recording. One step per row of the
+   suite, numbered as its row: a step's subtitle is the row with its
+   number (`video script` and the render say which steps do not match).
+   **A motion video plays the recording slower**, as a person would, and
+   that shows races a replay hides:
+   - Find by `data-testid` what a page repeats or translates: a
+     `getByText('Pending to answer')` also matches the counter «1 pending
+     to answer», and fails in strict mode once the page has time to show
+     both.
+   - In a rich editor or a `contenteditable`, click the editable area
+     itself and wait for `toBeFocused()` before typing: a click on its
+     container does nothing while the editor mounts, and the first letter
+     is lost («he teacher climbs»).
 2. **The script**, when there is more to say than the suite says:
    `npx qa-cockpit video script <suite>` writes `<videos>/<suite>.json` with
    every test and step in the suite's words. Choose the tests, reword a
@@ -424,11 +454,50 @@ mind, case by case; the clips (`--clips`) are its raw material.
    have (above): from a service, one file per narration in
    `<videos>/<suite>/`, named by its key (`intro.mp3`, `T1-2.mp3`), its path
    in that entry's `audio`; with the system's voice, `video voices <suite>`
-   does all of that. The script's other keys: `quality` (`guide` or
-   `motion`), `title`, `subtitle`, `cover` (the step whose end the cover
-   shows), `run` (below), `music` (a file, `"generated"` or `null`; left
-   out, the config's), `musicVolume`, `pace`, `idle` and `speed` (motion).
-3. **Make it:** `npx qa-cockpit video <suite>` (`--motion`, `--clips`,
+   does all of that. A step's voice starts with the step; its `voiceAt`
+   starts it elsewhere: `"press"` (the step's first press), `"press 2"`,
+   or a number of seconds into the step, and the step lasts until the
+   voice is done. **Choose the cover** (`cover`): the moment that, seen
+   alone, tells what the video is about (an effect, a result, the screen
+   that makes somebody want to watch), not the first screen: `"T5/3"` (the
+   step's end), `"T5/3 press 2"` (half a second after its second press;
+   `"T5/3 press 2 +0.8"` waits longer), `"T5/3 2.4"` (seconds into the
+   step). Look at it on the poster (`<suite>-poster.jpg`); `video render
+   latest` draws another in a minute. The script's other keys: `quality`
+   (`guide` or `motion`), `title`, `subtitle`, `run` (below), `music` (a
+   file, `"generated"` or `null`; left out, the config's), `musicVolume`,
+   `pace`, `idle` and `speed` (motion).
+3. **A page that loads slowly in the video is, most likely, the
+   development server's.** Each `goto` of a suite starts the app again, and
+   an app served unbundled (Vite's development mode: hundreds of modules)
+   evaluates them all every time, from the run's cache or not: on video, an
+   app that mounts itself again on every screen. Measure before you film:
+   the render says how long the captured pages took from their response to
+   their first content («Pages: …»), and
+   `curl -o /dev/null -s -w '%{time_total}' <app>/<a static file>` how long
+   the server takes for one file. Over about 300 ms a page, or 100 ms a
+   file, is the development mode (unbundled modules, a slow development
+   server, a mounted file system), not the app.
+   Then see whether the project can serve its production build at the same
+   address for the recording only: built from the same code with the same
+   environment (the API's address...), served by its preview server or a
+   static one, and the development server back when the recording ends,
+   also when it fails (`try`/`finally`). It changes how the stack runs: ask
+   the person first. The project's code does not change, and the video
+   shows what its users will get. With a compose stack, recreate the
+   front's own service from a temporary override (the same port,
+   environment and code; a command that builds and serves the build, such
+   as `vite build --outDir /tmp/qa-build && vite preview --port <its
+   port>`), and recreate it without the override afterwards. Not a one-off
+   container (`docker compose run`) beside the stopped service: the stack's
+   check wants its own service to publish the port, and says ENV. Measured
+   in one project: pages from 0.4–0.7 s to their first content down to
+   0.05–0.24 s, a static file from 600 ms to 5 ms, the recording from 3.1
+   to 1.9 minutes, for a build served in 16 s. Where it cannot be done (a
+   server rendering tied to the app, a build of minutes, an environment
+   that cannot be reproduced), film in development mode: the run's cache
+   helps from the second person on.
+4. **Make it:** `npx qa-cockpit video <suite>` (`--motion`, `--clips`,
    `--script <file>`, `--out <file>`). «Before you launch anything» holds:
    it takes the stack, resets it and runs the setup. A red run makes no
    video. It prints where the video and its contact sheet are, under
@@ -442,20 +511,20 @@ mind, case by case; the clips (`--clips`) are its raw material.
    `"run": "picked"` plays only the ones shown (faster); `"run": ["T1",
    "T4"]` plays those, and the ones shown, when a test needs some earlier
    tests and not others (to leave out a destructive one, say).
-4. **Look at the contact sheet before you say it is done.** For each press:
+5. **Look at the contact sheet before you say it is done.** For each press:
    the cursor on the very control the subtitle names, and the screen as it
    was before the press. For each step's end: that step's result, not the
    next one's. The number of presses it printed matches the clicks of the
    recording (typing in a field counts as one in a guide; a file upload
    does not). Then say where the video is.
-5. **The music that plays is not a given: check it.** A script's `music`
+6. **The music that plays is not a given: check it.** A script's `music`
    wins over the config's `video.music`, so a script that names one (a
    0.4.0 `video script` wrote `"generated"` into every new one) plays that
    and hides the project's own track. The render says which one played and
    where it came from («Music: …, from …»): check it against the music the
    person expects. You cannot hear the video: ask them to listen to it
    before it is shown; a wrong track is easy to miss.
-6. **A new narration or wording, same run:** `npx qa-cockpit video render
+7. **A new narration or wording, same run:** `npx qa-cockpit video render
    latest --script <file>` draws the capture again, without replaying.
 
 | What you see | Why | What to do |
@@ -467,6 +536,8 @@ mind, case by case; the clips (`--clips`) are its raw material.
 | A step shows nobody | Its title names nobody of the cast before the colon | Name who acts |
 | «No video: the run must be green» | The recording failed | It is a red replay: the healer, not the video |
 | A voice speaks over the wrong step, or never | Its key in `steps` is not `<test id>/<row number>` (`"T1/2"`) | Key it by the suite's test and row |
+| A subtitle says another step's words | The recording's steps are numbered apart from the suite's rows (rows merged into one step, or left out); `video script` and the render name them | Number each step as its row; or give the step its own `subtitle` in the script |
+| A step fails in motion and not in a replay | A race the slower pace shows: a text found twice, a field typed into before it can take focus | `data-testid`; click the editable area and wait for `toBeFocused()` (step 1) |
 
 **What the video shows is what the stack showed.** With a copy of real data,
 the video is for inside the company only; keep it in `<out>` (never
