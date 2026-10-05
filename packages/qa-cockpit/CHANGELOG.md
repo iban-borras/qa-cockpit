@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.6.1 (unreleased)
+## 0.7.0 (2026-10-05)
 
 - A photo of each action. A step's photo comes once its checks pass, and
   the clicks of a modal opened and closed in between were drawn on what
@@ -32,9 +32,9 @@
 - The cockpit's scrollbars as macOS draws them: a thin pill over a track
   nobody sees, faint while the pointer is over its box, clearer while the
   box scrolls, a touch wider under the pointer, and gone a moment after;
-  never Windows' arrows and grey gutters across the steps, the photo, the
-  strip and the post-its. Light on the dark panels, dark on a post-it.
-  Firefox gets a thin bar of the same colour.
+  never Windows' arrows and grey gutters, anywhere: the steps, the photo,
+  the strip, the post-its, the suite picker, the log. Light on the dark
+  panels, dark on a post-it. Firefox gets a thin bar of the same colour.
 - The inspector, watching somebody live while they act, shows one pulsing
   chip, «Live», instead of «Live» and «Acting now» side by side, which
   said one thing twice (as a card already did). «Waiting» still shows
