@@ -20,6 +20,10 @@
   Playwright's report show the recording's actions alone, with no
   «Screenshot» or «Evaluate» between them.
 - A label clicked is one mark, not two (it clicks its field too).
+- The inspector names the device of the photo on screen, not of the
+  person's last one. A session is saved on the cast's device (a laptop,
+  unless the cast says), and a suite may then put the person on a phone:
+  the session's photo, a laptop's, said «iPhone 15» (found in CritKeep).
 - The suite picker's search box keeps its size under a long list (with
   CritKeep's twenty-odd suites it was squeezed to 21 px, its filter too),
   a little taller, and no longer takes the focus when the picker opens:

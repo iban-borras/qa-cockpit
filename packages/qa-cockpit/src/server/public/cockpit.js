@@ -115,10 +115,12 @@ function whoLines(p, f) {
 }
 
 /** The inspector's subtitle: the device on a line of its own, then the
- *  suite and the badge. Never a line that starts with a separator. */
-function insSubHtml(actor) {
+ *  suite and the badge. Never a line that starts with a separator. The
+ *  device is the photo's on screen: a session is saved on the cast's (a
+ *  laptop, unless it says), and a suite may then put the person on a phone. */
+function insSubHtml(actor, f = null) {
   const p = S.state.cast.find((c) => c.id === actor);
-  const d = lastDeviceOf(actor);
+  const d = f?.device ?? lastDeviceOf(actor);
   const rest = [S.run?.suite ?? S.suite ?? '', p?.badge ?? ''].filter(Boolean).map(esc).join(' · ');
   return `${d ? `<span class="line">${deviceHtml(d)}</span>` : ''}${rest ? `<span class="line">${rest}</span>` : ''}`;
 }
@@ -376,7 +378,7 @@ function changeLang(next) {
   renderAll();
   if (S.ins) {
     const p = S.state.cast.find((c) => c.id === S.ins.actor);
-    $('insSub').innerHTML = insSubHtml(S.ins.actor);
+    renderInsSub();
     withIcon($('insPlayAs'), 'external', t('card.play_as', { name: cap(S.ins.actor) }));
   }
 }
@@ -1246,7 +1248,6 @@ function openInspector(actor) {
   S.ins = { actor, idx: Math.max(0, list.length - 1), live: isRunning(), fresh: 0, timer: null, zoom: false, placing: false, postitAt: null };
   const p = S.state.cast.find((c) => c.id === actor);
   $('insName').textContent = cap(actor);
-  $('insSub').innerHTML = insSubHtml(actor);
   $('insPlayAs').disabled = !S.state.sessions.includes(actor);
   withIcon($('insPlayAs'), 'external', t('card.play_as', { name: cap(actor) }));
   dlg.showModal();
@@ -1341,6 +1342,7 @@ function renderInspector(first = false) {
   }
 
   renderInsState();
+  renderInsSub();
 
   // Steps, grouped by test; each test says when it is over, each step how
   // long it took (a slow one in amber). Under the step on screen, its
@@ -1598,6 +1600,17 @@ $('runReport').onclick = async () => {
   a.click();
   URL.revokeObjectURL(a.href);
 };
+
+/** The device under the person's name: the photo's on screen's (live, the
+ *  newest). Drawn again only when it changes: its tooltip stays put. */
+function renderInsSub() {
+  const ins = S.ins;
+  if (!ins) return;
+  const html = insSubHtml(ins.actor, ins.live ? null : insFrames()[ins.idx]);
+  if ($('insSub').dataset.html === html) return;
+  $('insSub').dataset.html = html;
+  $('insSub').innerHTML = html;
+}
 
 /** Whether the person under inspection acts now, waits for their turn, or
  *  the run is over: a finished run says so, so nobody waits on it. */
