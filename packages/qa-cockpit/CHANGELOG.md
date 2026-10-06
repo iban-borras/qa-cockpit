@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.7.3 (unreleased)
+## 0.7.3 (2026-10-06)
 
 - A video's sound is mixed by ffmpeg 4.2 and 4.3 too. Its mix used two
   options they do not have (`adelay`'s `all`, from 4.3; `amix`'s
