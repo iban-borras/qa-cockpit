@@ -272,7 +272,9 @@ select option { background: var(--panel-2); color: var(--text); }
 #logToggle[aria-expanded='true'] svg { transform: rotate(90deg); }
 #logBox { height: 220px; overflow: auto; margin: 0 12px 12px; padding: 10px 12px; background: #0c0d10; border: 1px solid var(--line); border-radius: 8px; font: 12px/1.55 var(--mono); color: var(--muted); white-space: pre-wrap; word-break: break-word; }
 #logBox .e { color: var(--err); }
-#logBox .c { color: var(--accent-text); }
+/* The commands run and the cockpit's own words: green, as the rose of the
+   brand read as one more error beside the red of the real ones. */
+#logBox .c { color: var(--ok); }
 #logBox.errors-only div:not(.e) { display: none; }
 
 /* The inspector */
