@@ -58,6 +58,22 @@ const entries = new WeakMap();
 let poller = null;
 // The steps of a recording now open: actions are photographed only inside one.
 let openSteps = 0;
+// The time this worker's photos have taken, all told: a step's own time is
+// its time without them (the app's and the recording's), and theirs is said
+// apart. Taken as the clock runs, photos side by side counted once.
+let photosMs = 0;
+let busy = 0;
+let busySince = 0;
+
+/** Run fn, its time counted as the photos'. */
+async function photoTime(fn) {
+  if (busy++ === 0) busySince = Date.now();
+  try {
+    return await fn();
+  } finally {
+    if (--busy === 0) photosMs += Date.now() - busySince;
+  }
+}
 
 /** Lowercase, no accents: «Ningú» and «ningu» are one word. */
 function fold(s) {
@@ -132,64 +148,74 @@ export async function photo(f) {
   const shots = [...new Set(marks.map((m) => m.shot).filter(Boolean))];
   const plain = ({ shot, ...m }) => m;
   if (f.page.isClosed()) return forget(shots);
-  try {
-    fs.mkdirSync(FRAMES_DIR, { recursive: true });
-    const file = newPhotoFile(f.actor);
-    // Where the person was looking, before the picture of the whole page.
-    const scroll = await quietly(f.page, () => f.page.evaluate(() => ({ x: scrollX, y: scrollY }))).catch(() => ({ x: 0, y: 0 }));
-    // Chromium takes a full page beyond the viewport without resizing it,
-    // so the page under test never sees its window change.
-    await quietly(f.page, () => f.page.screenshot({ path: file, type: 'jpeg', quality: 60, scale: 'css', fullPage: true, timeout: 8_000 }));
-    await post('/api/frame', {
-      run: RUN,
-      actor: f.actor,
-      test: f.test ?? '',
-      step: f.step,
-      status: f.status,
-      error: f.error ? stripAnsi(f.error).slice(0, 4000) : null,
-      url: f.page.url(),
-      file: relOut(file),
-      location: f.location ?? null,
-      outputDir: f.outputDir ? relOut(f.outputDir) : null,
-      viewport: f.page.viewportSize(),
-      scroll,
-      marks: marks.filter((m) => !m.shot).map(plain),
-      shots: shots.map((s) => ({
-        file: relOut(s.file),
-        url: s.url,
-        viewport: s.viewport,
-        time: new Date(s.time).toISOString(),
-        marks: marks.filter((m) => m.shot === s).map(plain),
-      })),
-      requests: f.requests ?? [],
-      // The device the person plays on: its name and kind, for the card.
-      device: f.device ?? null,
-      // The step's start and how long it took, the photo aside: where a
-      // slow screen shows up.
-      began: f.began ? new Date(f.began).toISOString() : null,
-      ms: Number.isFinite(f.ms) ? f.ms : null,
-      time: new Date().toISOString(),
-    });
-  } catch {
-    // A photo that fails is a photo missing, never a red run; the photos
-    // of its actions go with it.
-    forget(shots);
-  }
+  await photoTime(async () => {
+    try {
+      fs.mkdirSync(FRAMES_DIR, { recursive: true });
+      const file = newPhotoFile(f.actor);
+      const t = Date.now();
+      // Where the person was looking, before the picture of the whole page.
+      const scroll = await quietly(f.page, () => f.page.evaluate(() => ({ x: scrollX, y: scrollY }))).catch(() => ({ x: 0, y: 0 }));
+      // Chromium takes a full page beyond the viewport without resizing it,
+      // so the page under test never sees its window change.
+      await quietly(f.page, () => f.page.screenshot({ path: file, type: 'jpeg', quality: 60, scale: 'css', fullPage: true, timeout: 8_000 }));
+      await post('/api/frame', {
+        run: RUN,
+        actor: f.actor,
+        test: f.test ?? '',
+        step: f.step,
+        status: f.status,
+        error: f.error ? stripAnsi(f.error).slice(0, 4000) : null,
+        url: f.page.url(),
+        file: relOut(file),
+        location: f.location ?? null,
+        outputDir: f.outputDir ? relOut(f.outputDir) : null,
+        viewport: f.page.viewportSize(),
+        scroll,
+        marks: marks.filter((m) => !m.shot).map(plain),
+        shots: shots.map((s) => ({
+          file: relOut(s.file),
+          url: s.url,
+          viewport: s.viewport,
+          time: new Date(s.time).toISOString(),
+          marks: marks.filter((m) => m.shot === s).map(plain),
+        })),
+        requests: f.requests ?? [],
+        // The device the person plays on: its name and kind, for the card.
+        device: f.device ?? null,
+        // The step's start and how long it took, the photos aside: where a
+        // slow screen shows up. Then theirs: the ones in the step, and this.
+        began: f.began ? new Date(f.began).toISOString() : null,
+        ms: Number.isFinite(f.ms) ? f.ms : null,
+        photosMs: (f.photosMs ?? 0) + Date.now() - t,
+        time: new Date().toISOString(),
+      });
+    } catch {
+      // A photo that fails is a photo missing, never a red run; the photos
+      // of its actions go with it.
+      forget(shots);
+    }
+  });
 }
 
-/** A step of a recording begins: its actions are photographed from now. */
+/**
+ * A step of a recording begins: its actions are photographed from now.
+ * Returns the photos' clock, for its end to tell their time apart.
+ */
 export function stepBegan() {
   if (enabled) openSteps += 1;
+  return photosMs;
 }
 
 /**
  * A step of a recording has ended.
- * @param {{ title: string, status: 'passed'|'failed', error?: unknown, began?: number, test: string, location?: string, outputDir?: string }} s
+ * @param {{ title: string, status: 'passed'|'failed', error?: unknown, began?: number, photosFrom?: number, test: string, location?: string, outputDir?: string }} s
  */
 export async function stepEnded(s) {
   if (!enabled) return;
   openSteps = Math.max(0, openSteps - 1);
   const ended = Date.now();
+  // The photos taken in the step: its actions', a step's within it.
+  const inside = Number.isFinite(s.photosFrom) ? Math.max(0, photosMs - s.photosFrom) : 0;
   const named = peopleIn(s.title).filter((p) => pages.has(p));
   const who = s.status === 'failed' ? [...pages.keys()] : named;
   const error = s.error instanceof Error ? s.error.message : s.error ? String(s.error) : undefined;
@@ -211,7 +237,8 @@ export async function stepEnded(s) {
         location: s.location,
         outputDir: s.outputDir,
         began: s.began,
-        ms: s.began ? ended - s.began : null,
+        ms: s.began ? Math.max(0, ended - s.began - inside) : null,
+        photosMs: inside,
       }),
     ),
   );
@@ -363,22 +390,35 @@ async function ready(entry, frame, target, need, options) {
   if (options.trial) return false;
   const limit = timeoutOf(frame, options);
   const timeout = limit > 0 ? Math.min(limit, BEFORE_MS) : BEFORE_MS;
+  const seen = need === 'seen' && !options.force;
   await quietly(entry.page, async () => {
-    await target.waitFor({ state: need === 'seen' && !options.force ? 'visible' : 'attached', timeout });
-    if (options.scroll === 'none') return;
+    // The target as it is now, without waiting: most often there, seen and
+    // in view, and this one look is all the photo asks of it.
+    let where = await photoTime(() => target.evaluateAll(whereIs));
+    // Not there yet, or not seen: the action would wait for it all the
+    // same, and that wait is the app's time, not the photo's.
+    if (where === 'absent' || (seen && where === 'hidden')) {
+      await target.waitFor({ state: seen ? 'visible' : 'attached', timeout });
+      where = await photoTime(() => target.evaluateAll(whereIs));
+    }
     // Where Playwright's own scroll would bring it, so that it scrolls no
     // more. That scroll first waits for the target to stand still for two
     // frames (33 ms, twice the photo): only when the target is not wholly
     // in view already. A target nobody can see (a key pressed on a hidden
     // field) is not scrolled to.
-    if ((await target.evaluate(whereIs, undefined, { timeout })) === 'out') await target.scrollIntoViewIfNeeded({ timeout });
+    if (where === 'out' && options.scroll !== 'none') await target.scrollIntoViewIfNeeded({ timeout });
   });
 }
 
-/** In the page: an element's whole box in view («in»), or not («out»), or no box at all. */
-function whereIs(el) {
+/**
+ * In the page, the target's element: its whole box in view («in»), or not
+ * («out»); «hidden» when nobody sees it, as Playwright tells (no box,
+ * `visibility`, a closed `<details>`...), and «absent» when there is none.
+ */
+function whereIs([el]) {
+  if (!el) return 'absent';
   const r = el.getBoundingClientRect();
-  if (!r.width && !r.height) return 'hidden';
+  if (!r.width || !r.height || getComputedStyle(el).visibility !== 'visible' || el.checkVisibility?.() === false) return 'hidden';
   // In a frame, Playwright scrolls the frame too: its own way, always.
   if (window.top !== window) return 'out';
   if (r.top < 0 || r.left < 0 || r.bottom > innerHeight || r.right > innerWidth) return 'out';
@@ -415,8 +455,8 @@ async function shoot(entry, prepare) {
     const file = newPhotoFile(entry.actor);
     // The window as it is: not even the caret hidden, which a photo of
     // Playwright's does by touching every field's style.
-    await quietly(entry.page, () =>
-      entry.page.screenshot({ path: file, type: 'jpeg', quality: 60, scale: 'css', caret: 'initial', timeout: BEFORE_MS }),
+    await photoTime(() =>
+      quietly(entry.page, () => entry.page.screenshot({ path: file, type: 'jpeg', quality: 60, scale: 'css', caret: 'initial', timeout: BEFORE_MS })),
     );
     return { file, url: entry.page.url(), viewport: entry.page.viewportSize(), time: Date.now(), marked: false };
   } catch {
@@ -440,9 +480,9 @@ export async function register(actor, page, device = null) {
   // The page's own requests (the app's API calls and its page loads), with
   // how long each took: a step slow because of the app, not because of the
   // recording's own waits, shows here.
+  const kept = (request) => ['fetch', 'xhr', 'document'].includes(request.resourceType());
   const keep = (request, status) => {
     const type = request.resourceType();
-    if (type !== 'fetch' && type !== 'xhr' && type !== 'document') return;
     const t = request.timing();
     let where = request.url();
     try {
@@ -465,12 +505,17 @@ export async function register(actor, page, device = null) {
     }
   };
   page.on('requestfinished', (request) => {
+    // Its status is one more call to the browser: only for the ones kept,
+    // not for each of a development server's hundreds of modules.
+    if (!kept(request)) return;
     request
       .response()
       .then((response) => keep(request, response?.status() ?? 0))
       .catch(() => {});
   });
-  page.on('requestfailed', (request) => keep(request, 0));
+  page.on('requestfailed', (request) => {
+    if (kept(request)) keep(request, 0);
+  });
   try {
     await page.context().exposeBinding('__qaCockpitMark', (_source, mark) => {
       if (entry.marks.length >= 100) return;

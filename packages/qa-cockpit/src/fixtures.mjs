@@ -157,7 +157,8 @@ export function cockpitFixtures(base, rawConfig) {
           // click in it how long after the start it came.
           const began = Date.now();
           let ended = null;
-          cockpit.stepBegan();
+          // The photos' clock: the step's time is told without them.
+          const photosFrom = cockpit.stepBegan();
           try {
             const result = await body(info);
             ended = Date.now();
@@ -181,14 +182,14 @@ export function cockpitFixtures(base, rawConfig) {
             const soft = testInfo.errors.slice(softBefore);
             if (soft.length) {
               const error = new Error(soft.map((e) => e.message ?? String(e.value ?? '')).join('\n\n'));
-              await cockpit.stepEnded({ title, status: 'failed', error, began, ...where });
+              await cockpit.stepEnded({ title, status: 'failed', error, began, photosFrom, ...where });
             } else {
-              await cockpit.stepEnded({ title, status: 'passed', began, ...where });
+              await cockpit.stepEnded({ title, status: 'passed', began, photosFrom, ...where });
             }
             return result;
           } catch (error) {
             if (ended === null) network.stepRecorded(testInfo, { title, began, ended: Date.now(), status: 'failed' });
-            await cockpit.stepEnded({ title, status: 'failed', error, began, ...where });
+            await cockpit.stepEnded({ title, status: 'failed', error, began, photosFrom, ...where });
             throw error;
           }
         },

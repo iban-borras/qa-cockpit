@@ -584,7 +584,10 @@ test('T1 · Bob sees Alice\'s message', async ({ alice, bob }) => {
   cast's names before the colon. The cockpit photographs the people it
   names when the step ends (and every open page when it fails), and each
   action inside a step just before it is taken (a click, a field filled, a
-  key pressed): an action outside every step has no photo of its own.
+  key pressed): an action outside every step has no photo of its own. The
+  photos take time (tens of milliseconds each, more on a busy machine): a
+  step's time in the cockpit is the step's own, and the photos' is said
+  apart, in the inspector and in the run report.
 - Cross-person waits use `toBeVisible({ timeout: 30_000 })` and never a
   blind reload: what is being proven is that it arrives on its own.
 - **An absence is proven only after a presence.** `toHaveCount(0)` right

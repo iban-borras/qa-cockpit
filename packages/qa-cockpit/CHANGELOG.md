@@ -15,6 +15,21 @@
 - A video whose run was green and whose drawing failed says so, and how to
   draw its capture again without replaying (`video render <capture>`). It
   used to say «the run must be green».
+- A step's time in the cockpit is the step's own again: since 0.7.0 it
+  counted the photos taken before its actions. Their time is said apart,
+  in the inspector («step took 0.2 s, and the cockpit's photos 0.1 s») and
+  in the run report, each step's and the run's («the cockpit's photos took
+  1.0 s of it»): what the cockpit costs a run is read, not guessed. A
+  project that found its replays slower than with 0.3.0 could not tell
+  how much of it was the cockpit's.
+- Before an action's photo, the target is looked at with one call to the
+  browser, not two: 1.6 ms instead of 5.7 here, 8 instead of 28 on a ledger
+  of 1500 rows with the CPU slowed four times. A wait for a target not yet
+  there is the app's time, and not counted as the photo's. A request the
+  cockpit does not keep (a development server's modules) is no longer
+  asked for its status, a call each.
+- The log: the commands and the cockpit's own words are green, the errors
+  red. Both were red, nearly the same.
 
 ## 0.7.2 (2026-10-06)
 

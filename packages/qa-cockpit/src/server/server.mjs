@@ -708,6 +708,8 @@ function onFrame(f) {
     })),
     began,
     ms: Number.isFinite(Number(f.ms)) && f.ms !== null ? Math.max(0, Math.round(Number(f.ms))) : null,
+    // The cockpit's own photos in the step, and the step's: apart from `ms`.
+    photosMs: Number.isFinite(Number(f.photosMs)) && f.photosMs !== null ? Math.max(0, Math.round(Number(f.photosMs))) : null,
     time: String(f.time ?? new Date().toISOString()),
   });
   for (const frame of frames) {

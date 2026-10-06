@@ -1415,7 +1415,12 @@ function renderInspector(first = false) {
       .join(' · ');
   } else if (f) {
     $('insCap').textContent = `${f.test} › ${f.step}`;
-    const took = Number.isFinite(f.ms) ? t('ins.took', { d: fmtDur(f.ms) }) : null;
+    // The step's own time, and the cockpit's photos in it apart (worker.mjs).
+    const took = Number.isFinite(f.ms)
+      ? f.photosMs >= 50
+        ? t('ins.took_photos', { d: fmtDur(f.ms), p: fmtDur(f.photosMs) })
+        : t('ins.took', { d: fmtDur(f.ms) })
+      : null;
     const into = f.began && S.run?.startedAt ? t('ins.into', { d: fmtDur(Date.parse(f.began) - Date.parse(S.run.startedAt)) }) : null;
     // The slowest call to the app's backend: a page load is the front's
     // dev server in the QA stack, not something production pays.
@@ -1482,11 +1487,21 @@ function runReport(notesMd = '') {
   const OUT = P.out;
   const secs = (ms) => (Number.isFinite(ms) ? `${(ms / 1000).toFixed(1)} s` : 'n/a');
   const t0 = Date.parse(r.startedAt);
+  // The cockpit's own photos, all told: a step's people are photographed
+  // side by side, so a step counts its longest.
+  const photosByStep = new Map();
+  for (const f of S.frames) {
+    if (isAction(f) || !Number.isFinite(f.photosMs)) continue;
+    const key = f.began ? `${f.test}\n${f.step}\n${f.began}` : `#${f.seq}`;
+    photosByStep.set(key, Math.max(photosByStep.get(key) ?? 0, f.photosMs));
+  }
+  const photosAll = [...photosByStep.values()].reduce((a, b) => a + b, 0);
   const lines = [
     `# QA run: ${r.suite} · ${r.id}`,
     '',
     `- Suite: \`${P.suites}/${r.suite}.md\`; recording: \`${P.recordings}/${suiteOf(r.suite)?.recordingFile ?? `${r.suite}${S.state.recordingExt}`}\``,
-    `- Run: ${kindLabel(r)}, ${r.status}, started ${r.startedAt}${r.endedAt ? `, took ${secs(Date.parse(r.endedAt) - t0)}` : ''}`,
+    `- Run: ${kindLabel(r)}, ${r.status}, started ${r.startedAt}${r.endedAt ? `, took ${secs(Date.parse(r.endedAt) - t0)}` : ''}` +
+      `${photosByStep.size ? `; the cockpit's photos took ${secs(photosAll)} of it` : ''}`,
     `- Log: \`${OUT}/cockpit/${r.id}/log.jsonl\`; photos and traces under \`${OUT}/\``,
     `- People: ${[...new Set(S.frames.map((f) => f.actor))]
       .map((a) => {
@@ -1496,8 +1511,9 @@ function runReport(notesMd = '') {
       .join('; ')}`,
     '',
     'How to read it: one section per test, in the order they ran. A step\'s time runs from its start to its',
-    'photo and includes the recording\'s own waits; the requests are the app\'s, with their own time, so a',
-    'step slow because of the app shows there. A «page load» is the front\'s own server, not the API.',
+    'photo and includes the recording\'s own waits, not the cockpit\'s photos (their time is said apart); the',
+    'requests are the app\'s, with their own time, so a step slow because of the app shows there. A «page',
+    'load» is the front\'s own server, not the API.',
     'Actions and requests carry their offset from the step\'s start. «context» photos are people a failed',
     'step does not name, photographed as they were. A step\'s photo is the whole page once its checks',
     'passed; each action (a click, a field typed in, a key pressed) has a photo of its own, the window',
@@ -1557,7 +1573,8 @@ function runReport(notesMd = '') {
       lines.push(
         `### ${frameLabel(head) ? `${frameLabel(head)} · ${stepText(head)}` : step}`,
         '',
-        `- ${head.status}, ${secs(head.ms)}${head.began ? `, began ${secs(Date.parse(head.began) - t0)} into the run` : ''}`,
+        `- ${head.status}, ${secs(head.ms)}${head.photosMs >= 50 ? ` (and ${secs(head.photosMs)} of the cockpit's photos)` : ''}` +
+          `${head.began ? `, began ${secs(Date.parse(head.began) - t0)} into the run` : ''}`,
       );
       if (head.location) lines.push(`- Recording line: \`${P.project}/${head.location}\``);
       for (const f of all) {
