@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.7.2 (unreleased)
+## 0.7.2 (2026-10-06)
 
 - A cockpit left running while the package is updated says so, and takes
   no run until it is restarted. npm replaces the files under it, and every
