@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.7.2 (unreleased)
+
+- A cockpit left running while the package is updated says so, and takes
+  no run until it is restarted. npm replaces the files under it, and every
+  run it starts or follows brings the new code, which it may read wrong:
+  CritKeep's, started at 0.4.0 and never restarted, dropped every click of
+  0.7.0's photos for a day. It shows a red band («QA Cockpit 0.7.2 is
+  installed, but this cockpit still runs 0.4.0: restart it»), refuses its
+  buttons' runs, and a run from a terminal is not handed to it and says
+  why. A newer CLI tells an older cockpit apart too, back to 0.3.0: its
+  run goes on alone, or, the cockpit's own, says so in its log.
+- The photos of a run that no frame took (a worker cut short, or newer
+  than the cockpit) are removed when the run ends.
+
 ## 0.7.1 (2026-10-05)
 
 - A session is signed in on the device the suite gives the person, not on

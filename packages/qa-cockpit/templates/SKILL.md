@@ -79,6 +79,11 @@ Say the address it prints (`http://localhost:<port>`). If it adds that the
 cockpit's windows will not show, the person must run
 `npx qa-cockpit cockpit` in a terminal of their own: tell them so.
 
+A cockpit left running while the package is updated keeps the old code,
+and would take the new runs in part (clicks lost). It says so, in a red
+band and in the terminal of every run, and starts or follows none until
+`npx qa-cockpit cockpit --restart`.
+
 ## Setting it up in a project (the first time)
 
 `npx qa-cockpit init [folder]` (default `qa`) writes a commented

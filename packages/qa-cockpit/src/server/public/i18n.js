@@ -177,6 +177,8 @@ const DICT = {
     'err.hidden_desktop':
       "El cockpit s'ha arrancat en un escriptori que no veus ({where}), probablement des del terminal d'un agent. Les finestres de navegador no apareixeran. Arranca'l tu des del teu terminal: {cli} cockpit",
     'err.no_display': 'No hi ha pantalla (ni DISPLAY ni WAYLAND_DISPLAY): les finestres de navegador no es podran obrir.',
+    'err.cockpit_outdated':
+      "Ja hi ha instal·lat QA Cockpit {installed}, però aquest cockpit encara executa la {running}: les passades noves hi arribarien a mitges (sense els clics de les fotos, per exemple), i no n'arranca cap. Reinicia'l: {cli} cockpit --restart",
     'status.running': 'En marxa',
     'picker.search': 'Busca una suite',
     'picker.ready': 'Llestes per a executar',
@@ -386,6 +388,8 @@ const DICT = {
     'err.hidden_desktop':
       'El cockpit se ha arrancado en un escritorio que no ves ({where}), probablemente desde el terminal de un agente. Las ventanas del navegador no aparecerán. Arráncalo tú desde tu terminal: {cli} cockpit',
     'err.no_display': 'No hay pantalla (ni DISPLAY ni WAYLAND_DISPLAY): las ventanas del navegador no podrán abrirse.',
+    'err.cockpit_outdated':
+      'Ya está instalado QA Cockpit {installed}, pero este cockpit aún ejecuta la {running}: las pasadas nuevas llegarían a medias (sin los clics de las fotos, por ejemplo), y no arranca ninguna. Reinícialo: {cli} cockpit --restart',
     'status.running': 'En curso',
     'picker.search': 'Busca una suite',
     'picker.ready': 'Listas para ejecutar',
@@ -595,6 +599,8 @@ const DICT = {
     'err.hidden_desktop':
       "The cockpit was started on a desktop you cannot see ({where}), probably from an agent's terminal. Browser windows will not show. Launch it yourself from your own terminal: {cli} cockpit",
     'err.no_display': 'No display (neither DISPLAY nor WAYLAND_DISPLAY): browser windows cannot open.',
+    'err.cockpit_outdated':
+      'QA Cockpit {installed} is installed, but this cockpit still runs {running}: new runs would reach it in part (without the clicks on the photos, for one), so it starts none. Restart it: {cli} cockpit --restart',
     'status.running': 'Running',
     'picker.search': 'Find a suite',
     'picker.ready': 'Ready to run',

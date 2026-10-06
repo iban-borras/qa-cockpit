@@ -14,6 +14,7 @@ import { noteData, readData, staleFor, staleLine } from './stackdata.mjs';
 import { decide, listSuites, recordPass, suiteHeader } from './suites.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
+const VERSION = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'package.json'), 'utf8')).version;
 
 /** «app X, API Y», the API left out when it is the app's own address. */
 const where = (urls) => `app ${urls.app}${urls.api && urls.api !== urls.app ? `, API ${urls.api}` : ''}`;
@@ -102,7 +103,22 @@ export async function runCli(rawConfig, argv) {
   let report = null; // { lines, timer }
 
   async function announce(kind, suite, commandLine, who) {
-    if (process.env.COCKPIT_RUN || report) return;
+    if (report) return;
+    // A cockpit started before the package was updated runs the old code,
+    // and what this run sends it, it may read wrong (one at 0.4.0 dropped
+    // every click of 0.7.0's photos). It is not handed the run, and the
+    // terminal is told why; the cockpit's own run says so in its log.
+    const at = process.env.COCKPIT_URL || COCKPIT;
+    const theirs = await fetch(`${at}/api/state`, { signal: AbortSignal.timeout(1_500) })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((st) => (st ? (st.version ?? 'older than 0.3.0') : null))
+      .catch(() => null);
+    if (theirs && theirs !== VERSION) {
+      const restart = `The cockpit at ${at} runs QA Cockpit ${theirs}, and this is ${VERSION}: restart it (${CLI} cockpit --restart).`;
+      console.log(process.env.COCKPIT_RUN ? `${restart} This run may reach it in part.` : `${restart} Until then it does not follow this run.`);
+      if (!process.env.COCKPIT_RUN) return;
+    }
+    if (process.env.COCKPIT_RUN) return;
     let begun;
     try {
       const r = await fetch(`${COCKPIT}/api/external/begin`, {

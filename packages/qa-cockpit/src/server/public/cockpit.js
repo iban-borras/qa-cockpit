@@ -702,6 +702,8 @@ function renderHeader() {
   renderSuitePanel();
   updateButtons();
   if (st.desktopWarning) banner(desktopText(st.desktopWarning), 'warn');
+  // Older than the package installed now (server.mjs): it starts no run.
+  if (st.outdated) banner(t('err.cockpit_outdated', st.outdated), 'err');
   $('optHeaded').disabled = Boolean(st.desktopWarning);
 }
 
@@ -2484,6 +2486,10 @@ function connect() {
   });
   es.addEventListener('lock', (e) => {
     S.state.lock = JSON.parse(e.data);
+    renderHeader();
+  });
+  es.addEventListener('outdated', (e) => {
+    S.state.outdated = JSON.parse(e.data).outdated;
     renderHeader();
   });
   es.addEventListener('desktop', (e) => {

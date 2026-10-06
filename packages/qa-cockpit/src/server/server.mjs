@@ -31,7 +31,8 @@ import { readData } from '../stackdata.mjs';
 import { desktopOf } from '../desktop.mjs';
 import { playwrightCoreDir } from '../deps.mjs';
 
-const VERSION = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version;
+const PACKAGE_JSON = new URL('../../package.json', import.meta.url);
+const VERSION = JSON.parse(fs.readFileSync(PACKAGE_JSON, 'utf8')).version;
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(HERE, 'public');
@@ -88,6 +89,7 @@ const liveClients = new Map(); // actor -> Set<ServerResponse>
 const lastLive = new Map(); // actor -> Buffer
 let stack = { up: false, front: null, back: null, checkedAt: null };
 let desktopWarning = null;
+let outdated = null;
 
 // ---------------------------------------------------------------- helpers
 
@@ -394,6 +396,32 @@ function checkDesktop() {
   });
 }
 
+// THE PACKAGE UPDATED UNDER A RUNNING COCKPIT: npm replaces its files, and
+// the cockpit keeps the code it started with, while every run it follows
+// brings the new one (the CLI, the workers). What a newer worker sends, an
+// older cockpit may read wrong: CritKeep's, started at 0.4.0, dropped every
+// click of 0.7.0's photos for a day. It says so, and starts nothing more.
+function checkInstalled() {
+  let installed = VERSION;
+  try {
+    installed = JSON.parse(fs.readFileSync(PACKAGE_JSON, 'utf8')).version ?? VERSION;
+  } catch {
+    // Being replaced this very moment: asked again in a while.
+  }
+  const next = installed === VERSION ? null : { running: VERSION, installed };
+  if (next?.installed === outdated?.installed) return outdated;
+  outdated = next;
+  if (outdated) log(`[cockpit] QA Cockpit ${installed} is installed, but this cockpit runs ${VERSION}: restart it (${CFG.cli} cockpit --restart).`, 'error');
+  broadcast('outdated', { outdated });
+  return outdated;
+}
+
+/** No run is started, nor followed, by a cockpit older than its package. */
+function refuseIfOutdated() {
+  const old = checkInstalled();
+  if (old) throw new Refusal('cockpit_outdated', old);
+}
+
 // ---------------------------------------------------------------- tasks
 
 function killTree(child) {
@@ -493,10 +521,23 @@ function finishTask(status, code = 0) {
     run.current = null;
     saveRun(run);
     run.closed = true;
+    forgetUnseenPhotos(run);
     broadcast('run', summary(run));
   }
   task = null;
   broadcast('task', null);
+}
+
+/** The photos of a run that no frame took (its worker cut short, or newer
+ *  than this cockpit): nobody can see them, and they took room. */
+function forgetUnseenPhotos(r) {
+  try {
+    const dir = path.join(r.dir, 'frames');
+    const seen = new Set(r.frames.map((f) => path.basename(f.file)));
+    for (const name of fs.readdirSync(dir)) if (!seen.has(name)) fs.rmSync(path.join(dir, name), { force: true });
+  } catch {
+    // Kept, then: the run is no worse for it.
+  }
 }
 
 // ---------------------------------------------------------------- runs from a terminal
@@ -512,6 +553,7 @@ const EXTERNAL_KINDS = new Set(['reset', 'setup', 'sessions', 'replay']);
  */
 function beginExternal(body) {
   if (task) throw new Refusal('task_running');
+  refuseIfOutdated();
   const pid = Number(body.pid);
   if (!Number.isInteger(pid) || !isAlive(pid)) throw new Refusal('unknown_action', { action: 'external' });
   const kind = EXTERNAL_KINDS.has(body.kind) ? body.kind : 'replay';
@@ -784,6 +826,8 @@ function state() {
     // Which cockpit this is, and its process: `cockpit --detach` tells an
     // older one apart, and `--restart` stops this one (detach.mjs).
     version: VERSION,
+    // Older than the package installed now: restart it.
+    outdated: checkInstalled(),
     pid: process.pid,
     name: CFG.name,
     project: CFG.stack.name,
@@ -847,6 +891,7 @@ async function onAction(body) {
   if (task) throw new Refusal('task_running');
   const held = readLock(LOCK_FILE);
   if (held) throw busyRefusal(held);
+  refuseIfOutdated();
   let started;
   if (action === 'reset') started = startTask({ kind: 'reset', suite: null }, [['reset']]);
   else if (action === 'setup') {
@@ -1073,7 +1118,10 @@ export function startCockpit(config, port = config.cockpit.port) {
   if (run) logRing.push(...readRunLog(run.dir).slice(-LOG_LINES));
   checkDesktop();
   void checkStack();
-  setInterval(() => void checkStack(), 10_000).unref();
+  setInterval(() => {
+    void checkStack();
+    checkInstalled();
+  }, 10_000).unref();
   setInterval(watchLock, 2_000).unref();
   setInterval(() => broadcast('heartbeat', { time: Date.now() }), 15_000).unref();
   server.listen(port, HOST, () => {
