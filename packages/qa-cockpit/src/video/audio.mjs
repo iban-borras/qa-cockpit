@@ -144,6 +144,13 @@ export function mediaDuration(ffmpeg, file) {
   return Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]);
 }
 
+// Tracks added together as they are. amix divides each by how many there
+// are, and `normalize=0`, which says not to, is ffmpeg 4.4's: 4.2 and 4.3
+// refuse the word (ImageMagick still brings 4.2.3 to Windows). Every track
+// here lasts the whole video, so the division is the same from start to
+// end, and a volume after it takes it back.
+const sum = (labels) => `${labels.map((l) => `[${l}]`).join('')}amix=inputs=${labels.length}:duration=longest,volume=${labels.length}`;
+
 /**
  * ffmpeg's arguments for the sound of a video: the tics (a WAV made here),
  * the music (made here, or the project's file, looped and faded), and each
@@ -170,15 +177,14 @@ export function mixArgs(o) {
   for (const v of o.voices) {
     inputs.push('-i', v.file);
     const ms = Math.max(0, Math.round(v.at * 1000));
-    filters.push(`[${index}:a]${fmt},adelay=delays=${ms}:all=1,apad=whole_dur=${D},atrim=0:${D}[v${voiceLabels.length}]`);
+    // A delay for each of the two channels: `all=1` is ffmpeg 4.3's.
+    filters.push(`[${index}:a]${fmt},adelay=delays=${ms}|${ms},apad=whole_dur=${D},atrim=0:${D}[v${voiceLabels.length}]`);
     voiceLabels.push(`v${voiceLabels.length}`);
     index += 1;
   }
   const finals = ['tics'];
   if (voiceLabels.length) {
-    filters.push(
-      `${voiceLabels.map((l) => `[${l}]`).join('')}amix=inputs=${voiceLabels.length}:normalize=0:duration=longest,asplit=2[voice][key]`,
-    );
+    filters.push(`${sum(voiceLabels)},asplit=2[voice][key]`);
     if (musicLabel) {
       // The music steps back while somebody speaks, and comes back after.
       filters.push(`[${musicLabel}][key]sidechaincompress=threshold=0.015:ratio=8:attack=20:release=450[ducked]`);
@@ -190,7 +196,7 @@ export function mixArgs(o) {
   } else if (musicLabel) {
     finals.push(musicLabel);
   }
-  filters.push(`${finals.map((l) => `[${l}]`).join('')}amix=inputs=${finals.length}:normalize=0:duration=longest,alimiter=limit=0.95[out]`);
+  filters.push(`${sum(finals)},alimiter=limit=0.95[out]`);
   return [
     '-hide_banner',
     '-loglevel',

@@ -14,26 +14,94 @@
 //                       played, without cursor or subtitles, and the
 //                       pointer's path beside it as JSON: for an editor
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { once } from 'node:events';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { playwrightOf } from '../playwright.mjs';
-import { mediaDuration, mixArgs, music, ticks, writeWav } from './audio.mjs';
+import { mediaDuration, mixArgs, music, RATE, ticks, writeWav } from './audio.mjs';
 import { BAND, buildPlan, frameAt, H, loadCapture, pageLoads, W } from './plan.mjs';
 import { readScript, readSuite, scriptPath, stepParts, testIdOf } from './script.mjs';
 
 const STAGE = fileURLToPath(new URL('./stage.html', import.meta.url));
 
-/** ffmpeg, as the config names it, when it answers; with what it lacks. */
+const statuses = new Map();
+
+/**
+ * ffmpeg, as the config names it, when it answers; with what it lacks. It
+ * mixes a few seconds of sound as a video's is mixed: its version alone says
+ * too little (4.2.3 passed here, and then could not mix a video's sound).
+ */
 export function ffmpegStatus(config) {
   const bin = config.video.ffmpeg;
+  if (!statuses.has(bin)) statuses.set(bin, status(bin));
+  return statuses.get(bin);
+}
+
+function status(bin) {
   const r = spawnSync(bin, ['-hide_banner', '-version'], { encoding: 'utf8', windowsHide: true });
   if (r.error || r.status !== 0) return { ok: false, bin, detail: `not found (${bin}): install ffmpeg, or name it in the config's \`video.ffmpeg\`` };
   const version = /ffmpeg version (\S+)/.exec(r.stdout)?.[1] ?? '?';
   const enc = spawnSync(bin, ['-hide_banner', '-encoders'], { encoding: 'utf8', windowsHide: true }).stdout ?? '';
   if (!/\blibx264\b/.test(enc)) return { ok: false, bin, detail: `${version}, without libx264: a full build of ffmpeg is needed` };
-  return { ok: true, bin, detail: version };
+  const sound = soundFails(bin);
+  if (sound) {
+    return {
+      ok: false,
+      bin,
+      detail: `${version}, which cannot mix a video's sound (${sound}): another ffmpeg is needed, a recent and full build (winget install ffmpeg, brew install ffmpeg, apt install ffmpeg), or one named in the config's \`video.ffmpeg\``,
+    };
+  }
+  return { ok: true, bin, detail: `${version}, with libx264, and it mixed a test of a video's sound` };
+}
+
+/**
+ * A video's sound in miniature, with every filter and option of the real
+ * one: tics, a looped music faded in and out, two narrations (one channel
+ * each, as a system voice writes them) with the music ducking under them,
+ * then brought to a loudness. What went wrong, in ffmpeg's first words, or
+ * null.
+ */
+function soundFails(bin) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-cockpit-ffmpeg-'));
+  const file = (name) => path.join(dir, name);
+  try {
+    const D = 4;
+    writeWav(file('tics.wav'), ticks([0.5, 2.5], D));
+    writeWav(file('music.wav'), music(D));
+    const voice = new Float32Array(RATE);
+    for (let i = 0; i < voice.length; i += 1) voice[i] = 0.3 * Math.sin((2 * Math.PI * 220 * i) / RATE);
+    writeWav(file('voice.wav'), [voice]);
+    run(
+      bin,
+      mixArgs({
+        duration: D,
+        ticksWav: file('tics.wav'),
+        music: { file: file('music.wav'), loop: true },
+        musicVolume: 0.3,
+        voices: [
+          { file: file('voice.wav'), at: 0.4 },
+          { file: file('voice.wav'), at: 2 },
+        ],
+        out: file('sound.wav'),
+      }),
+      'mix the sound',
+    );
+    normalize(bin, file('sound.wav'), file('sound-normalized.wav'), -16);
+    return null;
+  } catch (e) {
+    // «[Parsed_adelay_9 @ 0000…] Option 'all' not found»: the filter and
+    // what it lacks, without the address.
+    const lines = String(e instanceof Error ? e.message : e)
+      .replace(/^ffmpeg failed to [^:]*: */, '')
+      .split('\n')
+      .map((l) => l.replace(/ @ [0-9a-fx]+\]/i, ']').trim())
+      .filter(Boolean);
+    return lines.slice(0, 2).join('; ') || 'no word why';
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 /**

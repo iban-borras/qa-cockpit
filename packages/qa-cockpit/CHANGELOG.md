@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.7.3 (unreleased)
+
+- A video's sound is mixed by ffmpeg 4.2 and 4.3 too. Its mix used two
+  options they do not have (`adelay`'s `all`, from 4.3; `amix`'s
+  `normalize`, from 4.4), and now says the same with what 4.2 has: the
+  sound is the same, sample for sample. With the 4.2.3 that ImageMagick
+  brings to Windows as its only ffmpeg, a machine captured a whole suite
+  and then could not mix its sound.
+- `video check`, and `video` before it plays the suite, mix a few seconds
+  of sound as a video does: an ffmpeg that cannot says so there, in its
+  own words, and not after the capture. Its version said too little: 4.2.3
+  passed the check.
+- A video whose run was green and whose drawing failed says so, and how to
+  draw its capture again without replaying (`video render <capture>`). It
+  used to say «the run must be green».
+
 ## 0.7.2 (2026-10-06)
 
 - A cockpit left running while the package is updated says so, and takes

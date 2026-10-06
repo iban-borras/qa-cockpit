@@ -347,10 +347,12 @@ Say plainly which of these you lack, and stop there:
 1. **Can you look at images?** A video is not done until you have looked at
    its contact sheet (`<suite>-sheet.jpg`) and it is right. Without eyes,
    you cannot check it: say so, and leave the video to an agent that can.
-2. **`npx qa-cockpit video check`**: ffmpeg with libx264, and Playwright's
-   Chromium. ffmpeg is the person's to install (`winget install ffmpeg`,
-   `brew install ffmpeg`, `apt install ffmpeg`), or to name in the config's
-   `video.ffmpeg`.
+2. **`npx qa-cockpit video check`**: ffmpeg with libx264, which it tries
+   on a few seconds of a video's sound (4.2 and newer can), and
+   Playwright's Chromium. ffmpeg is the person's to install (`winget
+   install ffmpeg`, `brew install ffmpeg`, `apt install ffmpeg`), or to
+   name in the config's `video.ffmpeg`. On Windows, ImageMagick brings an
+   ffmpeg of its own, an old one, which may be the first on the PATH.
 3. **Only for a narration: a voice**, the first of these you have:
    1. **A voice service among your tools**: any text-to-speech a
       connector of the person's gives you (look at your tools for one that
@@ -555,6 +557,7 @@ mind, case by case; the clips (`--clips`) are its raw material.
 | «This capture has no T2» from `video render` | The capture was made for other tests: only the ones shown are captured | `video <suite>` with that script makes a new capture |
 | A step shows nobody | Its title names nobody of the cast before the colon | Name who acts |
 | «No video: the run must be green» | The recording failed | It is a red replay: the healer, not the video |
+| «No video: the run was green …, but drawing it failed» | The drawing, after the run: most often a file the script names (`music`, an `audio`) that ffmpeg cannot read | Mend what the error above it says, then the `video render <capture>` it names: the same capture, without replaying |
 | A voice speaks over the wrong step, or never | Its key in `steps` is not `<test id>/<row number>` (`"T1/2"`) | Key it by the suite's test and row |
 | A subtitle says another step's words | The recording's steps are numbered apart from the suite's rows (rows merged into one step, or left out); `video script` and the render name them | Number each step as its row; or give the step its own `subtitle` in the script |
 | A step fails in motion and not in a replay | A race the slower pace shows: a text found twice, a field typed into before it can take focus | `data-testid`; click the editable area and wait for `toBeFocused()` (step 1) |

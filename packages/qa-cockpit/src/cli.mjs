@@ -651,9 +651,10 @@ export async function runCli(rawConfig, argv) {
           `${before.length ? `; ${before.join(', ')} played too, uncaptured, for the data the shown ones start from` : ''} in ${shown(config, dir)}`,
       );
       // A red run makes no video: playwright() ends this process with its code.
-      process.once('exit', (code) => {
+      const red = (code) => {
         if (code) console.error('No video: the run must be green. Its capture stays, for a look.');
-      });
+      };
+      process.once('exit', red);
       noteData(config, { state: 'spent', suite });
       process.env.QA_VIDEO_DIR = dir;
       process.env.QA_VIDEO_MODE = mode;
@@ -662,11 +663,24 @@ export async function runCli(rawConfig, argv) {
       const escapeRe = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const grep = played ? ['-g', `(${played.map(escapeRe).join('|')}) · `] : [];
       await playwright(['test', testFileArg(file), ...grep]);
+      process.removeListener('exit', red);
       delete process.env.QA_VIDEO_DIR;
       delete process.env.QA_VIDEO_MODE;
       delete process.env.QA_VIDEO_TESTS;
 
-      report(await renderVideo(config, dir, { script: scriptFile, clips: flag('--clips'), mode }));
+      // Green, and captured whole: what fails now is the drawing (ffmpeg
+      // mixed a test of the sound before the run: a script's file, then),
+      // which can be done again from the capture, without playing the suite.
+      let made;
+      try {
+        made = await renderVideo(config, dir, { script: scriptFile, clips: flag('--clips'), mode });
+      } catch (e) {
+        fail(
+          `${e instanceof Error ? e.message : String(e)}\n\nNo video: the run was green and its capture is made, but drawing it failed (above). ` +
+            `The capture stays: ${CLI} video render ${path.basename(dir)} draws it again, without playing the suite.`,
+        );
+      }
+      report(made);
       // The newest few captures of a suite stay, to draw again with another
       // script. A suite by its capture's word, not its folder's name: «chat-»
       // begins «chat-admin-» too.

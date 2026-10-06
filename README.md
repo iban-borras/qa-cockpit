@@ -172,8 +172,8 @@ The result is a 1280×840 MP4 (H.264 and AAC) for the web, which opens on its
 finished cover (what a player shows before play), the cover as an image
 for a page or a README, and a contact sheet with every press and every
 step's end, to check before it is shown.
-It needs ffmpeg; `video check` says what is missing. When the app changes,
-the same command makes it again.
+It needs ffmpeg, 4.2 or newer with libx264; `video check` tries it. When
+the app changes, the same command makes it again.
 
 Agents make one only when asked, and check first that they can: a video is
 done when somebody has looked at its contact sheet, so an agent that cannot
