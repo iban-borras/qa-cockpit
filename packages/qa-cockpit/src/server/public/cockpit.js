@@ -965,9 +965,15 @@ function renderStatus() {
 
   const ph = r?.phase;
   const pct = ph && ph.total ? Math.round((100 * ph.done) / ph.total) : r && r.status !== 'running' ? 100 : 0;
-  $('phaseText').textContent = ph ? t('progress.phase', { files: ph.files.join(', '), done: ph.done, total: ph.total }) : t('progress.label');
+  // How many tests of how many: the file they are in says nothing to whoever
+  // watches (the line above names the test).
+  $('phaseText').textContent = ph ? t('progress.phase', { done: ph.done, total: ph.total }) : t('progress.label');
   $('progressText').textContent = `${pct}%`;
   $('progressBar').style.width = `${pct}%`;
+  // In the colours of a run's state, and green while it goes well: red from
+  // the first test that fails, amber for a run stopped or lost before its end.
+  const broke = Object.values(r?.tests ?? {}).some((x) => x.status === 'failed' || x.status === 'timedOut');
+  $('progressBar').dataset.st = broke || r?.status === 'failed' ? 'failed' : ['stopped', 'interrupted'].includes(r?.status) ? r.status : 'passed';
   tickElapsed();
 }
 

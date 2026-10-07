@@ -10,6 +10,16 @@
   says a run is going, so it stays, gentler: four times as slow, the logo's
   legs half as high, the favicon at the same pace. The page's other
   movements (a tooltip's, a note's) still stop.
+- The table's timeline no longer dances when it is dragged to its end
+  during a run. «Back to live» had a column of its own: as it went, the
+  timeline grew under the pointer, its knob fell back from the end, the
+  button came back, and so on. It now shares the moment's half, and the
+  timeline keeps its width.
+- The run's progress says how many tests of how many, without the file
+  they are in, which says nothing to whoever watches. Its bar is green
+  while the run goes well, red from the first test that fails, and amber
+  for a run stopped or lost before its end, as the run picker paints
+  them. It was the brand's crimson, which read as an error.
 
 ## 0.7.3 (2026-10-06)
 
