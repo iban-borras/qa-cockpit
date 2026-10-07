@@ -119,20 +119,28 @@ svg.i.lg { width: 18px; height: 18px; }
 .mark { width: 36px; height: 36px; display: block; flex: none; }
 /* While a run goes it waves like the favicon (cockpit.js, inlineLogo): the
    tip of each leg goes round a small circle, swinging from the root and
-   rising into the head, which hides the root. One turn a beat. */
+   rising into the head, which hides the root. One turn a beat, each leg a
+   quarter of a beat after the one before it. */
+.mark { --amp: 1; }
 .mark .leg { transform-box: view-box; }
-.mark.waving .leg { animation: legWave var(--beat, 400ms) linear infinite; }
+.mark.waving .leg {
+  animation: legWave var(--beat, 400ms) linear infinite;
+  animation-delay: calc(var(--n, 0) * var(--beat, 400ms) / 4);
+}
 @keyframes legWave {
   0%, 100% { transform: none; }
-  12.5% { transform: translateY(-0.59px) rotate(-7.07deg); }
-  25% { transform: translateY(-2px) rotate(-10deg); }
-  37.5% { transform: translateY(-3.41px) rotate(-7.07deg); }
-  50% { transform: translateY(-4px); }
-  62.5% { transform: translateY(-3.41px) rotate(7.07deg); }
-  75% { transform: translateY(-2px) rotate(10deg); }
-  87.5% { transform: translateY(-0.59px) rotate(7.07deg); }
+  12.5% { transform: translateY(calc(-0.59px * var(--amp))) rotate(calc(-7.07deg * var(--amp))); }
+  25% { transform: translateY(calc(-2px * var(--amp))) rotate(calc(-10deg * var(--amp))); }
+  37.5% { transform: translateY(calc(-3.41px * var(--amp))) rotate(calc(-7.07deg * var(--amp))); }
+  50% { transform: translateY(calc(-4px * var(--amp))); }
+  62.5% { transform: translateY(calc(-3.41px * var(--amp))) rotate(calc(7.07deg * var(--amp))); }
+  75% { transform: translateY(calc(-2px * var(--amp))) rotate(calc(10deg * var(--amp))); }
+  87.5% { transform: translateY(calc(-0.59px * var(--amp))) rotate(calc(7.07deg * var(--amp))); }
 }
-@media (prefers-reduced-motion: reduce) { .mark.waving .leg { animation: none; } }
+/* With less motion asked for, it waves all the same, for it is how the
+   cockpit says a run is going: half as high, and four times as slow
+   (cockpit.js, waveMs). */
+@media (prefers-reduced-motion: reduce) { .mark { --amp: 0.5; } }
 /* A flex row, so the chip sits on the title's middle and not on its
    baseline, where it hung 3.6 px low. */
 .brand h1 { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 17px; margin: 0; font-weight: 650; letter-spacing: -0.01em; }

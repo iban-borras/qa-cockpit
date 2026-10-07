@@ -613,6 +613,13 @@ function isRunning() {
 // own timers are slowed to a tick a second, and a background tab is the
 // very one whose favicon is being looked at.
 const WAVE_MS = 100;
+// With less motion asked for (`prefers-reduced-motion`, which Windows sets
+// when its «Animation effects» are off, often a company's policy and nobody's
+// choice), the octopus waves all the same, for it is how the cockpit says a
+// run is going: four times as slow, and the logo's legs half as high
+// (cockpit.css). The favicon and the logo keep one pace.
+const lessMotion = matchMedia('(prefers-reduced-motion: reduce)');
+const waveMs = () => (lessMotion.matches ? 4 : 1) * WAVE_MS;
 let waveFrames = null;
 let waveTimer = null; // the worker that beats while the favicon waves
 
@@ -642,7 +649,7 @@ async function waveFavicon(on) {
     waveFrames ??= await makeWaveFrames().catch(() => []);
     if (!waveFrames.length || waveTimer) return;
     let k = 0;
-    const beat = new Blob([`setInterval(() => postMessage(0), ${WAVE_MS});`], { type: 'text/javascript' });
+    const beat = new Blob([`setInterval(() => postMessage(0), ${waveMs()});`], { type: 'text/javascript' });
     waveTimer = new Worker(URL.createObjectURL(beat));
     waveTimer.onmessage = () => {
       k = (k + 1) % waveFrames.length;
@@ -668,19 +675,26 @@ async function inlineLogo() {
   if (svg?.nodeName !== 'svg') return;
   svg.setAttribute('class', 'mark');
   svg.setAttribute('aria-hidden', 'true');
-  svg.style.setProperty('--beat', `${4 * WAVE_MS}ms`);
+  svg.style.setProperty('--beat', `${4 * waveMs()}ms`);
   svg.querySelectorAll('g[fill="none"] > path').forEach((leg, i) => {
     const root = /^M\s*([\d.]+)[ ,]+([\d.]+)/.exec(leg.getAttribute('d') ?? '');
     if (!root) return;
     leg.classList.add('leg');
     leg.style.transformOrigin = `${root[1]}px ${root[2]}px`;
-    leg.style.animationDelay = `${(i - 4) * WAVE_MS}ms`;
+    // Its place in the wave, in quarters of a beat (cockpit.css).
+    leg.style.setProperty('--n', String(i - 4));
   });
   img.replaceWith(document.importNode(svg, true));
   waveLogo(Boolean(S.state?.task));
 }
 
 const waveLogo = (on) => document.querySelector('svg.mark')?.classList.toggle('waving', on);
+
+// Less motion asked for, or no longer, with the page open: the new pace at once.
+lessMotion.addEventListener('change', () => {
+  document.querySelector('svg.mark')?.style.setProperty('--beat', `${4 * waveMs()}ms`);
+  if (waveTimer) void waveFavicon(false).then(() => waveFavicon(true));
+});
 
 function renderHeader() {
   const st = S.state;

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.4 (unreleased)
+
+- The octopus waves while a run goes even when the system asks for less
+  motion (`prefers-reduced-motion`). Windows asks for it when its
+  «Animation effects» are off, often a company's default and nobody's
+  choice: there the logo stood still, and the cockpit looked idle in the
+  middle of a run, while the favicon waved on. The wave is how the cockpit
+  says a run is going, so it stays, gentler: four times as slow, the logo's
+  legs half as high, the favicon at the same pace. The page's other
+  movements (a tooltip's, a note's) still stop.
+
 ## 0.7.3 (2026-10-06)
 
 - A video's sound is mixed by ffmpeg 4.2 and 4.3 too. Its mix used two
