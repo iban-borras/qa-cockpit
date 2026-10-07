@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.7.4 (unreleased)
+## 0.7.4 (2026-10-07)
 
 - «Play as» opens on a device of the project's own. It named the device the
   person last played on, and looked that name up in Playwright's list only:
