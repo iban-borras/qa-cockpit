@@ -1125,6 +1125,8 @@ function renderTableHead() {
   if (S.table.live) S.table.idx = Math.max(0, n - 1);
   range.value = String(S.table.idx);
   range.disabled = n === 0;
+  // How much of the timeline lies behind its knob (cockpit.css).
+  range.style.setProperty('--pct', `${n > 1 ? (100 * S.table.idx) / (n - 1) : 0}%`);
   const m = S.moments[S.table.idx];
   $('tLabel').textContent = n ? `${m.test} › ${m.step}` : S.run ? t('table.empty') : '';
   $('tLabel').title = $('tLabel').textContent;

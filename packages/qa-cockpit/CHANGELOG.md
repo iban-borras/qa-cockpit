@@ -20,6 +20,10 @@
   while the run goes well, red from the first test that fails, and amber
   for a run stopped or lost before its end, as the run picker paints
   them. It was the brand's crimson, which read as an error.
+- The table's timeline is neutral, as a player's: light behind its knob,
+  dark ahead. It too was the brand's crimson. It is a way through the
+  run's time, not its state, which is the progress bar's to say: painted
+  red after a failure, it would be red at the moments before it too.
 
 ## 0.7.3 (2026-10-06)
 

@@ -246,7 +246,28 @@ select option { background: var(--panel-2); color: var(--text); }
 .moment-row .moment { flex: 1; }
 .table-head h2 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
 .scrub { display: flex; align-items: center; gap: 4px; min-width: 0; }
-.scrub input[type='range'] { flex: 1; accent-color: var(--accent); min-width: 120px; }
+/* The timeline is a way through the run's time, as a player's is: neutral,
+   in no state's colour. The progress bar says how the run goes, and red is
+   for errors. The part behind the knob is light, the rest dark (--pct,
+   cockpit.js renderTableHead): Chromium's own slider is light on both
+   sides of its knob, on a dark page too. */
+.scrub input[type='range'] {
+  flex: 1; min-width: 120px; height: 16px; margin: 0;
+  -webkit-appearance: none; appearance: none; background: none; cursor: pointer;
+}
+.scrub input[type='range']::-webkit-slider-runnable-track {
+  height: 6px; border-radius: 999px;
+  background: linear-gradient(to right, var(--muted) var(--pct, 0%), var(--line-2) var(--pct, 0%));
+}
+.scrub input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 14px; height: 14px; margin-top: -4px;
+  border: 0; border-radius: 50%; background: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+.scrub input[type='range']::-moz-range-track { height: 6px; border-radius: 999px; background: var(--line-2); }
+.scrub input[type='range']::-moz-range-progress { height: 6px; border-radius: 999px; background: var(--muted); }
+.scrub input[type='range']::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: var(--text); }
+.scrub input[type='range']:disabled { cursor: default; opacity: 0.45; }
+.scrub input[type='range']:focus-visible { border-radius: 999px; }
 .moment { font-size: 12.5px; color: var(--text); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cast { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
 .card { background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 10px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; position: relative; min-width: 0; }
