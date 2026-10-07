@@ -18,6 +18,22 @@ import { loadConfig } from './config.mjs';
 import { deviceFor, personContext, resolveDevice } from './devices.mjs';
 import { playwrightOf } from './playwright.mjs';
 
+/**
+ * The device the cockpit names (the one the person last played on), or their
+ * usual one when that name is nobody's: a window on another size is better
+ * than none.
+ */
+function lastOrUsual(config, id) {
+  if (process.env.QA_DEVICE) {
+    try {
+      return resolveDevice(config, process.env.QA_DEVICE);
+    } catch (error) {
+      console.error(`${error.message} The usual device instead.`);
+    }
+  }
+  return deviceFor(config, id);
+}
+
 const person = process.argv[2];
 if (!person || !/^[a-z][a-z0-9_]*$/.test(person)) {
   console.error('Usage: node open-browser.mjs <person>');
@@ -32,7 +48,7 @@ try {
     process.exit(1);
   }
   const front = process.env.FRONTEND_URL || config.stack.urls().app;
-  const device = process.env.QA_DEVICE ? resolveDevice(config, process.env.QA_DEVICE) : deviceFor(config, person);
+  const device = lastOrUsual(config, person);
   const big = device.kind === 'laptop' || device.kind === 'desktop';
   const { chromium } = playwrightOf(config);
   const browser = await chromium.launch({ headless: false, args: big ? ['--start-maximized'] : [] });

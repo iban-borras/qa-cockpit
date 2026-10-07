@@ -45,8 +45,18 @@ export function resolveDevice(config, spec) {
     const { devices } = playwrightOf(config);
     source = devices[wanted];
     if (!source) {
+      // A size of the project's own goes by its name too, once a run has
+      // played it: «Play as» names the device a person last played on, and
+      // a recording's `test.use({ devices })` may have given it as an object.
+      const own = ownDeviceNamed(config, wanted);
+      if (own) {
+        source = own;
+        kind = own.kind ?? null;
+      }
+    }
+    if (!source) {
       const near = Object.keys(devices).filter((n) => n.toLowerCase().includes(wanted.toLowerCase().split(' ')[0])).slice(0, 5);
-      throw new Error(`No device named «${wanted}» in Playwright's list${near.length ? ` (did you mean ${near.join(', ')}?)` : ''}.`);
+      throw new Error(`No device named «${wanted}» in Playwright's list, nor among the project's own sizes its runs played${near.length ? ` (did you mean ${near.join(', ')}?)` : ''}.`);
     }
     name = wanted;
   } else {
@@ -129,6 +139,16 @@ function recordedDevices(config, suite) {
     }
   }
   return first;
+}
+
+/** A size of the project's own that a run played, by its name, as noted; null when none is so named. */
+function ownDeviceNamed(config, wanted) {
+  for (const people of Object.values(noted(config))) {
+    for (const entry of Object.values(people ?? {})) {
+      if (entry?.device?.name === wanted) return entry.device;
+    }
+  }
+  return null;
 }
 
 /** The device a suite gives a person, or null when its recording names none for them (the cast's, then). */

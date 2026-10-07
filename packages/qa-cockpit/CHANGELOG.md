@@ -2,6 +2,13 @@
 
 ## 0.7.4 (unreleased)
 
+- «Play as» opens on a device of the project's own. It named the device the
+  person last played on, and looked that name up in Playwright's list only:
+  a size a recording gave as an object (CritKeep's «Escriptori 1600 × 900»)
+  was «No device named … in Playwright's list», and no window opened. A name
+  is now looked up among the sizes the project's runs played too
+  (`devices.json`), and a name that is nobody's opens the person's usual
+  device instead of nothing.
 - The octopus waves while a run goes even when the system asks for less
   motion (`prefers-reduced-motion`). Windows asks for it when its
   «Animation effects» are off, often a company's default and nobody's
