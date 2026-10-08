@@ -454,7 +454,7 @@ hand-off when the run ends, and the run report has them.
 ## Races between people (when a person asks, or before a release)
 
 `npx qa-cockpit replay <suite> --chaos [N]` plays the recording in N rounds
-(5 unless said; 2 to 50). Each round starts from fresh data (`reset`, then
+(3 unless said; 2 to 50). Each round starts from fresh data (`reset`, then
 the suite's setup, as a video does) and slows each person in their own way,
 drawn from the round's seed:
 
@@ -494,9 +494,10 @@ not a race: the app, the recording, or a slowness it cannot take.
    ```
 
    Write it only where the suite says the people act at the same time.
-3. **No round proves there is no race**: more rounds look further. A search
-   costs N runs of the suite with their setups: say how long before you
-   start a long one.
+3. **No round proves there is no race**: three rounds are a quick look, ten
+   a closer one (a race that needs one person very slow shows in about one
+   round in six), and more look further. A search costs N runs of the suite
+   with their setups: say how long before you start a long one.
 4. **What you deliver is a report**: each race, its seed, and what you think
    the order was. Change nothing until the person says so; a fix is proved
    by the same seed passing several times, then a new search.

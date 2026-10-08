@@ -267,7 +267,7 @@ replay <suite> --a11y             ... and each step's screen looked at for acces
 replay <suite> --languages [fr,de] ... and each step's screen in the app's other languages: what does not fit
 languages check                   that change of language, tried on one screen and back
 replay <suite> --realtime         ... and how long what one person does takes to reach another's screen
-replay <suite> --chaos [N]        races between people: N rounds (5), each person slowed by a seed
+replay <suite> --chaos [N]        races between people: N rounds (3), each person slowed by a seed
 replay <suite> --chaos-seed <n>   one of those rounds again, with any look
 network [run]                     what they show, step by step (--against previous: what a change changed)
 stamp <suite> | hash <suite>      the suite's hash in the recording's first line

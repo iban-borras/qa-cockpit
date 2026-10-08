@@ -48,7 +48,7 @@
   terminal, and each hand-off in the run report. An option of the run in
   the cockpit.
 - `replay --chaos [N]`: races between people. The recording plays in N
-  rounds (5 unless said), each from fresh data (reset, then the suite's
+  rounds (3 unless said), each from fresh data (reset, then the suite's
   setup), each person slowed in their own way by the round's seed: every
   request of theirs waits longer for its answer (Chromium's network
   conditions), what is pushed to their page reaches the app later and in
@@ -73,6 +73,11 @@
   search found it, with Bob 800 ms behind. It opens the stream first now,
   loads the history once the stream is open, and puts each message in its
   place by its id, so everybody sees the server's order.
+- The run's options are as tall as the window lets them, scrolled inside
+  when they are more (each look added one), and the rounds of a search are
+  a select under its option (3 unless chosen).
+- A run started from the page is followed, even when an older run was on
+  screen: whoever starts one is there to watch it.
 - The run picker counts every test a run ran: a full run (reset, setup and
   the recording) said «5 of 3 tests pass», its setup's tests passed against
   its recording's count.

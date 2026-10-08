@@ -190,6 +190,8 @@ async function api(path, opts) {
   return body;
 }
 
+const RUN_ACTIONS = new Set(['reset', 'setup', 'replay', 'full']);
+
 async function act(action, extra = {}) {
   try {
     const res = await api('/api/action', {
@@ -209,6 +211,12 @@ async function act(action, extra = {}) {
     });
     if (res.ok === false) banner(res.error, 'err');
     else if (res.warning) banner(desktopText(res.warning), 'warn');
+    // A run started from this page is followed, even from an older run on
+    // screen: who starts one is there to watch it.
+    if (res.ok !== false && RUN_ACTIONS.has(action) && S.viewRunId !== null) {
+      S.viewRunId = null;
+      await refreshState();
+    }
     return res;
   } catch (e) {
     banner(e.message, 'err');
@@ -1958,20 +1966,20 @@ function slowText(p) {
 
 function chaosRounds() {
   const kept = Number(localStorageGet('optChaosRounds'));
-  return CHAOS_ROUNDS.includes(kept) ? kept : 5;
+  return CHAOS_ROUNDS.includes(kept) ? kept : 3;
 }
 
-/** The rounds to play, under the option; and the looks, which a search does without. */
+/** The rounds to play, a select under the option; and the looks, which a search does without. */
 function renderChaosPicks() {
   const on = $('optChaos').checked;
-  const box = $('optChaosRounds');
-  box.hidden = !on;
-  const n = chaosRounds();
-  const html = CHAOS_ROUNDS.map((k) => `<label class="pick"><input type="radio" name="chaosRounds" value="${k}"${k === n ? ' checked' : ''}> ${esc(t('races.rounds', { n: k }))}</label>`).join('');
-  if (box.dataset.html !== html) {
-    box.dataset.html = html;
-    box.innerHTML = html;
+  $('optChaosRounds').hidden = !on;
+  const select = $('optChaosN');
+  const html = CHAOS_ROUNDS.map((k) => `<option value="${k}">${k}</option>`).join('');
+  if (select.dataset.html !== html) {
+    select.dataset.html = html;
+    select.innerHTML = html;
   }
+  select.value = String(chaosRounds());
   for (const id of ['optA11y', 'optLangs', 'optRealtime']) {
     $(id).disabled = on;
     $(id).closest('.opt').classList.toggle('off', on);
@@ -3130,6 +3138,15 @@ $('offlineCopy').onclick = async () => {
 };
 
 $('opts').querySelector('summary').innerHTML = icon('sliders');
+// A MENU AS TALL AS THE ROOM UNDER IT, its options scrolled inside when
+// they are more: the run's options grow with each look.
+function fitMenu(details) {
+  const menu = details.querySelector('.menu');
+  if (!details.open || !menu) return;
+  menu.style.maxHeight = `${Math.max(160, Math.floor(innerHeight - menu.getBoundingClientRect().top - 12))}px`;
+}
+for (const id of ['opts', 'lang']) $(id).addEventListener('toggle', () => fitMenu($(id)));
+addEventListener('resize', () => ['opts', 'lang'].forEach((id) => fitMenu($(id))));
 $('pickerChev').innerHTML = icon('down', 'sm');
 for (const [id, name] of [
   ['tFirst', 'first'],
@@ -3206,10 +3223,7 @@ for (const id of ['optHeaded', 'optDocker', 'optA11y', 'optLangs', 'optRealtime'
   $(id).onchange = () => localStorageSet(id, $(id).checked ? '1' : '0');
 }
 $('optChaos').addEventListener('change', renderChaosPicks);
-$('optChaosRounds').addEventListener('change', (e) => {
-  if (e.target.name === 'chaosRounds') localStorageSet('optChaosRounds', e.target.value);
-  renderChaosPicks();
-});
+$('optChaosN').addEventListener('change', () => localStorageSet('optChaosRounds', $('optChaosN').value));
 renderChaosPicks();
 $('optLangs').addEventListener('change', renderLangPicks);
 $('optLangsList').addEventListener('change', () => {

@@ -753,11 +753,11 @@ export async function runCli(rawConfig, argv) {
       const langsFlag = valued('--languages', /^[a-z]{2,3}(-[A-Za-z0-9]+)?(,[a-z]{2,3}(-[A-Za-z0-9]+)?)*$/);
       const languages = langsFlag.on;
       const listed = langsFlag.value;
-      // `--chaos`: rounds that look for races (5, or as many as it says);
+      // `--chaos`: rounds that look for races (3, or as many as it says);
       // `--chaos-seed <n>`: one of their rounds, played again.
       const chaosFlag = valued('--chaos', /^\d+$/);
       const seedFlag = valued('--chaos-seed', /^\d+$/);
-      const rounds = chaosFlag.on ? Number(chaosFlag.value ?? 5) : 0;
+      const rounds = chaosFlag.on ? Number(chaosFlag.value ?? 3) : 0;
       const seed = seedFlag.on ? Number(seedFlag.value) : null;
       const dropped = new Set([...langsFlag.used, ...chaosFlag.used, ...seedFlag.used]);
       const pwArgs = rest.slice(1).filter((a, i) => !dropped.has(i + 1) && !['--network', '--bodies', '--a11y', '--realtime'].includes(a));
@@ -1399,7 +1399,7 @@ export async function runCli(rawConfig, argv) {
                    config's priority ones, or those named), with the cockpit: what does not fit;
                    --realtime: how long what one person does takes to reach another's screen
                    (sent, received, seen), with the cockpit;
-                   --chaos [N]: races between people, in N rounds (5), each from fresh data
+                   --chaos [N]: races between people, in N rounds (3), each from fresh data
                    with each person slowed in its own way (network, pushes, CPU), drawn from
                    the round's seed: a step that passes in some and fails in others is a race;
                    --chaos-seed <n>: that round again
