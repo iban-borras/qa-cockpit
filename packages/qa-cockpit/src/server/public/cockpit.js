@@ -800,13 +800,16 @@ function updateButtons() {
 
 // ---------------------------------------------------------------- tooltips
 
-/** The page's own tooltip, in place of the browser's `title`: it comes at
- *  once (the browser waits about a second), it can be laid out, and the
- *  keyboard's focus shows it too. An element gives its words in `data-tip`,
- *  or names a builder of TIPS in `data-tip-kind` (which falls back on
- *  `data-tip` when it has nothing to say). Disabled buttons still get
- *  pointer events, so a dead button can say why. */
-const TIP_DELAY_MS = 120;
+/** The page's own tooltip, in place of the browser's `title`: it can be
+ *  laid out, and the keyboard's focus shows it at once. Under the pointer
+ *  it waits for a hand that stays (a second), so that one moving across
+ *  the page shows nothing; from one tooltip to the next, a moment. An
+ *  element gives its words in `data-tip`, or names a builder of TIPS in
+ *  `data-tip-kind` (which falls back on `data-tip` when it has nothing to
+ *  say). Disabled buttons still get pointer events, so a dead button can
+ *  say why. */
+const TIP_DELAY_MS = 1000;
+const TIP_NEXT_MS = 300;
 const TIPS = {
   busy() {
     const b = busyElsewhere();
@@ -875,8 +878,8 @@ document.addEventListener('pointerover', (e) => {
   if (el === tipFor) return;
   clearTimeout(tipTimer);
   if (!el) return hideTip();
-  // From one tooltip to the next, at once: the hand is already reading.
-  tipTimer = setTimeout(() => showTip(el), tipFor ? 0 : TIP_DELAY_MS);
+  // From one tooltip to the next, sooner: the hand is already reading.
+  tipTimer = setTimeout(() => showTip(el), tipFor ? TIP_NEXT_MS : TIP_DELAY_MS);
 });
 document.addEventListener('pointerout', (e) => {
   if (!e.relatedTarget) hideTip();
@@ -1950,11 +1953,12 @@ function renderLangPicks() {
   if (!l) return (box.hidden = true);
   const chosen = chosenLangs();
   $('optLangsHint').textContent = t('opts.languages_hint', { list: chosen.map(langName).join(', ') || '—' });
-  // A choice only when there is one to make.
-  box.hidden = !$('optLangs').checked || l.others.length < 2;
-  const html = l.others
-    .map((code) => `<label class="pick"><input type="checkbox" value="${esc(code)}"${chosen.includes(code) ? ' checked' : ''}> ${esc(langName(code))}</label>`)
-    .join('');
+  // Every language of the app: the suite's own first, always there (its
+  // recording finds the buttons by their words), and the others to choose.
+  box.hidden = !$('optLangs').checked;
+  const html =
+    `<label class="pick base" title="${esc(t('opts.languages_base', { name: langName(l.base) }))}"><input type="checkbox" checked disabled> ${esc(langName(l.base))}</label>` +
+    l.others.map((code) => `<label class="pick"><input type="checkbox" value="${esc(code)}"${chosen.includes(code) ? ' checked' : ''}> ${esc(langName(code))}</label>`).join('');
   if (box.dataset.html !== html) {
     box.dataset.html = html;
     box.innerHTML = html;
@@ -2104,7 +2108,9 @@ function renderPlays() {
       return `<span class="pl${p.open ? ' open' : ''}">${thumb}<b>${esc(t(p.open ? 'play.open' : 'play.closed', { name: cap(p.actor) }))}</b><span>${bits}</span></span>`;
     })
     .join('');
-  const html = `${people}<button class="btn pill" id="playReport" type="button"${acts ? '' : ' disabled'} data-tip="${esc(t('play.report_tip'))}">${icon('flag', 'sm')}${esc(t('play.report'))}</button>`;
+  const html =
+    `${people}<button class="btn pill" id="playReport" type="button"${acts ? '' : ' disabled'} data-tip="${esc(t('play.report_tip'))}">${icon('flag', 'sm')}${esc(t('play.report'))}</button>` +
+    `<button class="btn icon ghost" id="playDiscard" type="button" aria-label="${esc(t('play.discard'))}" data-tip="${esc(t('play.discard'))}">${icon('x', 'sm')}</button>`;
   box.hidden = false;
   if (box.dataset.html === html) return;
   box.dataset.html = html;
@@ -2120,6 +2126,10 @@ function consoleLine(f) {
 }
 
 $('plays').addEventListener('click', async (e) => {
+  if (e.target.closest('#playDiscard')) {
+    await api('/api/play/discard', { method: 'POST' }).catch((err) => banner(err.message, 'err'));
+    return;
+  }
   if (!e.target.closest('#playReport')) return;
   const d = $('playDialog');
   $('playNote').value = '';
@@ -2169,6 +2179,7 @@ function renderLangTabs(f) {
   // goes to the tab now chosen, and the inspector's keys keep working.
   const focused = tabs.contains(document.activeElement);
   tabs.innerHTML =
+    `<span class="lbl">${esc(t('ins.langs_label'))}</span>` +
     tab(base, (f.findings ?? []).filter((x) => x.kind === 'lang').length, `${langName(base)} · ${t('ins.lang_base')}`) +
     langs.map((l) => tab(l.lang, l.findings?.length ?? 0, langName(l.lang))).join('');
   if (focused) tabs.querySelector('.lt.sel')?.focus();
@@ -3282,12 +3293,29 @@ labelButtons();
 
 renderLang();
 
-$('btnReset').onclick = () => act('reset');
-$('btnSetup').onclick = () => act('setup');
+// A RUN WHILE SOMEBODY PLAYS BY HAND: a window of «Play as» is that
+// person's saved session, the one the run would sign them in with, and a
+// reset or a setup clears it under the window. Asked first (the other way
+// round, «Play as» is off while a run plays the person).
+async function playersAgree(action) {
+  const cast = action === 'reset' ? null : (suiteOf(S.suite)?.cast ?? []);
+  const names = (S.state?.plays ?? []).filter((p) => p.open && (!cast || cast.includes(p.actor))).map((p) => cap(p.actor));
+  return !names.length || ask(t('play.busy_run', { names: names.join(', ') }), t('play.run_anyway'));
+}
+
+$('btnReset').onclick = async () => {
+  if (await playersAgree('reset')) void act('reset');
+};
+$('btnSetup').onclick = async () => {
+  if (await playersAgree('setup')) void act('setup');
+};
 // A REPLAY NEEDS ITS SUITE'S SETUP just before it (stackdata.mjs). When the
 // stack's data is something else, the page asks, and a Full run (reset,
 // setup, recording) is the answer Enter takes.
 $('btnReplay').onclick = async () => {
+  // What the data is now: somebody may have played by hand since.
+  await refreshState().catch(() => {});
+  if (!(await playersAgree('replay'))) return;
   const s = suiteOf(S.suite);
   // A search for races starts each round from fresh data by itself.
   const why = s?.setup && !$('optChaos').checked ? staleWhy(s.name) : null;
@@ -3313,10 +3341,12 @@ $('btnReplay').onclick = async () => {
 function staleWhy(suite) {
   const d = S.state?.data;
   if (!d?.state || (d.state === 'setup' && d.suite === suite)) return null;
-  const code = d.state === 'spent' ? 'spent' : d.state === 'setup' ? 'other_setup' : d.state === 'setting-up' ? 'setup_unfinished' : 'reset';
-  return t(`data.${code}`, { suite: suiteOf(d.suite)?.title ?? d.suite ?? '', when: when(d.at) });
+  const code = d.state === 'spent' || d.state === 'played' ? d.state : d.state === 'setup' ? 'other_setup' : d.state === 'setting-up' ? 'setup_unfinished' : 'reset';
+  return t(`data.${code}`, { suite: suiteOf(d.suite)?.title ?? d.suite ?? '', who: cap(d.who ?? ''), when: when(d.at) });
 }
-$('btnFull').onclick = () => act('full');
+$('btnFull').onclick = async () => {
+  if (await playersAgree('full')) void act('full');
+};
 $('btnStop').onclick = () => act('stop');
 $('elsewhere').onclick = () => S.state?.task?.suite && pickSuite(S.state.task.suite);
 
@@ -3338,7 +3368,7 @@ $('optChaosN').addEventListener('change', () => localStorageSet('optChaosRounds'
 renderChaosPicks();
 $('optLangs').addEventListener('change', renderLangPicks);
 $('optLangsList').addEventListener('change', () => {
-  localStorageSet('optLangsList', [...$('optLangsList').querySelectorAll('input:checked')].map((i) => i.value).join(','));
+  localStorageSet('optLangsList', [...$('optLangsList').querySelectorAll('input:checked:not(:disabled)')].map((i) => i.value).join(','));
   renderLangPicks();
 });
 $('optFinds').checked = localStorageGet('optFinds') !== '0';

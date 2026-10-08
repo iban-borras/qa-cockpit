@@ -83,6 +83,12 @@
   a select under its option (3 unless chosen).
 - A run started from the page is followed, even when an older run was on
   screen: whoever starts one is there to watch it.
+- Tooltips wait for a hand that stays, a second, and the next one a moment:
+  a pointer crossing the page showed one after another.
+- A step's languages are labelled «Languages:» before their tabs, which
+  lost the tooltip that showed between them; the run's option lists every
+  language of the app, the suite's own first, always on (its recording
+  finds the buttons by their words).
 - A run says the looks it took, in the run picker, the line under it and
   the run report: «Full run · languages ca, es · real time». A look at the
   other languages is no second run, and nothing showed it had been taken.
@@ -102,6 +108,10 @@
   `qa-cockpit play` prints it for an agent (`--list`, every one kept).
   What is typed is kept, to be typed again, but never what went in a
   password's field, a card's, a code's or a token's.
+  The strip's «×» drops what the windows did, with no report. A person's
+  first action by hand notes the stack's data as played: the Replay button
+  asks, and the CLI warns, as after a replay. A run of somebody who plays
+  in a window asks first, the window being the run's very session.
 - «Play as» is off for the people the run going now plays, and for
   everybody while a reset or a renewal of the saved sessions goes: the
   window would open from the very session the run is using, so what was

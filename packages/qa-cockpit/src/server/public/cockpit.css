@@ -174,6 +174,7 @@ select option { background: var(--panel-2); color: var(--text); }
 .opt-sub { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 0 8px 8px 34px; }
 .opt-sub .pick { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); cursor: pointer; }
 .opt-sub .pick input { accent-color: #e879f9; }
+.opt-sub .pick.base { cursor: default; opacity: 0.75; }
 .opt b { display: block; font-weight: 550; font-size: 13px; }
 .opt span { display: block; font-size: 12px; color: var(--muted); }
 
@@ -459,6 +460,7 @@ dialog#inspector::backdrop { background: rgba(4, 4, 6, 0.72); }
 .plays .pl.open b::before { content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: var(--ok); vertical-align: 1px; }
 .plays .pl .bad { color: var(--err); }
 .plays #playReport { margin-left: auto; }
+.plays #playDiscard { margin-left: -8px; }
 .plays #playReport svg.i { width: 13px; height: 13px; }
 dialog.play-dialog { width: min(480px, 92vw); }
 .play-dialog p b { display: block; margin-bottom: 4px; font-size: 15px; }
@@ -470,7 +472,8 @@ dialog.play-dialog { width: min(480px, 92vw); }
 .caption .console-line svg.i { width: 12px; height: 12px; vertical-align: -2px; }
 .who > span > .line.slowed { color: #c4b5fd; }
 .line.slowed svg.i { width: 12px; height: 12px; margin-right: 4px; vertical-align: -2px; color: #a78bfa; }
-.langs { display: flex; flex-wrap: wrap; gap: 6px; flex: none; }
+.langs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex: none; }
+.langs .lbl { margin-right: 2px; font-size: 12px; color: var(--muted); }
 .langs .lt { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--panel-2); color: var(--muted); font: 600 11.5px/1 var(--mono); cursor: pointer; }
 .langs .lt:hover { color: var(--text); }
 .langs .lt.sel { color: var(--text); border-color: #e879f9; box-shadow: inset 0 0 0 1px #e879f9; }

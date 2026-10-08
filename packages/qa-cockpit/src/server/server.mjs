@@ -28,7 +28,7 @@ import { acquireLock, isAlive, lockFileOf, readLock, StackBusy } from '../lock.m
 import { listSuites } from '../suites.mjs';
 import { deviceFor, deviceLabel } from '../devices.mjs';
 import { cleanNote, notesMarkdown, pinnedFileOf, pinnedSeqs, readNotes, readRunFiles, writeNotes } from '../notes.mjs';
-import { readData } from '../stackdata.mjs';
+import { noteData, readData } from '../stackdata.mjs';
 import { desktopOf } from '../desktop.mjs';
 import { playRun } from '../play.mjs';
 import { playwrightCoreDir } from '../deps.mjs';
@@ -658,9 +658,26 @@ function playsInfo() {
     .map((p) => {
       const fresh = p.events.filter((e) => e.t > p.since);
       const errors = fresh.filter((e) => e.kind === 'console' || (e.kind === 'request' && (e.status === 0 || e.status >= 500))).length;
-      return { session: p.session, actor: p.actor, open: p.open, acts: fresh.filter((e) => e.kind === 'act').length, errors, latest: p.latest?.t ?? null };
+      return { session: p.session, actor: p.actor, open: p.open, dismissed: Boolean(p.dismissed), acts: fresh.filter((e) => e.kind === 'act').length, errors, latest: p.latest?.t ?? null };
     })
-    .filter((p) => p.open || p.acts > 0);
+    // A window dropped («Drop it») shows again at its next action.
+    .filter((p) => (p.open && !p.dismissed) || p.acts > 0);
+}
+
+/** «Drop it»: what every window did since its last report, with no report;
+ *  a window still open shows again at its next action. */
+function playDiscard() {
+  const now = Date.now();
+  for (const p of [...plays.values()]) {
+    p.since = now;
+    p.dismissed = true;
+    if (!p.open) {
+      plays.delete(p.session);
+      fs.rmSync(p.dir, { recursive: true, force: true });
+    }
+  }
+  playsChanged();
+  return { ok: true };
 }
 
 let playsTimer = null;
@@ -752,7 +769,16 @@ function playEvents(body) {
     if (e.kind === 'hello') p.device = e.device;
     else if (e.kind === 'latest') p.latest = { t: e.t, viewport: e.viewport, url: e.url };
     else if (e.kind === 'closed') p.open = false;
-    else p.events.push(e);
+    else {
+      p.events.push(e);
+      if (e.kind === 'act') {
+        p.dismissed = false;
+        // A person playing by hand changes the data a replay expects
+        // (stackdata.mjs): the Replay button asks, the CLI warns.
+        const data = readData(CFG);
+        if (data?.state !== 'played' || data.who !== p.actor) noteData(CFG, { state: 'played', suite: data?.suite ?? null, who: p.actor });
+      }
+    }
   }
   if (p.events.length > PLAY_EVENTS) p.events.splice(0, p.events.length - PLAY_EVENTS);
   playsChanged();
@@ -1553,6 +1579,7 @@ async function handle(req, res) {
     return send(res, 200, { ok: ours });
   }
   if (req.method === 'POST' && p === '/api/play/event') return send(res, 200, { ok: playEvents(await readJson(req)) });
+  if (req.method === 'POST' && p === '/api/play/discard') return send(res, 200, playDiscard());
   if (req.method === 'POST' && p === '/api/play/report') {
     try {
       return send(res, 200, playReport(await readJson(req)));

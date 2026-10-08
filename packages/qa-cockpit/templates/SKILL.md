@@ -330,7 +330,8 @@ npx qa-cockpit play --list   # every report kept
    field, a card's, a code's or a token's: those say «(hidden)». Use the
    cast's own, or ask.
 5. While a run plays somebody, their «Play as» is off: the window would be
-   the run's very session.
+   the run's very session. And what a person did by hand changed the data:
+   a replay after it warns, and wants `reset` and `setup` first.
 
 ## A look at the network (when a person asks)
 
