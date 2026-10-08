@@ -394,14 +394,14 @@ export async function runCli(rawConfig, argv) {
   // other languages too, changed by what the config says, so only with the
   // cockpit following the run. At the end, what did not fit in them, the
   // steps whose language could not be changed, and whether it stopped.
-  function lookInLanguagesToo() {
+  function lookInLanguagesToo(langs) {
     const run = process.env.COCKPIT_RUN;
     if (!process.env.COCKPIT_URL || !run) {
       console.log(`--languages looks at each step's screen as the cockpit photographs it, and no cockpit follows this run: start one first (${CLI} cockpit).`);
       return;
     }
-    const { base, others } = config.languages;
-    process.env.QA_LANGUAGES = others.join(',');
+    const { base } = config.languages;
+    process.env.QA_LANGUAGES = langs.join(',');
     const said = {
       cut: (x) => `a text that does not fit its box («${x.text}»)`,
       wide: () => 'the page wider than the window',
@@ -436,7 +436,7 @@ export async function runCli(rawConfig, argv) {
         if (f.langsSkipped) skipped.push(`  ${where(f)}  ${f.langsSkipped}`);
         if (f.langsStopped) stopped ??= `  Stopped after ${where(f)}: ${f.langsStopped}. The rest of the run played in ${base} only.`;
       }
-      console.log(`\nLanguages (${base}, and ${others.join(', ')}): ${looked} screen${looked === 1 ? '' : 's'} looked at in another language.`);
+      console.log(`\nLanguages (${base}, and ${langs.join(', ')}): ${looked} screen${looked === 1 ? '' : 's'} looked at in another language.`);
       if (found.length) {
         console.log(`  ${found.length} thing${found.length === 1 ? '' : 's'} that do not fit, each where it first showed (the cockpit shows each language's photo):`);
         for (const line of found) console.log(line);
@@ -546,16 +546,28 @@ export async function runCli(rawConfig, argv) {
     // requests kept too, as HARs without their secrets (network/).
     async replay() {
       const suite = rest[0];
-      if (!suite) fail(`Usage: ${CLI} replay <suite> [--network [--bodies]] [--a11y] [--languages] [--in-docker] [playwright args]`);
+      if (!suite) fail(`Usage: ${CLI} replay <suite> [--network [--bodies]] [--a11y] [--languages [es,fr]] [--in-docker] [playwright args]`);
       const file = recordingOf(config, suite);
       if (!file) fail(`No recording for the suite "${suite}" in ${P.recordings}`);
       const network = rest.includes('--network');
       const bodies = rest.includes('--bodies');
       const a11y = rest.includes('--a11y');
-      const languages = rest.includes('--languages');
-      const pwArgs = rest.slice(1).filter((a) => !['--network', '--bodies', '--a11y', '--languages'].includes(a));
-      if (languages && !config.languages) {
-        fail(`--languages: the config says no \`languages\`, nor how a person changes the app's language. The skill says how to write it, and ${CLI} languages check tries it.`);
+      // `--languages`: the config's priority ones; `--languages es,fr` (or
+      // `=es,fr`): those only, the ones new to the app, say.
+      const at = rest.findIndex((a) => a === '--languages' || a.startsWith('--languages='));
+      const languages = at !== -1;
+      const LIST = /^[a-z]{2,3}(-[A-Za-z0-9]+)?(,[a-z]{2,3}(-[A-Za-z0-9]+)?)*$/;
+      const listed = !languages ? null : rest[at].includes('=') ? rest[at].split('=')[1] : LIST.test(rest[at + 1] ?? '') ? rest[at + 1] : null;
+      const dropped = new Set(languages ? [at, ...(listed && !rest[at].includes('=') ? [at + 1] : [])] : []);
+      const pwArgs = rest.slice(1).filter((a, i) => !dropped.has(i + 1) && !['--network', '--bodies', '--a11y'].includes(a));
+      let langs = null;
+      if (languages) {
+        if (!config.languages) {
+          fail(`--languages: the config says no \`languages\`, nor how a person changes the app's language. The skill says how to write it, and ${CLI} languages check tries it.`);
+        }
+        langs = listed ? listed.split(',') : config.languages.priority;
+        const strange = langs.filter((x) => !config.languages.others.includes(x));
+        if (strange.length) fail(`--languages ${listed}: ${strange.join(', ')} is not among the config's (${config.languages.others.join(', ')}).`);
       }
       if (bodies && !network) fail('--bodies goes with --network: it keeps the text of the responses in its HARs.');
       // In a container the requests cross another network, and the HARs
@@ -578,7 +590,7 @@ export async function runCli(rawConfig, argv) {
       noteData(config, { state: 'spent', suite });
       if (network) await lookAtNetwork(suite, bodies);
       if (a11y) lookAtA11y();
-      if (languages) lookInLanguagesToo();
+      if (languages) lookInLanguagesToo(langs);
       await playwright(['test', testFileArg(file), ...pwArgs]);
     },
 
@@ -1140,8 +1152,8 @@ export async function runCli(rawConfig, argv) {
                    --a11y: each step's screen looked at for accessibility, with the cockpit:
                    a button or a link with no name, a field with no label, an image with no
                    text alternative, a control the keyboard cannot reach;
-                   --languages: each step's screen in the app's other languages too, with the
-                   cockpit: what does not fit in them (the config says how to change it)
+                   --languages [es,fr]: each step's screen in the app's other languages too (the
+                   config's priority ones, or those named), with the cockpit: what does not fit
   languages check [person]   that change of language, tried on one screen and back
   network [run]    what a replay --network found, step by step: calls one after another,
                    repeated or per item, slow, heavy or failed (--against previous: what a

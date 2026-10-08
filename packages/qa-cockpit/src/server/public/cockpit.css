@@ -167,6 +167,10 @@ select option { background: var(--panel-2); color: var(--text); }
 /* Accessibility's own switches in the sky blue of its boxes (.finds). */
 #optA11y, #optFinds { accent-color: #38bdf8; }
 #optLangs { accent-color: #e879f9; }
+/* The languages a run looks at, chosen under its option. */
+.opt-sub { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 0 8px 8px 34px; }
+.opt-sub .pick { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); cursor: pointer; }
+.opt-sub .pick input { accent-color: #e879f9; }
 .opt b { display: block; font-weight: 550; font-size: 13px; }
 .opt span { display: block; font-size: 12px; color: var(--muted); }
 

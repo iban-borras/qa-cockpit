@@ -145,7 +145,8 @@ everything says ok:
 
    ```js
    languages: {
-     others: ['ca', 'es'],          // besides the suites' own, which is browser.locale's
+     others: ['ca', 'es', 'fr'],    // besides the suites' own, which is browser.locale's
+     priority: ['es'],               // looked at when a run names none; all of them otherwise
      async switchTo({ page, lang }) {
        await page.getByTestId('lang').selectOption(lang);
      },
@@ -182,7 +183,7 @@ npx qa-cockpit replay <suite>   # fresh sessions if old, then the recording
 npx qa-cockpit replay <suite> -g T1   # one test; extra args go to Playwright
 npx qa-cockpit replay <suite> --network   # each person's requests kept as HARs, without secrets; «A look at the network»
 npx qa-cockpit replay <suite> --a11y      # each step's screen looked at for accessibility, with the cockpit; «Accessibility»
-npx qa-cockpit replay <suite> --languages # each step's screen in the app's other languages too, with the cockpit; «Languages»
+npx qa-cockpit replay <suite> --languages # each step's screen in the app's other languages too (--languages fr,de: those), with the cockpit; «Languages»
 npx qa-cockpit languages check  # the config's change of language, tried on one screen and back
 npx qa-cockpit network [run]    # what they show, step by step (--against previous, --test <id>, --json, --list)
 npx qa-cockpit open <person>    # a browser window signed in as that person
@@ -385,7 +386,10 @@ to find it in the code. The run report has them too, with their boxes.
 ## Languages (when a person asks, or before a release)
 
 `npx qa-cockpit replay <suite> --languages`, with the cockpit following
-the run and `languages` in the config (setting it up, step 4). The suite
+the run and `languages` in the config (setting it up, step 4): the
+config's `priority` languages, or every other one when it names none;
+`--languages fr,de` for those only (the new ones, say, not the ones
+already right). Never on its own: only when asked. The suite
 plays in its own language, as its recording finds things by their words.
 At each step's end, each person it names has their screen changed to
 every other language by the config's `switchTo`, photographed, and

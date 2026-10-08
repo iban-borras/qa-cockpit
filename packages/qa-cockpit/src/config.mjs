@@ -193,9 +193,11 @@ export function resolveConfig(raw, file) {
 }
 
 /**
- * `languages`: { base?, others, switchTo({ page, lang, person }) }. The
- * suites' own language is the browser's unless said; the others are the
- * ones each step's screen is looked at in.
+ * `languages`: { base?, others, priority?, switchTo({ page, lang, person }) }.
+ * The suites' own language is the browser's unless said; the others are the
+ * app's other languages; `priority`, the ones looked at when a run names
+ * none (every other one, unless said): an app of many languages, its new
+ * ones.
  */
 function languagesOf(l, locale) {
   if (l === undefined || l === null) return null;
@@ -206,7 +208,11 @@ function languagesOf(l, locale) {
   if (typeof l.switchTo !== 'function') {
     throw new Error('`languages.switchTo({ page, lang })`: how a person changes the app to a language, with the actions they take on its own control.');
   }
-  return { base, others, switchTo: l.switchTo };
+  const priority = l.priority === undefined ? others : (Array.isArray(l.priority) ? l.priority : [l.priority]).map(String);
+  const strange = priority.filter((x) => !others.includes(x));
+  if (strange.length) throw new Error(`\`languages.priority\`: ${strange.join(', ')} not among \`languages.others\` (${others.join(', ')}).`);
+  if (!priority.length) throw new Error('`languages.priority`: one of `others` at least, or left out for all of them.');
+  return { base, others, priority, switchTo: l.switchTo };
 }
 
 function dirOf(base) {

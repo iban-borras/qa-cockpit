@@ -194,7 +194,7 @@ async function act(action, extra = {}) {
         headed: $('optHeaded').checked,
         docker: $('optDocker').checked,
         a11y: $('optA11y').checked,
-        languages: $('optLangs').checked && Boolean(S.state?.languages),
+        languages: $('optLangs').checked && S.state?.languages ? chosenLangs() : false,
         ...extra,
       }),
     });
@@ -710,7 +710,7 @@ function renderHeader() {
   if (!st) return;
   // The app's other languages, a run's option when its config says how to change them.
   $('optLangsRow').hidden = !st.languages;
-  if (st.languages) $('optLangsHint').textContent = t('opts.languages_hint', { list: st.languages.others.map(langName).join(', ') });
+  renderLangPicks();
   void waveFavicon(Boolean(st.task));
   waveLogo(Boolean(st.task));
   const chip = $('stackChip');
@@ -1786,6 +1786,32 @@ const langName = (code) => {
     return code;
   }
 };
+
+// THE LANGUAGES A RUN LOOKS AT (`--languages`): chosen under the run's option,
+// kept in this browser; the config's priority ones until somebody chooses.
+function chosenLangs() {
+  const l = S.state?.languages;
+  if (!l) return [];
+  const kept = localStorageGet('optLangsList');
+  return kept === null ? l.priority : kept.split(',').filter((x) => l.others.includes(x));
+}
+
+function renderLangPicks() {
+  const l = S.state?.languages;
+  const box = $('optLangsList');
+  if (!l) return (box.hidden = true);
+  const chosen = chosenLangs();
+  $('optLangsHint').textContent = t('opts.languages_hint', { list: chosen.map(langName).join(', ') || '—' });
+  // A choice only when there is one to make.
+  box.hidden = !$('optLangs').checked || l.others.length < 2;
+  const html = l.others
+    .map((code) => `<label class="pick"><input type="checkbox" value="${esc(code)}"${chosen.includes(code) ? ' checked' : ''}> ${esc(langName(code))}</label>`)
+    .join('');
+  if (box.dataset.html !== html) {
+    box.dataset.html = html;
+    box.innerHTML = html;
+  }
+}
 
 /** The tabs over a step's photo: the suite's own language, then each other one it was looked at in. */
 function renderLangTabs(f) {
@@ -2946,6 +2972,11 @@ for (const id of ['optHeaded', 'optDocker', 'optA11y', 'optLangs']) {
   $(id).checked = localStorageGet(id) === '1';
   $(id).onchange = () => localStorageSet(id, $(id).checked ? '1' : '0');
 }
+$('optLangs').addEventListener('change', renderLangPicks);
+$('optLangsList').addEventListener('change', () => {
+  localStorageSet('optLangsList', [...$('optLangsList').querySelectorAll('input:checked')].map((i) => i.value).join(','));
+  renderLangPicks();
+});
 $('optFinds').checked = localStorageGet('optFinds') !== '0';
 $('optFinds').onchange = () => {
   localStorageSet('optFinds', $('optFinds').checked ? '1' : '0');

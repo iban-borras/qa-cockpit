@@ -881,7 +881,7 @@ function state() {
     cli: CFG.cli,
     language: CFG.cockpit.language,
     // The app's languages, when its config says how to change them (`--languages`).
-    languages: CFG.languages ? { base: CFG.languages.base, others: CFG.languages.others } : null,
+    languages: CFG.languages ? { base: CFG.languages.base, others: CFG.languages.others, priority: CFG.languages.priority } : null,
     // Paths as people and agents read them (relative to the repo), for the
     // report and the messages the page copies.
     paths: {
@@ -920,13 +920,15 @@ async function onAction(body) {
     return s;
   };
   const inDocker = docker ? ['--in-docker'] : [];
+  // The languages chosen on the page, each one of the config's; `true`, its priority ones.
+  const chosenLangs = !CFG.languages || !languages ? [] : (Array.isArray(languages) ? languages.map(String) : CFG.languages.priority).filter((x) => CFG.languages.others.includes(x));
   const replayArgs = (name) => [
     'replay',
     name,
     ...inDocker,
     ...(headed && !docker ? ['--headed'] : []),
     ...(a11y ? ['--a11y'] : []),
-    ...(languages && CFG.languages ? ['--languages'] : []),
+    ...(chosenLangs.length ? ['--languages', chosenLangs.join(',')] : []),
   ];
   if (action === 'stop') {
     if (!task) return { ok: true, stopped: false };

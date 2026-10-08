@@ -31,7 +31,11 @@
   each language's photo in the run report. A step whose control is out
   of reach is skipped, and said; a screen that does not come back word for
   word stops the look for the rest of the run, which goes on in its own
-  language. The example app speaks English, Catalan and Spanish now.
+  language. Only when asked, and in the languages asked for: the
+  config's `priority` ones (every other one unless it names them), or
+  `--languages fr,de`; in the cockpit, the run's option, with the
+  languages to choose under it, kept in the browser. The example app
+  speaks English, Catalan and Spanish now.
 
 ## 0.7.4 (2026-10-07)
 
