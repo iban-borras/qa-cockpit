@@ -15,6 +15,23 @@
   option of the run. It needs the cockpit, and its time goes with the
   cockpit's own, said apart from the step's. Not a full audit: no
   contrast, no focus order.
+- `replay --languages`: each step's screen in the app's other languages
+  too, while the suite plays in its own (its recording finds things by
+  their words). The project's agent writes in the config how a person
+  changes the language, with the app's own control (`languages.switchTo`,
+  as a recording would), and tries it with `languages check`: each
+  language and back on one screen, whether the words change, whether the
+  page loads again, whether it comes back the same, with photos. In a run
+  the change is not the step's (no marks, no photos of its actions,
+  nothing in the trace); against the suite's own language it finds the
+  texts that no longer fit their box, the page grown wider than the
+  window, and the translation keys left on the screen. In the cockpit, a
+  tab per language over each step's photo (the `I` key goes through
+  them), with those in fuchsia; at the end, a list in the terminal, and
+  each language's photo in the run report. A step whose control is out
+  of reach is skipped, and said; a screen that does not come back word for
+  word stops the look for the rest of the run, which goes on in its own
+  language. The example app speaks English, Catalan and Spanish now.
 
 ## 0.7.4 (2026-10-07)
 

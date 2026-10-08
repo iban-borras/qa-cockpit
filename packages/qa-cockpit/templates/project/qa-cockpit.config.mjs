@@ -78,6 +78,16 @@ export default defineConfig({
 
   browser: { locale: 'en-GB' },
 
+  // If the app speaks other languages: which, and how a person changes it,
+  // with its own control (`replay --languages`; `languages check` tries it).
+  // The suites play in browser.locale's.
+  // languages: {
+  //   others: ['ca', 'es'],
+  //   async switchTo({ page, lang }) {
+  //     await page.getByTestId('lang').selectOption(lang);
+  //   },
+  // },
+
   // Demo videos of the suites (`qa-cockpit video`), if you ever make them:
   // the product's name on the cards, each person's role on their label, a
   // logo for a dark background, the colours, the words of the subtitles.

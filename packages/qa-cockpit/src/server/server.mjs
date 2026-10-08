@@ -529,11 +529,12 @@ function finishTask(status, code = 0) {
 }
 
 /** The photos of a run that no frame took (its worker cut short, or newer
- *  than this cockpit): nobody can see them, and they took room. */
+ *  than this cockpit): nobody can see them, and they took room. A step's
+ *  photos in its other languages (`--languages`) are its frame's too. */
 function forgetUnseenPhotos(r) {
   try {
     const dir = path.join(r.dir, 'frames');
-    const seen = new Set(r.frames.map((f) => path.basename(f.file)));
+    const seen = new Set(r.frames.flatMap((f) => [f.file, ...(f.langs ?? []).map((l) => l.file)]).map((file) => path.basename(file)));
     for (const name of fs.readdirSync(dir)) if (!seen.has(name)) fs.rmSync(path.join(dir, name), { force: true });
   } catch {
     // Kept, then: the run is no worse for it.
@@ -630,20 +631,34 @@ const marksOf = (list, inWindow = false) =>
     ...(Number.isInteger(m.n) && m.n > 0 ? { n: m.n } : {}),
   }));
 
-// What a look at a step's screen found (`replay --a11y`, a11y.mjs): a rule
-// and the element, and its box at the page's pixels when it is drawn.
-const A11Y_RULES = new Set(['name', 'label', 'alt', 'keyboard']);
+// What a look at a step's screen found, each with its box at the page's
+// pixels when it is drawn: accessibility (`replay --a11y`, a11y.mjs), a
+// rule and the element; a language (`--languages`, languages.mjs), a rule
+// and the words that do not fit.
+const RULES = { a11y: new Set(['name', 'label', 'alt', 'keyboard']), lang: new Set(['cut', 'wide', 'key']) };
+const boxOf = (b) =>
+  b && [b.x, b.y, b.w, b.h].every((v) => Number.isFinite(Number(v)))
+    ? { x: Math.max(0, Math.round(b.x)), y: Math.max(0, Math.round(b.y)), w: Math.max(0, Math.round(b.w)), h: Math.max(0, Math.round(b.h)) }
+    : null;
 const findingsOf = (list) =>
   (Array.isArray(list) ? list : [])
-    .filter((x) => x?.kind === 'a11y' && A11Y_RULES.has(x.rule))
+    .filter((x) => RULES[x?.kind]?.has(x.rule))
     .slice(0, 50)
-    .map((x) => {
-      const b = x.box;
-      const box = b && [b.x, b.y, b.w, b.h].every((v) => Number.isFinite(Number(v)))
-        ? { x: Math.max(0, Math.round(b.x)), y: Math.max(0, Math.round(b.y)), w: Math.max(0, Math.round(b.w)), h: Math.max(0, Math.round(b.h)) }
-        : null;
-      return { kind: 'a11y', rule: x.rule, role: String(x.role ?? '').slice(0, 30), name: x.name ? String(x.name).slice(0, 80) : null, what: String(x.what ?? '').slice(0, 120), box };
-    });
+    .map((x) =>
+      x.kind === 'a11y'
+        ? { kind: 'a11y', rule: x.rule, role: String(x.role ?? '').slice(0, 30), name: x.name ? String(x.name).slice(0, 80) : null, what: String(x.what ?? '').slice(0, 120), box: boxOf(x.box) }
+        : { kind: 'lang', rule: x.rule, lang: String(x.lang ?? '').slice(0, 12), text: String(x.text ?? '').slice(0, 80), box: boxOf(x.box) },
+    );
+
+// A step's screen in the app's other languages: each its photo, where it
+// was scrolled to, whether its words changed, and what does not fit.
+const langsOf = (list) =>
+  (Array.isArray(list) ? list : []).slice(0, 12).flatMap((s) => {
+    const file = frameFile(s.file);
+    if (!file) return [];
+    const scroll = s.scroll && Number.isFinite(s.scroll.y) ? { x: Number(s.scroll.x) || 0, y: Number(s.scroll.y) || 0 } : { x: 0, y: 0 };
+    return [{ lang: String(s.lang ?? '').slice(0, 12), file, scroll, changed: s.changed !== false, findings: findingsOf(s.findings) }];
+  });
 
 /**
  * A step's photo, and before it the photos of its actions (worker.mjs,
@@ -722,6 +737,11 @@ function onFrame(f) {
       at: Number.isFinite(Number(r.at)) ? Number(r.at) : null,
     })),
     findings: findingsOf(f.findings),
+    langs: langsOf(f.langs),
+    // A step whose language could not be changed (its control out of reach),
+    // and the one after which the look stopped (its screen did not come back).
+    langsSkipped: f.langsSkipped ? String(f.langsSkipped).slice(0, 200) : null,
+    langsStopped: f.langsStopped ? String(f.langsStopped).slice(0, 200) : null,
     began,
     ms: Number.isFinite(Number(f.ms)) && f.ms !== null ? Math.max(0, Math.round(Number(f.ms))) : null,
     // The cockpit's own photos in the step, and the step's: apart from `ms`.
@@ -732,6 +752,12 @@ function onFrame(f) {
     run.frames.push(frame);
     fs.appendFileSync(path.join(run.dir, 'frames.jsonl'), JSON.stringify(frame) + '\n');
     broadcast('frame', frame);
+  }
+  // The look in other languages stopped for the rest of the run: said once,
+  // in its log, with why.
+  if (f.langsStopped && !run.langsStopped) {
+    run.langsStopped = String(f.langsStopped).slice(0, 200);
+    log(`[cockpit] languages: stopped after ${step.test} › ${step.step} (${step.actor}): ${run.langsStopped}. The rest of the run plays in its own language only.`, 'error');
   }
   return true;
 }
@@ -854,6 +880,8 @@ function state() {
     projectDir: CFG.paths.project,
     cli: CFG.cli,
     language: CFG.cockpit.language,
+    // The app's languages, when its config says how to change them (`--languages`).
+    languages: CFG.languages ? { base: CFG.languages.base, others: CFG.languages.others } : null,
     // Paths as people and agents read them (relative to the repo), for the
     // report and the messages the page copies.
     paths: {
@@ -884,7 +912,7 @@ function state() {
 }
 
 async function onAction(body) {
-  const { action, suite, headed, docker, a11y, actor } = body;
+  const { action, suite, headed, docker, a11y, languages, actor } = body;
   const known = listSuites(CFG);
   const pick = () => {
     const s = known.find((x) => x.name === suite);
@@ -892,7 +920,14 @@ async function onAction(body) {
     return s;
   };
   const inDocker = docker ? ['--in-docker'] : [];
-  const replayArgs = (name) => ['replay', name, ...inDocker, ...(headed && !docker ? ['--headed'] : []), ...(a11y ? ['--a11y'] : [])];
+  const replayArgs = (name) => [
+    'replay',
+    name,
+    ...inDocker,
+    ...(headed && !docker ? ['--headed'] : []),
+    ...(a11y ? ['--a11y'] : []),
+    ...(languages && CFG.languages ? ['--languages'] : []),
+  ];
   if (action === 'stop') {
     if (!task) return { ok: true, stopped: false };
     if (task.external) throw new Refusal('external_task', { who: task.external.who });

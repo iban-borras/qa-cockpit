@@ -123,6 +123,7 @@ The config is the whole contract between your app and the cockpit:
 | `commands` | commands of your own, next to the built-in ones |
 | `report` | notes the run report should carry |
 | `video` | how demo videos look: the product's name, each person's role, a logo, the colours, the address on the cover, the subtitles' words, the music, the loudness, the ending; what a video's run keeps in memory and the pages it opens first to fill it; where ffmpeg is |
+| `languages` | the app's other languages (`others`), and how a person changes it to one (`switchTo({ page, lang })`, with the actions they take on its own control): for `replay --languages` |
 | `network` | how many looks at the network of a suite stay (`keep`), to measure a change against; the names that look like a secret's and are none in this app (`notSecret`: a game's `session_id`) |
 
 What differs from one machine to the next (a port your own dev server
@@ -214,6 +215,19 @@ box on the photo of the step where it first showed, and the run ends with
 their list in the terminal, for an agent to read. In the cockpit it is one of
 the run's options. Four rules that are sure, not a full audit.
 
+## Languages
+
+If the app speaks several languages, the agent writes in the config how a
+person changes it, with the app's own control, as it writes a recording,
+and tries it with `languages check`. Replay a suite with `--languages` and,
+at each step's end, each screen is changed to every other language,
+photographed, and changed back: the suite keeps playing in its own. The
+cockpit shows each step in every language, a tab each, with the texts that
+no longer fit their box, the page grown wider than the window and the
+translation keys left on the screen; the terminal lists them when the run
+ends. It works with any app, whatever its way of changing language, and
+changes nothing in it.
+
 ## Commands
 
 ```
@@ -226,6 +240,8 @@ decide <suite>                    REPLAY | GENERATE <why> | ENV <why>
 replay <suite> [playwright args]  the recording (sessions renewed when old)
 replay <suite> --network          ... and each person's requests, as HARs without secrets (--bodies)
 replay <suite> --a11y             ... and each step's screen looked at for accessibility (with the cockpit)
+replay <suite> --languages        ... and each step's screen in the app's other languages: what does not fit
+languages check                   that change of language, tried on one screen and back
 network [run]                     what they show, step by step (--against previous: what a change changed)
 stamp <suite> | hash <suite>      the suite's hash in the recording's first line
 pass <suite> <who> <result> ...   a row in the suite's runs table

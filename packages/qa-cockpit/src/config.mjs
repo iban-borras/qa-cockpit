@@ -175,6 +175,10 @@ export function resolveConfig(raw, file) {
       ffmpeg: raw.video?.ffmpeg ?? 'ffmpeg',
       keep: raw.video?.keep ?? 5,
     },
+    // The app's other languages, and how a person changes it to one of them
+    // (`replay --languages`, languages.mjs): what the project's agent wrote,
+    // with the actions a person takes on the app's own control.
+    languages: languagesOf(raw.languages, raw.browser?.locale ?? 'en-GB'),
     // A look at the network (`replay --network`, network/): how many of a
     // suite's stay, to compare a change with the run before it.
     network: {
@@ -186,6 +190,23 @@ export function resolveConfig(raw, file) {
   });
   resolved.set(raw, config);
   return config;
+}
+
+/**
+ * `languages`: { base?, others, switchTo({ page, lang, person }) }. The
+ * suites' own language is the browser's unless said; the others are the
+ * ones each step's screen is looked at in.
+ */
+function languagesOf(l, locale) {
+  if (l === undefined || l === null) return null;
+  if (typeof l !== 'object' || Array.isArray(l)) throw new Error('`languages` is { others: ["ca", "es"], switchTo({ page, lang }) }.');
+  const base = String(l.base ?? String(locale).split('-')[0]);
+  const others = (Array.isArray(l.others) ? l.others : []).map(String).filter((x) => x && x !== base);
+  if (!others.length) throw new Error('`languages.others`: the app\'s languages besides the suites\' own, the ones to look at (["ca", "es"]).');
+  if (typeof l.switchTo !== 'function') {
+    throw new Error('`languages.switchTo({ page, lang })`: how a person changes the app to a language, with the actions they take on its own control.');
+  }
+  return { base, others, switchTo: l.switchTo };
 }
 
 function dirOf(base) {

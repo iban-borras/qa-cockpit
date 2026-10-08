@@ -188,7 +188,15 @@ async function act(action, extra = {}) {
     const res = await api('/api/action', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, suite: S.suite, headed: $('optHeaded').checked, docker: $('optDocker').checked, a11y: $('optA11y').checked, ...extra }),
+      body: JSON.stringify({
+        action,
+        suite: S.suite,
+        headed: $('optHeaded').checked,
+        docker: $('optDocker').checked,
+        a11y: $('optA11y').checked,
+        languages: $('optLangs').checked && Boolean(S.state?.languages),
+        ...extra,
+      }),
     });
     if (res.ok === false) banner(res.error, 'err');
     else if (res.warning) banner(desktopText(res.warning), 'warn');
@@ -700,6 +708,9 @@ lessMotion.addEventListener('change', () => {
 function renderHeader() {
   const st = S.state;
   if (!st) return;
+  // The app's other languages, a run's option when its config says how to change them.
+  $('optLangsRow').hidden = !st.languages;
+  if (st.languages) $('optLangsHint').textContent = t('opts.languages_hint', { list: st.languages.others.map(langName).join(', ') });
   void waveFavicon(Boolean(st.task));
   waveLogo(Boolean(st.task));
   const chip = $('stackChip');
@@ -1350,7 +1361,7 @@ function renderInspector(first = false) {
   // A post-it belongs to its photo: another photo on screen closes it.
   if (S.note && (ins.live || openNote()?.seq !== f?.seq)) closePostit();
   if (ins.placing && (ins.live || !f)) stopPlacing();
-  $('insTack').disabled = ins.live || !f;
+  $('insTack').disabled = ins.live || !f || Boolean(langOf(f));
   const pinsOf = (x) => notesOn(x.seq).filter(kept).length;
 
   // Header chip
@@ -1390,7 +1401,7 @@ function renderInspector(first = false) {
     const sel = x === shown ? ' sel' : x.seq === open ? ' open' : '';
     const dur = Number.isFinite(x.ms) ? `<span class="dur${x.ms >= SLOW_STEP_MS ? ' slow' : ''}">${esc(fmtDur(x.ms))}</span>` : '';
     const pins = pinsOf(x) + (x.seq === open ? 0 : (actionPins.get(x.seq) ?? 0));
-    html += `<button class="step${sel}" data-i="${i}"><span class="st ${st}">${icon(ic, 'sm')}</span><span class="sx">${esc(x.step)}</span>${findBadge(findingsOf(x).length)}${pinBadge(pins)}${dur}</button>`;
+    html += `<button class="step${sel}" data-i="${i}"><span class="st ${st}">${icon(ic, 'sm')}</span><span class="sx">${esc(x.step)}</span>${findBadges(x)}${pinBadge(pins)}${dur}</button>`;
     if (x.seq !== open) return;
     list.forEach((a, j) => {
       if (a.of !== x.seq) return;
@@ -1407,7 +1418,8 @@ function renderInspector(first = false) {
   const sheet = $('insSheet');
   const empty = $('insEmpty');
   if (f) {
-    const src = frameUrl(f);
+    // The step's own photo, or the same screen in the language chosen.
+    const src = langOf(f) ? `/out/${langOf(f).file}` : frameUrl(f);
     if (img.getAttribute('src') !== src) {
       img.onload = () => placeOnSheet(f);
       img.src = src;
@@ -1451,7 +1463,15 @@ function renderInspector(first = false) {
     const reqs = f.requests?.length
       ? t('ins.requests', { n: f.requests.length, req: slowest ? `${slowest.method} ${slowest.path.split('?')[0]} ${slowest.ms} ms` : '' })
       : null;
-    $('insWhere').textContent = [pathOf(f.url), hhmmss(f.time), took, into, reqs, f.location].filter(Boolean).join(' · ');
+    // Which language the photo is in, when not the suite's own; or why this
+    // step has none of its other languages.
+    const lang = langOf(f);
+    const langNote = lang
+      ? `${t('ins.lang_shown', { lang: langName(lang.lang) })}${lang.changed ? '' : ` (${t('ins.lang_same')})`}`
+      : f.langsSkipped
+        ? t('ins.lang_skipped', { why: f.langsSkipped })
+        : null;
+    $('insWhere').textContent = [langNote, pathOf(f.url), hhmmss(f.time), took, into, reqs, f.location].filter(Boolean).join(' · ');
   } else {
     $('insCap').textContent = '';
     $('insWhere').textContent = '';
@@ -1459,7 +1479,8 @@ function renderInspector(first = false) {
   $('insMarksList').innerHTML = !ins.live && f ? marksList(f) : '';
   $('insFindsList').innerHTML = !ins.live && f ? findsList(f) : '';
   // Its switch only in a run that found something.
-  $('findsToggle').hidden = !list.some((x) => findingsOf(x).length);
+  $('findsToggle').hidden = !list.some((x) => allFindings(x).some((y) => y.kind === 'a11y'));
+  renderLangTabs(f);
 
   // Filmstrip: a step's actions, smaller, close before its own photo.
   let group = null;
@@ -1471,7 +1492,8 @@ function renderInspector(first = false) {
       group = g;
       const title = act ? `${x.test} › ${x.step} · ${t('ins.before', { n: actionNo(x) })}` : `${x.test} › ${x.step}`;
       const label = act ? `<i class="d ${x.marks?.[0]?.kind === 'type' ? 'type' : ''}"></i>${esc(actionNo(x))}` : esc(frameLabel(x) || '·');
-      const found = findingsOf(x).length ? '<i class="fdot"></i>' : '';
+      const kinds = new Set(allFindings(x).map((y) => y.kind));
+      const found = `${kinds.has('a11y') ? '<i class="fdot"></i>' : ''}${kinds.has('lang') ? '<i class="fdot lang"></i>' : ''}`;
       return `<button class="${cls}" data-i="${i}" title="${esc(title)}"><img src="${esc(frameUrl(x))}" alt="" loading="lazy"><span>${label}</span>${found}${pinBadge(pinsOf(x))}</button>`;
     })
     .join('');
@@ -1523,7 +1545,14 @@ function runReport(notesMd = '') {
     photosByStep.set(key, Math.max(photosByStep.get(key) ?? 0, f.photosMs));
   }
   const photosAll = [...photosByStep.values()].reduce((a, b) => a + b, 0);
-  const finds = S.frames.reduce((n, f) => n + findingsOf(f).length, 0);
+  const finds = S.frames.reduce((n, f) => n + (f.findings ?? []).filter((x) => x.kind === 'a11y').length, 0);
+  const inLangs = S.frames.reduce((n, f) => n + (f.langs?.length ?? 0), 0);
+  const unfits = S.frames.reduce((n, f) => n + allFindings(f).filter((x) => x.kind === 'lang').length, 0);
+  const saidLang = {
+    cut: (x) => `a text that does not fit its box («${x.text}»)`,
+    wide: () => 'the page wider than the window',
+    key: (x) => `a translation key left on the screen («${x.text}»)`,
+  };
   // A finding in the report's words (a11y.mjs), as the CLI says it too.
   const said = {
     name: (x) => `${x.role} with no name`,
@@ -1545,6 +1574,9 @@ function runReport(notesMd = '') {
       })
       .join('; ')}`,
     ...(finds ? [`- Accessibility (--a11y): ${finds} problem${finds === 1 ? '' : 's'}, each under the step where it first showed`] : []),
+    ...(inLangs
+      ? [`- Languages (--languages): ${inLangs} screens in another language; ${unfits ? `${unfits} thing${unfits === 1 ? '' : 's'} that do not fit, each under the step where it first showed` : 'everything fits'}`]
+      : []),
     '',
     'How to read it: one section per test, in the order they ran. A step\'s time runs from its start to its',
     'photo and includes the recording\'s own waits, not the cockpit\'s photos (their time is said apart); the',
@@ -1555,7 +1587,9 @@ function runReport(notesMd = '') {
     'passed; each action (a click, a field typed in, a key pressed) has a photo of its own, the window',
     'just before it, with its mark on what it was done to. With --a11y, a step lists its screen\'s',
     'accessibility problems (Chromium\'s accessibility tree), each told once a run where it first showed,',
-    'with its box on the step\'s photo, at the page\'s pixels.',
+    'with its box on the step\'s photo, at the page\'s pixels. With --languages, a step lists the same',
+    'screen in each other language of the app (a photo each), and what does not fit there that fit in the',
+    'suite\'s own.',
     ...(S.state.reportNotes?.length ? ['', ...S.state.reportNotes.map((n) => `Note: ${n}`)] : []),
     '',
     ...(notesMd ? [notesMd, ''] : []),
@@ -1637,11 +1671,19 @@ function runReport(notesMd = '') {
           const shown = reqs.slice(0, 10).map((q) => `${q.kind === 'page' ? 'page load ' : ''}${q.method} ${q.path} ${q.status || 'failed'} in ${Number.isFinite(q.ms) ? `${q.ms} ms` : 'n/a'}${off(q.at)}`);
           lines.push(`  - Requests (${reqs.length}, slowest first): ${shown.join('; ')}${reqs.length > 10 ? '; …' : ''}`);
         }
-        const found = findingsOf(f);
-        if (found.length) {
-          const where = (x) => (x.box ? ` at ${x.box.x},${x.box.y} (${x.box.w}×${x.box.h})` : '');
-          lines.push(`  - Accessibility: ${found.map((x, i) => `${i + 1}. ${(said[x.rule] ?? (() => x.rule))(x)} \`${x.what}\`${where(x)}`).join('; ')}`);
+        const where = (x) => (x.box ? ` at ${x.box.x},${x.box.y} (${x.box.w}×${x.box.h})` : '');
+        const access = (f.findings ?? []).filter((x) => x.kind === 'a11y');
+        if (access.length) {
+          lines.push(`  - Accessibility: ${access.map((x, i) => `${i + 1}. ${(said[x.rule] ?? (() => x.rule))(x)} \`${x.what}\`${where(x)}`).join('; ')}`);
         }
+        // The same screen in the app's other languages, and what does not fit there.
+        const unfit = (list) => list.map((x, i) => `${i + 1}. ${saidLang[x.rule]?.(x) ?? x.rule}${where(x)}`).join('; ');
+        const ownKeys = (f.findings ?? []).filter((x) => x.kind === 'lang');
+        if (ownKeys.length) lines.push(`  - In ${S.state.languages?.base ?? 'its own language'}: ${unfit(ownKeys)}`);
+        for (const l of f.langs ?? []) {
+          lines.push(`  - In ${l.lang}: \`${OUT}/${l.file}\`${l.changed ? '' : ' (no word changed)'}${l.findings?.length ? `; ${unfit(l.findings)}` : '; everything fits'}`);
+        }
+        if (f.langsSkipped) lines.push(`  - No other language at this step: ${f.langsSkipped}`);
       }
       if (head.error) lines.push('- Error:', '', '```text', head.error, '```');
       lines.push('');
@@ -1733,20 +1775,79 @@ function marksOf(f) {
  *  of the step in order, each with its photo a click away; those this
  *  photo shows, drawn and numbered on it; a click that took the person
  *  elsewhere, with where it happened. */
-// WHAT A LOOK AT A STEP'S SCREEN FOUND (`replay --a11y`, a11y.mjs): each a
-// box on the step's photo, numbered as in the list under it, each told once
-// a run where it first showed.
-const findingsOf = (f) => (f && !isAction(f) ? (f.findings ?? []) : []);
+// A STEP'S SCREEN IN THE APP'S OTHER LANGUAGES (`replay --languages`,
+// languages.mjs): a tab each over the photo. The language chosen stays while
+// the photos go by, on the steps that have it.
+const langOf = (f) => (S.ins?.lang && f && !isAction(f) ? (f.langs ?? []).find((l) => l.lang === S.ins.lang) ?? null : null);
+const langName = (code) => {
+  try {
+    return new Intl.DisplayNames([locale()], { type: 'language' }).of(code) ?? code;
+  } catch {
+    return code;
+  }
+};
+
+/** The tabs over a step's photo: the suite's own language, then each other one it was looked at in. */
+function renderLangTabs(f) {
+  const tabs = $('insLangs');
+  const langs = S.ins && !S.ins.live && f && !isAction(f) ? (f.langs ?? []) : [];
+  tabs.hidden = !langs.length;
+  if (!langs.length) return;
+  const base = S.state.languages?.base ?? '';
+  const shown = langOf(f)?.lang ?? base;
+  const tab = (code, n, title) =>
+    `<button class="lt${code === shown ? ' sel' : ''}" data-code="${esc(code)}" title="${esc(title)}" aria-pressed="${code === shown}">${esc(code.toUpperCase())}${n ? `<i>${n}</i>` : ''}</button>`;
+  // Drawn again, its buttons are new ones: the focus, when it was on one,
+  // goes to the tab now chosen, and the inspector's keys keep working.
+  const focused = tabs.contains(document.activeElement);
+  tabs.innerHTML =
+    tab(base, (f.findings ?? []).filter((x) => x.kind === 'lang').length, `${langName(base)} · ${t('ins.lang_base')}`) +
+    langs.map((l) => tab(l.lang, l.findings?.length ?? 0, langName(l.lang))).join('');
+  if (focused) tabs.querySelector('.lt.sel')?.focus();
+}
+
+/** The next language of the step on screen, or back to the suite's own («I»). */
+function cycleLang() {
+  const f = insFrame();
+  const codes = (f?.langs ?? []).map((l) => l.lang);
+  if (!S.ins || S.ins.live || !codes.length) return;
+  const at = codes.indexOf(langOf(f)?.lang ?? '');
+  S.ins.lang = at + 1 < codes.length ? codes[at + 1] : null;
+  renderInspector();
+}
+
+// WHAT A LOOK AT A STEP'S SCREEN FOUND: accessibility (`replay --a11y`,
+// a11y.mjs) and the texts that do not fit a language (`--languages`). Each a
+// box on the photo, numbered as in the list under it, each told once a run
+// where it first showed. Another language's photo has its own.
+const findingsOf = (f) => (f && !isAction(f) ? (langOf(f)?.findings ?? f.findings ?? []) : []);
+// Every finding of a step, its other languages' too: for its badges.
+const allFindings = (f) => (f && !isAction(f) ? [...(f.findings ?? []), ...(f.langs ?? []).flatMap((l) => l.findings ?? [])] : []);
 // The role in the page's language («botó»), or as ARIA names it when it has no word of its own.
 const roleWord = (role) => (t(`role.${role}`) === `role.${role}` ? role : t(`role.${role}`));
-const findText = (x) => `${cap(t(`find.a11y.${x.rule}`, { role: roleWord(x.role) }))}${x.name ? ` «${x.name}»` : ''}`;
-const findBadge = (n) => (n ? `<i class="fc" title="${esc(t('find.count', { n }))}">${icon('a11y', 'sm')}${n}</i>` : '');
+const findText = (x) =>
+  x.kind === 'lang'
+    ? `${t(`find.lang.${x.rule}`)}${x.text ? ` «${x.text}»` : ''}`
+    : `${cap(t(`find.a11y.${x.rule}`, { role: roleWord(x.role) }))}${x.name ? ` «${x.name}»` : ''}`;
+// A step's badges: its accessibility problems, and what does not fit its languages.
+function findBadges(f) {
+  const all = allFindings(f);
+  const a = all.filter((x) => x.kind === 'a11y').length;
+  const l = all.filter((x) => x.kind === 'lang').length;
+  return (
+    (a ? `<i class="fc" title="${esc(t('find.count', { n: a }))}">${icon('a11y', 'sm')}${a}</i>` : '') +
+    (l ? `<i class="fc lang" title="${esc(t('find.lang_count', { n: l }))}">${icon('languages', 'sm')}${l}</i>` : '')
+  );
+}
 
 function findsList(f) {
   const list = findingsOf(f);
   if (!list.length) return '';
-  const items = list.map((x, i) => `<span class="fd" data-f="${i}"><span class="n">${i + 1}</span>${esc(findText(x))} <code>${esc(x.what)}</code></span>`);
-  return `${icon('a11y', 'sm')} ${items.join(' · ')}`;
+  const items = list.map(
+    (x, i) => `<span class="fd ${x.kind}" data-f="${i}"><span class="n">${i + 1}</span>${esc(findText(x))}${x.what ? ` <code>${esc(x.what)}</code>` : ''}</span>`,
+  );
+  const a11y = list.some((x) => x.kind === 'a11y');
+  return `<span class="fk ${a11y ? 'a11y' : 'lang'}">${icon(a11y ? 'a11y' : 'languages', 'sm')}</span> ${items.join(' · ')}`;
 }
 
 function marksList(f) {
@@ -1789,11 +1890,14 @@ function placeOnSheet(f) {
   $('insSheet').style.maxWidth = `${W}px`;
   const seen = $('insSeen');
   const vh = f.viewport?.height ?? H;
-  const sy = f.scroll?.y ?? 0;
+  // Another language's photo: where it was scrolled to, and no clicks (the
+  // step's, drawn on its own photo).
+  const lang = langOf(f);
+  const sy = (lang ?? f).scroll?.y ?? 0;
   seen.hidden = H <= vh + 2;
   seen.style.top = `${(100 * sy) / H}%`;
   seen.style.height = `${(100 * Math.min(vh, H - sy)) / H}%`;
-  const { drawn } = marksOf(f);
+  const { drawn } = lang ? { drawn: [] } : marksOf(f);
   const layer = $('insMarks');
   layer.classList.toggle('off', !$('optMarks').checked);
   layer.innerHTML = drawn
@@ -1810,7 +1914,7 @@ function placeOnSheet(f) {
       if (!x.box) return '';
       const { x: bx, y: by, w, h } = x.box;
       const style = `left:${(100 * bx) / W}%;top:${(100 * by) / H}%;width:${(100 * Math.max(w, 8)) / W}%;height:${(100 * Math.max(h, 8)) / H}%`;
-      return `<span class="find" data-f="${i}" style="${style}" title="${esc(findText(x))}"><b>${i + 1}</b></span>`;
+      return `<span class="find ${x.kind}" data-f="${i}" style="${style}" title="${esc(findText(x))}"><b>${i + 1}</b></span>`;
     })
     .join('');
   if (S.ins.placed !== f.seq) {
@@ -1934,6 +2038,8 @@ dlg.addEventListener('keydown', (e) => {
     C: toggleMarks,
     n: startPlacing,
     N: startPlacing,
+    i: cycleLang,
+    I: cycleLang,
   };
   const fn = keys[e.key];
   if (fn) {
@@ -2060,7 +2166,8 @@ function addNote(p) {
 }
 
 function startPlacing() {
-  if (!insFrame()) return;
+  // Not on another language's photo: a note belongs to the step's own.
+  if (!insFrame() || $('insTack').disabled) return;
   closePostit();
   S.ins.placing = true;
   renderPlacing();
@@ -2835,7 +2942,7 @@ $('optMarks').onchange = () => {
   localStorageSet('optMarks', $('optMarks').checked ? '1' : '0');
   $('insMarks').classList.toggle('off', !$('optMarks').checked);
 };
-for (const id of ['optHeaded', 'optDocker', 'optA11y']) {
+for (const id of ['optHeaded', 'optDocker', 'optA11y', 'optLangs']) {
   $(id).checked = localStorageGet(id) === '1';
   $(id).onchange = () => localStorageSet(id, $(id).checked ? '1' : '0');
 }
@@ -2844,6 +2951,13 @@ $('optFinds').onchange = () => {
   localStorageSet('optFinds', $('optFinds').checked ? '1' : '0');
   $('insFinds').classList.toggle('off', !$('optFinds').checked);
 };
+// A language's tab over the photo shows the step's screen in it.
+$('insLangs').addEventListener('click', (e) => {
+  const code = e.target.closest('[data-code]')?.dataset.code;
+  if (!code || !S.ins) return;
+  S.ins.lang = code === S.state.languages?.base ? null : code;
+  renderInspector();
+});
 // A finding named under the photo lights its box on it.
 for (const [type, on] of [['mouseover', true], ['mouseout', false]]) {
   $('insFindsList').addEventListener(type, (e) => {

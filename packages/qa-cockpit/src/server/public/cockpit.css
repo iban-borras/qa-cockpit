@@ -166,6 +166,7 @@ select option { background: var(--panel-2); color: var(--text); }
 .opt input { margin-top: 3px; accent-color: var(--accent); }
 /* Accessibility's own switches in the sky blue of its boxes (.finds). */
 #optA11y, #optFinds { accent-color: #38bdf8; }
+#optLangs { accent-color: #e879f9; }
 .opt b { display: block; font-weight: 550; font-size: 13px; }
 .opt span { display: block; font-size: 12px; color: var(--muted); }
 
@@ -374,13 +375,15 @@ dialog#inspector::backdrop { background: rgba(4, 4, 6, 0.72); }
    findsList): a dashed box on each, its number on a corner. Sky blue: a
    thing to look at, apart from the clicks, the notes and the errors. */
 .finds { position: absolute; inset: 0; pointer-events: none; --find: #38bdf8; }
-.finds.off { display: none; }
+.finds.off .find.a11y { display: none; }
 .finds .find { position: absolute; box-sizing: border-box; border: 2px dashed var(--find); border-radius: 4px; background: rgba(56, 189, 248, 0.08); }
 .finds .find.hl { border-style: solid; background: rgba(56, 189, 248, 0.25); }
 .finds .find b { position: absolute; top: -10px; left: -10px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: var(--find); color: #04212f; font: 700 11px/18px var(--sans); text-align: center; }
 .caption .finds-list { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .caption .finds-list:empty { display: none; }
-.caption .finds-list svg.i { width: 13px; height: 13px; vertical-align: -2px; color: #38bdf8; }
+.caption .finds-list svg.i { width: 13px; height: 13px; vertical-align: -2px; }
+.caption .finds-list .fk.a11y { color: #38bdf8; }
+.caption .finds-list .fk.lang { color: #e879f9; }
 .caption .finds-list .fd { cursor: default; }
 .caption .finds-list .n { display: inline-block; min-width: 16px; height: 16px; border-radius: 8px; background: #38bdf8; color: #04212f; font: 700 10px/16px var(--sans); text-align: center; margin-right: 4px; }
 .caption .finds-list code { font: 11px var(--mono); color: var(--faint); }
@@ -388,6 +391,20 @@ dialog#inspector::backdrop { background: rgba(4, 4, 6, 0.72); }
 .fc svg.i { width: 11px; height: 11px; }
 .step .fc { margin: 1px 0 0 6px; }
 .thumb .fdot { position: absolute; top: 4px; left: 4px; width: 9px; height: 9px; border-radius: 50%; background: #38bdf8; box-shadow: 0 0 0 2px #0c0d10; }
+/* What does not fit another language (`replay --languages`, cockpit.js
+   renderLangTabs): fuchsia, apart from accessibility's blue. A tab each
+   language over the step's photo. */
+.thumb .fdot.lang { left: 16px; background: #e879f9; }
+.fc.lang { background: #e879f9; color: #2a0631; }
+.finds .find.lang { border-color: #e879f9; background: rgba(232, 121, 249, 0.08); }
+.finds .find.lang.hl { background: rgba(232, 121, 249, 0.25); }
+.finds .find.lang b { background: #e879f9; color: #2a0631; }
+.caption .finds-list .fd.lang .n { background: #e879f9; color: #2a0631; }
+.langs { display: flex; flex-wrap: wrap; gap: 6px; flex: none; }
+.langs .lt { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--panel-2); color: var(--muted); font: 600 11.5px/1 var(--mono); cursor: pointer; }
+.langs .lt:hover { color: var(--text); }
+.langs .lt.sel { color: var(--text); border-color: #e879f9; box-shadow: inset 0 0 0 1px #e879f9; }
+.langs .lt i { font-style: normal; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: #e879f9; color: #2a0631; font: 700 10px/16px var(--sans); text-align: center; }
 .pin { position: absolute; transform: translate(-50%, -50%); width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #fff; font: 700 12px/26px var(--sans); text-align: center; box-shadow: 0 0 0 4px rgba(225, 29, 72, 0.3), 0 0 0 2px #fff inset; }
 .pin.type { background: #7c3aed; box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.3), 0 0 0 2px #fff inset; }
 /* THE NOTES (cockpit.js, «notes on the photos»): amber tacks and yellow

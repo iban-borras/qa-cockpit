@@ -43,6 +43,7 @@
           <label class="opt"><input type="checkbox" id="optHeaded"><div><b data-i18n="opts.headed"></b><span data-i18n="opts.headed_hint"></span></div></label>
           <label class="opt"><input type="checkbox" id="optDocker"><div><b data-i18n="opts.docker"></b><span data-i18n="opts.docker_hint"></span></div></label>
           <label class="opt"><input type="checkbox" id="optA11y"><div><b data-i18n="opts.a11y"></b><span data-i18n="opts.a11y_hint"></span></div></label>
+          <label class="opt" id="optLangsRow" hidden><input type="checkbox" id="optLangs"><div><b data-i18n="opts.languages"></b><span id="optLangsHint"></span></div></label>
         </div>
       </details>
       <details class="opts lang" id="lang">
@@ -171,6 +172,7 @@
         <nav class="steps" id="insSteps" data-i18n-aria="ins.steps"></nav>
         <div class="stage">
           <div class="errbox" id="insError" hidden><div id="insErrorText" style="flex:1"></div><button class="btn" id="insCopy"></button></div>
+          <div class="langs" id="insLangs" data-i18n-title="ins.langs_title" hidden></div>
           <div class="view" id="insView">
             <div class="sheet" id="insSheet">
               <img id="insImg" alt="">

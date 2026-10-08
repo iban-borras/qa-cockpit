@@ -10,36 +10,43 @@
 <body>
   <header id="bar" hidden>
     <p id="whoami"></p>
-    <button id="signout" class="quiet" type="button">Sign out</button>
+    <div class="tools">
+      <select id="lang" data-testid="lang" data-t-aria="language" aria-label="Language">
+        <option value="en">English</option>
+        <option value="ca">Català</option>
+        <option value="es">Español</option>
+      </select>
+      <button id="signout" class="quiet" type="button" data-t="signOut">Sign out</button>
+    </div>
   </header>
   <main>
     <section id="signin" class="card" hidden>
-      <h1>Sign in</h1>
+      <h1 data-t="signIn">Sign in</h1>
       <form id="signin-form" novalidate>
-        <label for="username">Username</label>
+        <label for="username" data-t="username">Username</label>
         <input id="username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false">
-        <label for="password">Password</label>
+        <label for="password" data-t="password">Password</label>
         <input id="password" name="password" type="password" autocomplete="current-password">
         <p id="signin-error" role="alert"></p>
-        <button type="submit">Sign in</button>
+        <button type="submit" data-t="signIn">Sign in</button>
       </form>
     </section>
     <div id="chat" hidden>
       <div class="panes">
         <div class="card">
-          <ul id="messages" aria-label="Messages"></ul>
-          <p id="empty">No messages yet.</p>
+          <ul id="messages" aria-label="Messages" data-t-aria="messages"></ul>
+          <p id="empty" data-t="empty">No messages yet.</p>
         </div>
-        <section class="card" aria-label="Who is here">
-          <h2>Who is here</h2>
+        <section class="card" aria-label="Who is here" data-t-aria="who">
+          <h2 data-t="who">Who is here</h2>
           <ul id="people"></ul>
         </section>
       </div>
       <form id="send-form" class="card" novalidate>
-        <label for="message">Message</label>
+        <label for="message" data-t="message">Message</label>
         <textarea id="message" name="text" rows="2"></textarea>
         <p id="send-error" role="alert"></p>
-        <button type="submit">Send</button>
+        <button type="submit" data-t="send">Send</button>
       </form>
     </div>
   </main>

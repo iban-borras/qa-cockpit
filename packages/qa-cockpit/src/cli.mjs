@@ -390,6 +390,65 @@ export async function runCli(rawConfig, argv) {
     });
   }
 
+  // `replay --languages` (languages.mjs): each step's screen in the app's
+  // other languages too, changed by what the config says, so only with the
+  // cockpit following the run. At the end, what did not fit in them, the
+  // steps whose language could not be changed, and whether it stopped.
+  function lookInLanguagesToo() {
+    const run = process.env.COCKPIT_RUN;
+    if (!process.env.COCKPIT_URL || !run) {
+      console.log(`--languages looks at each step's screen as the cockpit photographs it, and no cockpit follows this run: start one first (${CLI} cockpit).`);
+      return;
+    }
+    const { base, others } = config.languages;
+    process.env.QA_LANGUAGES = others.join(',');
+    const said = {
+      cut: (x) => `a text that does not fit its box («${x.text}»)`,
+      wide: () => 'the page wider than the window',
+      key: (x) => `a translation key left on the screen («${x.text}»)`,
+    };
+    const where = (f) => {
+      const test = /^(\S+)\s+·/.exec(f.test)?.[1];
+      const step = /^(\d+)\s+·/.exec(f.step)?.[1];
+      return test && step ? `${test}/${step} ${f.actor}` : `${f.step} (${f.actor})`;
+    };
+    process.once('exit', () => {
+      let frames;
+      try {
+        frames = fs
+          .readFileSync(path.join(P.out, 'cockpit', run, 'frames.jsonl'), 'utf8')
+          .split('\n')
+          .filter(Boolean)
+          .map((line) => JSON.parse(line));
+      } catch {
+        return;
+      }
+      const found = [];
+      const skipped = [];
+      let stopped = null;
+      let looked = 0;
+      for (const f of frames) {
+        for (const x of (f.findings ?? []).filter((y) => y.kind === 'lang')) found.push(`  ${where(f)}  ${x.lang}: ${said[x.rule](x)}`);
+        for (const s of f.langs ?? []) {
+          looked += 1;
+          for (const x of s.findings ?? []) found.push(`  ${where(f)}  ${x.lang}: ${said[x.rule](x)}`);
+        }
+        if (f.langsSkipped) skipped.push(`  ${where(f)}  ${f.langsSkipped}`);
+        if (f.langsStopped) stopped ??= `  Stopped after ${where(f)}: ${f.langsStopped}. The rest of the run played in ${base} only.`;
+      }
+      console.log(`\nLanguages (${base}, and ${others.join(', ')}): ${looked} screen${looked === 1 ? '' : 's'} looked at in another language.`);
+      if (found.length) {
+        console.log(`  ${found.length} thing${found.length === 1 ? '' : 's'} that do not fit, each where it first showed (the cockpit shows each language's photo):`);
+        for (const line of found) console.log(line);
+      } else if (looked) console.log('  Every text fits, in every language.');
+      if (skipped.length) {
+        console.log("  Steps whose language could not be changed (the control out of reach, as under a dialog):");
+        for (const line of skipped) console.log(line);
+      }
+      if (stopped) console.log(stopped);
+    });
+  }
+
   const ctx = { config, holdStack, clearSavedSessions, waitHealthy: () => waitHealthy(config), log: (...a) => console.log(...a) };
   const STACK = config.stack.name;
 
@@ -487,13 +546,17 @@ export async function runCli(rawConfig, argv) {
     // requests kept too, as HARs without their secrets (network/).
     async replay() {
       const suite = rest[0];
-      if (!suite) fail(`Usage: ${CLI} replay <suite> [--network [--bodies]] [--a11y] [--in-docker] [playwright args]`);
+      if (!suite) fail(`Usage: ${CLI} replay <suite> [--network [--bodies]] [--a11y] [--languages] [--in-docker] [playwright args]`);
       const file = recordingOf(config, suite);
       if (!file) fail(`No recording for the suite "${suite}" in ${P.recordings}`);
       const network = rest.includes('--network');
       const bodies = rest.includes('--bodies');
       const a11y = rest.includes('--a11y');
-      const pwArgs = rest.slice(1).filter((a) => a !== '--network' && a !== '--bodies' && a !== '--a11y');
+      const languages = rest.includes('--languages');
+      const pwArgs = rest.slice(1).filter((a) => !['--network', '--bodies', '--a11y', '--languages'].includes(a));
+      if (languages && !config.languages) {
+        fail(`--languages: the config says no \`languages\`, nor how a person changes the app's language. The skill says how to write it, and ${CLI} languages check tries it.`);
+      }
       if (bodies && !network) fail('--bodies goes with --network: it keeps the text of the responses in its HARs.');
       // In a container the requests cross another network, and the HARs
       // would have to come back from it: a look is taken on this machine.
@@ -515,7 +578,22 @@ export async function runCli(rawConfig, argv) {
       noteData(config, { state: 'spent', suite });
       if (network) await lookAtNetwork(suite, bodies);
       if (a11y) lookAtA11y();
+      if (languages) lookInLanguagesToo();
       await playwright(['test', testFileArg(file), ...pwArgs]);
+    },
+
+    // How a person changes the app's language (`languages.switchTo` in the
+    // config): tried on one person's screen, each other language and back,
+    // before a run relies on it (languages.mjs). Its photos stay to look at.
+    async languages() {
+      if (rest[0] !== 'check') fail(`Usage: ${CLI} languages check [person]`);
+      if (!config.languages) fail("The config says no `languages`: the app's other languages, and how a person changes to one. The skill says how to write them.");
+      const id = rest[1] ?? config.people.find((p) => fs.existsSync(path.join(P.state, `${p}.json`)));
+      if (!id || !fs.existsSync(path.join(P.state, `${id}.json`))) fail(`No saved session${rest[1] ? ` for ${rest[1]}` : ''}: ${CLI} setup <suite> saves them.`);
+      guard();
+      const { checkLanguages } = await import('./languages-check.mjs');
+      const ok = await checkLanguages(config, id, (line) => console.log(line));
+      if (!ok) process.exitCode = 1;
     },
 
     // A demo video of a suite (video/): its recording played again with a
@@ -1061,7 +1139,10 @@ export async function runCli(rawConfig, argv) {
                    (--bodies: with the text of the app's responses);
                    --a11y: each step's screen looked at for accessibility, with the cockpit:
                    a button or a link with no name, a field with no label, an image with no
-                   text alternative, a control the keyboard cannot reach
+                   text alternative, a control the keyboard cannot reach;
+                   --languages: each step's screen in the app's other languages too, with the
+                   cockpit: what does not fit in them (the config says how to change it)
+  languages check [person]   that change of language, tried on one screen and back
   network [run]    what a replay --network found, step by step: calls one after another,
                    repeated or per item, slow, heavy or failed (--against previous: what a
                    change changed; --test <id>; --json; --list)

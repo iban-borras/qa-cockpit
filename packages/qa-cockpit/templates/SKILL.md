@@ -138,7 +138,28 @@ everything says ok:
 3. **`signIn({ page, person })`:** the app's real sign-in form, as the
    person would use it, ending when the app shows them signed in. The
    package saves the session and every fixture reuses it.
-4. **The first suite** in `paths.suites` (the guide beside it says how),
+4. **`languages`, when the app speaks more than one.** Nobody has to ask
+   for it: look for the app's own control (a menu, a select, a flag in the
+   header) and write how a person changes the language with it, as you
+   write a recording:
+
+   ```js
+   languages: {
+     others: ['ca', 'es'],          // besides the suites' own, which is browser.locale's
+     async switchTo({ page, lang }) {
+       await page.getByTestId('lang').selectOption(lang);
+     },
+   },
+   ```
+
+   The control's own words change with the language: find it by what does
+   not (a test id, an icon's role, a name in every language). Then
+   `npx qa-cockpit languages check`: it changes one person's first screen
+   to each language and back, and says whether the words change, whether
+   the page loads again, and whether it comes back the same; look at its
+   photos. A change that reloads the page loses what is open on a screen
+   (a dialog, a form half filled): say so when you report.
+5. **The first suite** in `paths.suites` (the guide beside it says how),
    its setup in `paths.setups`, then record it (the director, below).
 
 `doctor` checks the config, the dependencies, Chromium, and whether the
@@ -161,6 +182,8 @@ npx qa-cockpit replay <suite>   # fresh sessions if old, then the recording
 npx qa-cockpit replay <suite> -g T1   # one test; extra args go to Playwright
 npx qa-cockpit replay <suite> --network   # each person's requests kept as HARs, without secrets; «A look at the network»
 npx qa-cockpit replay <suite> --a11y      # each step's screen looked at for accessibility, with the cockpit; «Accessibility»
+npx qa-cockpit replay <suite> --languages # each step's screen in the app's other languages too, with the cockpit; «Languages»
+npx qa-cockpit languages check  # the config's change of language, tried on one screen and back
 npx qa-cockpit network [run]    # what they show, step by step (--against previous, --test <id>, --json, --list)
 npx qa-cockpit open <person>    # a browser window signed in as that person
 npx qa-cockpit stamp <suite>    # write the suite's hash into the recording's first line
@@ -358,6 +381,39 @@ to find it in the code. The run report has them too, with their boxes.
    you report.
 3. **It costs time on every step** (the cockpit's own, said apart from the
    step's): not on every replay, only when asked.
+
+## Languages (when a person asks, or before a release)
+
+`npx qa-cockpit replay <suite> --languages`, with the cockpit following
+the run and `languages` in the config (setting it up, step 4). The suite
+plays in its own language, as its recording finds things by their words.
+At each step's end, each person it names has their screen changed to
+every other language by the config's `switchTo`, photographed, and
+changed back; the change is not the step's (no marks, no photos of its
+own, nothing in the trace). Against the same screen in the suite's own
+language, it finds:
+
+- **cut**: a text that no longer fits its box (cut short, or spilling out);
+- **wide**: the page grown wider than the window;
+- **key**: a translation key left on the screen (`nav.home`), in any
+  language, the suite's own too.
+
+In the cockpit each step's photo has a tab per language (the `I` key goes
+through them), with what does not fit as boxes; when the run ends the
+terminal lists them, and the run report has every language's photo.
+
+1. **A step whose control is out of reach** (a dialog over the header, a
+   page without the menu, as one signed out) is skipped, and said.
+2. **A screen that does not come back word for word** in the suite's
+   language stops the look for the rest of the run, and the run goes on
+   in its own language: said in the log and at the end. Most often the
+   change left its menu open, or the screen has words that move on their
+   own (a clock): `languages check` shows which.
+3. **What you deliver is a report**: the texts that do not fit, in which
+   language and on which screen, with their photos; the fixes (a shorter
+   word, a box that grows) are the app's, with the person's say.
+4. **It costs time on every step** (the cockpit's own, said apart): only
+   when asked.
 
 ## Demo videos (only when a person asks)
 

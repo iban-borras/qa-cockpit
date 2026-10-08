@@ -12,7 +12,9 @@
 //     below), with its click or its typing marked on it (MARKS). The images
 //     go to <out>/cockpit/<run>/frames/ on disk; the cockpit gets their paths.
 //     With `replay --a11y`, a step's photo brings its screen's accessibility
-//     problems too, each a box on it (a11y.mjs).
+//     problems too, each a box on it (a11y.mjs); with `--languages`, the
+//     same screen in the app's other languages, and what does not fit in
+//     them (languages.mjs).
 //   - A LIVE picture, only while somebody watches that person in the
 //     cockpit: a CDP screencast of their page, about four frames a second.
 //     The cockpit says who is watched (GET /api/watch); nobody watching costs
@@ -24,6 +26,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { a11yFindings } from './a11y.mjs';
+import { lookInLanguages } from './languages.mjs';
 
 const URL_BASE = process.env.COCKPIT_URL || '';
 export const enabled = Boolean(URL_BASE);
@@ -31,6 +34,12 @@ export const enabled = Boolean(URL_BASE);
 // (a11y.mjs), each problem told once a run.
 const A11Y = process.env.QA_A11Y === '1';
 const toldA11y = new Set();
+// `replay --languages`: each step's screen in the app's other languages too
+// (languages.mjs). Stopped for the rest of the run, with its reason, when a
+// screen does not come back the same.
+const LANGS = (process.env.QA_LANGUAGES || '').split(',').filter(Boolean);
+const toldLangs = new Set();
+let langsOff = null;
 const RUN = (process.env.COCKPIT_RUN || 'adhoc').replace(/[^\w.-]/g, '_');
 const LIVE_INTERVAL_MS = 250;
 // The package's own files: a step's location is the first frame outside them.
@@ -38,6 +47,7 @@ const PACKAGE_DIR = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 // The project, once configured: where photos go, what a location is shown
 // relative to, and the people a step title can name.
+let CONFIG = null;
 let OUT_DIR = null;
 let PROJECT_DIR = process.cwd();
 let FRAMES_DIR = null;
@@ -51,6 +61,7 @@ export function peopleWords(cast) {
 
 /** Tell the worker which project it serves (a resolved config). */
 export function configure(config) {
+  CONFIG = config;
   OUT_DIR = config.paths.out;
   PROJECT_DIR = config.paths.project;
   FRAMES_DIR = path.join(OUT_DIR, 'cockpit', RUN, 'frames');
@@ -167,6 +178,9 @@ export async function photo(f) {
       await quietly(f.page, () => f.page.screenshot({ path: file, type: 'jpeg', quality: 60, scale: 'css', fullPage: true, timeout: 8_000 }));
       // The same screen's accessibility, as boxes on this photo.
       const findings = A11Y ? await quietly(f.page, () => a11yFindings(f.page, scroll, toldA11y)).catch(() => []) : [];
+      // The same screen in the app's other languages, when the step passed.
+      const tour = f.tour && f.status === 'passed' ? await languagesOf(f) : null;
+      if (tour?.baseKeys?.length) findings.push(...tour.baseKeys);
       await post('/api/frame', {
         run: RUN,
         actor: f.actor,
@@ -190,6 +204,9 @@ export async function photo(f) {
         })),
         requests: f.requests ?? [],
         findings,
+        langs: tour?.shots.map((s) => ({ lang: s.lang, file: relOut(s.file), scroll: s.scroll, changed: s.changed, findings: s.findings })) ?? [],
+        langsSkipped: tour?.skipped ?? null,
+        langsStopped: tour?.broken ?? null,
         // The device the person plays on: its name and kind, for the card.
         device: f.device ?? null,
         // The step's start and how long it took, the photos aside: where a
@@ -205,6 +222,44 @@ export async function photo(f) {
       forget(shots);
     }
   });
+}
+
+/**
+ * A step's screen in the app's other languages (`replay --languages`,
+ * languages.mjs): each a photo of its own, looked at against the suite's
+ * own. While the language changes, nothing the person's page does is the
+ * step's: no mark, no action's photo, no request.
+ */
+async function languagesOf(f) {
+  const entry = pages.get(f.actor);
+  if (!LANGS.length || langsOff || !CONFIG?.languages || !entry) return null;
+  const person = CONFIG.cast.find((p) => p.id === f.actor) ?? { id: f.actor, name: f.actor };
+  entry.touring = true;
+  try {
+    const tour = await quietly(f.page, () =>
+      lookInLanguages({
+        config: CONFIG,
+        page: f.page,
+        person,
+        langs: LANGS,
+        told: toldLangs,
+        shoot: async (lang) => {
+          const file = newPhotoFile(`${f.actor}-${lang}`);
+          const scroll = await f.page.evaluate(() => ({ x: scrollX, y: scrollY }));
+          await f.page.screenshot({ path: file, type: 'jpeg', quality: 60, scale: 'css', fullPage: true, timeout: 8_000 });
+          return { file, scroll };
+        },
+      }),
+    );
+    // A screen that did not come back: no more languages in this run.
+    if (tour.broken) langsOff = tour.broken;
+    return tour;
+  } catch (e) {
+    langsOff = String(e?.message ?? e).split('\n')[0].slice(0, 160);
+    return { shots: [], skipped: null, broken: langsOff, baseKeys: [] };
+  } finally {
+    entry.touring = false;
+  }
 }
 
 /**
@@ -242,6 +297,8 @@ export async function stepEnded(s) {
         step: s.title,
         // Somebody the failed step does not name is photographed as context.
         status: named.includes(actor) ? s.status : 'context',
+        // The people it names, in the app's other languages too (`--languages`).
+        tour: named.includes(actor),
         test: s.test,
         error,
         location: s.location,
@@ -375,9 +432,10 @@ function wrapAction(proto, name, entryOf, prepare) {
   if (typeof original !== 'function') return;
   proto[name] = async function photographed(...args) {
     const entry = entryOf(this);
-    // Nobody's page, outside a step, or inside another action (a
-    // `setChecked` checks through `check`): as Playwright takes it.
-    if (!entry || entry.acting || openSteps === 0) return original.apply(this, args);
+    // Nobody's page, outside a step, inside another action (a `setChecked`
+    // checks through `check`), or the cockpit's own change of language: as
+    // Playwright takes it.
+    if (!entry || entry.acting || entry.touring || openSteps === 0) return original.apply(this, args);
     entry.acting = true;
     try {
       entry.shot = await shoot(entry, () => prepare?.(entry, this, args));
@@ -492,6 +550,8 @@ export async function register(actor, page, device = null) {
   // recording's own waits, shows here.
   const kept = (request) => ['fetch', 'xhr', 'document'].includes(request.resourceType());
   const keep = (request, status) => {
+    // The cockpit's own change of language fetches what it needs: not the step's.
+    if (entry.touring) return;
     const type = request.resourceType();
     const t = request.timing();
     let where = request.url();
@@ -528,7 +588,8 @@ export async function register(actor, page, device = null) {
   });
   try {
     await page.context().exposeBinding('__qaCockpitMark', (_source, mark) => {
-      if (entry.marks.length >= 100) return;
+      // The clicks of the cockpit's own change of language are not the step's.
+      if (entry.marks.length >= 100 || entry.touring) return;
       // One click, one mark: a label clicked clicks its field too, and a
       // double click is two, at the same point within a moment, in the
       // same action (two of the recording's, on one button, are two).

@@ -156,8 +156,9 @@ export async function runInDocker(config, playwrightArgs) {
     args.push('-e', `COCKPIT_URL=http://${hostFromContainer}:${u.port}`, '-e', `COCKPIT_RUN=${process.env.COCKPIT_RUN ?? ''}`);
   }
   // The suite being run: the device its sessions are signed in on (devices.mjs);
-  // and whether its screens are looked at for accessibility (a11y.mjs).
-  for (const name of ['QA_SUITE', 'QA_RUN_ID', 'QA_A11Y']) if (process.env[name]) args.push('-e', `${name}=${process.env[name]}`);
+  // and whether its screens are looked at for accessibility (a11y.mjs), and
+  // in which other languages (languages.mjs).
+  for (const name of ['QA_SUITE', 'QA_RUN_ID', 'QA_A11Y', 'QA_LANGUAGES']) if (process.env[name]) args.push('-e', `${name}=${process.env[name]}`);
   args.push(image, 'node', '/qa-cockpit/src/docker/runner-entry.mjs', ...playwrightArgs);
 
   console.log(`Playwright in ${image} (${desktop ? 'Docker Desktop, the stack\'s network' : 'host network'})`);

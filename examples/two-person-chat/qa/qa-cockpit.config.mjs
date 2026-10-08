@@ -57,6 +57,17 @@ export default defineConfig({
   },
 
   browser: { locale: 'en-GB' },
+
+  // The app's other languages, and how a person changes to one: the menu in
+  // its header, as they would (`replay --languages`, `languages check`). The
+  // suites play in English, the browser's.
+  languages: {
+    others: ['ca', 'es'],
+    async switchTo({ page, lang }) {
+      await page.getByTestId('lang').selectOption(lang);
+    },
+  },
+
   // Its own port, so it never meets another project's cockpit.
   cockpit: { port: 3160 },
 });
