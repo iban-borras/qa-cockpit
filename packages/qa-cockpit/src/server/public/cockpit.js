@@ -1217,7 +1217,7 @@ function cardHtml(p, moment, running) {
     <div class="card-meta"><span>${esc(f ? pathOf(f.url) : '')}</span><span>${esc(f ? hhmmss(f.time) : '')}</span></div>
     <div class="card-actions">
       <button class="btn" data-open="${esc(p.id)}">${icon('eye', 'sm')}<span>${esc(t('card.inspect'))}</span></button>
-      <button class="btn" data-play="${esc(p.id)}" ${S.state.sessions.includes(p.id) ? '' : `disabled title="${esc(t('card.no_session'))}"`}>${icon('external', 'sm')}<span>${esc(t('card.play_as', { name }))}</span></button>
+      <button class="btn" data-play="${esc(p.id)}" ${playBlocked(p.id) ? `disabled title="${esc(playBlocked(p.id))}"` : ''}>${icon('external', 'sm')}<span>${esc(t('card.play_as', { name }))}</span></button>
     </div>
   </article>`;
 }
@@ -1278,6 +1278,16 @@ $('cast').addEventListener('click', (e) => {
   if (play) return playAs(play.dataset.play);
 });
 
+/** Why a person's window cannot open now, in words, or null: no saved
+ *  session, or the run going now has it (server.mjs, sessionInUse). */
+function playBlocked(actor) {
+  if (!S.state.sessions.includes(actor)) return t('card.no_session');
+  const task = S.state.task;
+  if (!task) return null;
+  if (!task.suite) return task.kind === 'reset' || task.kind === 'sessions' ? t('err.sessions_renewing') : null;
+  return suiteOf(task.suite)?.cast.includes(actor) ? t('err.person_in_run', { name: cap(actor) }) : null;
+}
+
 async function playAs(actor) {
   const name = cap(actor);
   if (S.state?.task && !confirm(t('play.confirm', { name }))) return;
@@ -1300,7 +1310,7 @@ function openInspector(actor) {
   S.ins = { actor, idx: Math.max(0, list.length - 1), live: isRunning(), fresh: 0, timer: null, zoom: false, placing: false, postitAt: null };
   const p = S.state.cast.find((c) => c.id === actor);
   $('insName').textContent = cap(actor);
-  $('insPlayAs').disabled = !S.state.sessions.includes(actor);
+  renderInsPlay();
   withIcon($('insPlayAs'), 'external', t('card.play_as', { name: cap(actor) }));
   dlg.showModal();
   renderInspector(true);
@@ -1368,10 +1378,19 @@ function insGo(idx) {
   renderInspector();
 }
 
+/** The inspector's «Play as», as the person's card has it: off while the run going now has their session. */
+function renderInsPlay() {
+  if (!S.ins) return;
+  const why = playBlocked(S.ins.actor);
+  $('insPlayAs').disabled = Boolean(why);
+  if ((why ?? '') !== ($('insPlayAs').dataset.tip ?? '')) $('insPlayAs').title = why ?? '';
+}
+
 function renderInspector(first = false) {
   const ins = S.ins;
   if (!ins) return;
   if (first) setLive(ins.live);
+  renderInsPlay();
   const list = insFrames();
   const f = list[ins.idx];
   // A post-it belongs to its photo: another photo on screen closes it.

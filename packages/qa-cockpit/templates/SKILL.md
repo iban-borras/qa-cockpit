@@ -189,7 +189,7 @@ npx qa-cockpit replay <suite> --realtime  # how long what one person does takes 
 npx qa-cockpit replay <suite> --chaos 5  # races between people: rounds from fresh data, each person slowed by a seed; «Races»
 npx qa-cockpit replay <suite> --chaos-seed <n>  # that round again, with any look
 npx qa-cockpit network [run]    # what they show, step by step (--against previous, --test <id>, --json, --list)
-npx qa-cockpit open <person>    # a browser window signed in as that person
+npx qa-cockpit open <person>    # a browser window signed in as that person (not while a run plays them)
 npx qa-cockpit stamp <suite>    # write the suite's hash into the recording's first line
 npx qa-cockpit pass <suite> <who> <result> <notes...>   # a row in the suite's runs table
 npx qa-cockpit mcp              # .mcp.json: one Playwright MCP server per saved session

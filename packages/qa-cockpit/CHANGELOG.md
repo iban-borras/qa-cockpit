@@ -71,6 +71,14 @@
 - The run picker counts every test a run ran: a full run (reset, setup and
   the recording) said «5 of 3 tests pass», its setup's tests passed against
   its recording's count.
+- «Play as» is off for the people the run going now plays, and for
+  everybody while a reset or a renewal of the saved sessions goes: the
+  window would open from the very session the run is using, so what was
+  done there the run's person would have done (a sign-out signed the run
+  out), and the run, for its part, renewed or cleared the session under
+  the window. The button says why, and `open <person>` refuses the same.
+  Somebody the run does not play may still open a window, after the word
+  of warning the cockpit already gave.
 
 ## 0.7.4 (2026-10-07)
 

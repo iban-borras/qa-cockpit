@@ -957,6 +957,21 @@ function usualDevice(id) {
  * played on in the run on screen (a suite may put them on another than
  * their usual one), or on their usual device.
  */
+/**
+ * Why a person's saved session is the run's now, or null. A window of
+ * theirs (`Play as`) opens from that session: the server would see one
+ * person in two places, and what the window did, the run's person would
+ * have done (a sign-out signs the run out); the run, for its part, renews
+ * or clears the session under the window. So not while a run plays them,
+ * nor while a reset or a renewal of every session goes. Somebody else may
+ * play in the same data, after a word of warning (the page asks).
+ */
+function sessionInUse(actor) {
+  if (!task) return null;
+  if (!task.suite) return task.kind === 'reset' || task.kind === 'sessions' ? 'sessions_renewing' : null;
+  return listSuites(CFG).find((s) => s.name === task.suite)?.cast.includes(actor) ? 'person_in_run' : null;
+}
+
 function playAs(actor) {
   const last = run?.frames?.findLast?.((f) => f.actor === actor && f.device)?.device;
   return new Promise((resolve) => {
@@ -1120,6 +1135,10 @@ async function onAction(body) {
     if (!ACTOR.test(actor ?? '') || !fs.existsSync(path.join(CFG.paths.state, `${actor}.json`))) {
       throw new Refusal('no_session', { actor });
     }
+    // Somebody the run going now plays: the window would be them, in the
+    // same session (sessionInUse).
+    const inUse = sessionInUse(actor);
+    if (inUse) throw new Refusal(inUse, { actor, name: actor[0].toUpperCase() + actor.slice(1), suite: task?.suite ?? '' });
     return playAs(actor);
   }
   if (task) throw new Refusal('task_running');

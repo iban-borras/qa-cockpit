@@ -233,6 +233,8 @@ const DICT = {
     'err.no_setup': 'La suite «{suite}» encara no té setup.',
     'err.no_recording': 'La suite «{suite}» encara no està gravada.',
     'err.no_session': 'No hi ha cap sessió desada per a «{actor}». Fes abans el setup.',
+    'err.person_in_run': '{name} juga en la prova en marxa: la seua finestra seria la mateixa sessió que la de la prova, i el que hi feres ho faria {name} dins la prova (tancar la sessió la tancaria a la prova). Torna quan acabe.',
+    'err.sessions_renewing': "Les sessions desades s'estan esborrant o renovant: torna quan acabe.",
     'err.unknown_action': 'Acció desconeguda: {action}',
     'err.hidden_desktop':
       "El cockpit s'ha arrancat en un escriptori que no veus ({where}), probablement des del terminal d'un agent. Les finestres de navegador no apareixeran. Arranca'l tu des del teu terminal: {cli} cockpit",
@@ -504,6 +506,8 @@ const DICT = {
     'err.no_setup': 'La suite «{suite}» aún no tiene setup.',
     'err.no_recording': 'La suite «{suite}» aún no está grabada.',
     'err.no_session': 'No hay ninguna sesión guardada para «{actor}». Haz antes el setup.',
+    'err.person_in_run': '{name} juega en la prueba en curso: su ventana sería la misma sesión que la de la prueba, y lo que hicieras lo haría {name} dentro de la prueba (cerrar la sesión la cerraría en la prueba). Vuelve cuando termine.',
+    'err.sessions_renewing': 'Las sesiones guardadas se están borrando o renovando: vuelve cuando termine.',
     'err.unknown_action': 'Acción desconocida: {action}',
     'err.hidden_desktop':
       'El cockpit se ha arrancado en un escritorio que no ves ({where}), probablemente desde el terminal de un agente. Las ventanas del navegador no aparecerán. Arráncalo tú desde tu terminal: {cli} cockpit',
@@ -775,6 +779,8 @@ const DICT = {
     'err.no_setup': 'The suite «{suite}» has no setup yet.',
     'err.no_recording': 'The suite «{suite}» is not recorded yet.',
     'err.no_session': 'No saved session for «{actor}». Run the setup first.',
+    'err.person_in_run': "{name} plays in the run going now: their window would be the same session as the run's, and what you did there {name} would do inside the run (signing out would sign the run out). Back when it ends.",
+    'err.sessions_renewing': 'The saved sessions are being cleared or renewed: back when it ends.',
     'err.unknown_action': 'Unknown action: {action}',
     'err.hidden_desktop':
       "The cockpit was started on a desktop you cannot see ({where}), probably from an agent's terminal. Browser windows will not show. Launch it yourself from your own terminal: {cli} cockpit",

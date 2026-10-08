@@ -1071,6 +1071,25 @@ export async function runCli(rawConfig, argv) {
       const person = rest[0];
       if (!person) fail(`Usage: ${CLI} open <person>`);
       guard();
+      // The run going now may have their session (the cockpit's «Play as»
+      // says the same, server.mjs sessionInUse): a window of theirs would be
+      // them in two places, the run's sign-out its own.
+      const held = readLock(LOCK);
+      if (held) {
+        const steps = String(held.command ?? '')
+          .split(' → ')
+          .map((c) => c.trim().split(/\s+/));
+        const suites = steps.filter(([k]) => ['replay', 'setup', 'video'].includes(k)).map(([, s]) => s);
+        const plays = suites.length
+          ? listSuites(config).some((s) => suites.includes(s.name) && s.cast.includes(person))
+          : steps.some(([k]) => k === 'reset' || k === 'sessions');
+        if (plays) {
+          fail(
+            `${held.who} is running «${held.command}», and ${person}'s saved session is that run's now: a window of theirs would be the same session ` +
+              `(what you did there, they would do in the run; signing out would sign the run out). Open it when the run ends.`,
+          );
+        }
+      }
       ensureReady();
       spawnSync(process.execPath, [path.join(HERE, 'open-browser.mjs'), person], {
         cwd: P.project,
