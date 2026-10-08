@@ -630,6 +630,21 @@ const marksOf = (list, inWindow = false) =>
     ...(Number.isInteger(m.n) && m.n > 0 ? { n: m.n } : {}),
   }));
 
+// What a look at a step's screen found (`replay --a11y`, a11y.mjs): a rule
+// and the element, and its box at the page's pixels when it is drawn.
+const A11Y_RULES = new Set(['name', 'label', 'alt', 'keyboard']);
+const findingsOf = (list) =>
+  (Array.isArray(list) ? list : [])
+    .filter((x) => x?.kind === 'a11y' && A11Y_RULES.has(x.rule))
+    .slice(0, 50)
+    .map((x) => {
+      const b = x.box;
+      const box = b && [b.x, b.y, b.w, b.h].every((v) => Number.isFinite(Number(v)))
+        ? { x: Math.max(0, Math.round(b.x)), y: Math.max(0, Math.round(b.y)), w: Math.max(0, Math.round(b.w)), h: Math.max(0, Math.round(b.h)) }
+        : null;
+      return { kind: 'a11y', rule: x.rule, role: String(x.role ?? '').slice(0, 30), name: x.name ? String(x.name).slice(0, 80) : null, what: String(x.what ?? '').slice(0, 120), box };
+    });
+
 /**
  * A step's photo, and before it the photos of its actions (worker.mjs,
  * ACTION PHOTOS): each a photo of its own, `kind: 'action'`, of the step
@@ -706,6 +721,7 @@ function onFrame(f) {
       ms: Number.isFinite(Number(r.ms)) && r.ms !== null ? Math.max(0, Math.round(Number(r.ms))) : null,
       at: Number.isFinite(Number(r.at)) ? Number(r.at) : null,
     })),
+    findings: findingsOf(f.findings),
     began,
     ms: Number.isFinite(Number(f.ms)) && f.ms !== null ? Math.max(0, Math.round(Number(f.ms))) : null,
     // The cockpit's own photos in the step, and the step's: apart from `ms`.
@@ -868,7 +884,7 @@ function state() {
 }
 
 async function onAction(body) {
-  const { action, suite, headed, docker, actor } = body;
+  const { action, suite, headed, docker, a11y, actor } = body;
   const known = listSuites(CFG);
   const pick = () => {
     const s = known.find((x) => x.name === suite);
@@ -876,7 +892,7 @@ async function onAction(body) {
     return s;
   };
   const inDocker = docker ? ['--in-docker'] : [];
-  const replayArgs = (name) => ['replay', name, ...inDocker, ...(headed && !docker ? ['--headed'] : [])];
+  const replayArgs = (name) => ['replay', name, ...inDocker, ...(headed && !docker ? ['--headed'] : []), ...(a11y ? ['--a11y'] : [])];
   if (action === 'stop') {
     if (!task) return { ok: true, stopped: false };
     if (task.external) throw new Refusal('external_task', { who: task.external.who });

@@ -368,6 +368,24 @@ dialog#inspector::backdrop { background: rgba(4, 4, 6, 0.72); }
 .seen { position: absolute; left: 0; right: 0; border: 2px dashed rgba(251, 113, 133, 0.6); border-radius: 4px; pointer-events: none; }
 .marks { position: absolute; inset: 0; pointer-events: none; }
 .marks.off { display: none; }
+/* What a look at a step's screen found (`replay --a11y`, cockpit.js
+   findsList): a dashed box on each, its number on a corner. Sky blue: a
+   thing to look at, apart from the clicks, the notes and the errors. */
+.finds { position: absolute; inset: 0; pointer-events: none; --find: #38bdf8; }
+.finds.off { display: none; }
+.finds .find { position: absolute; box-sizing: border-box; border: 2px dashed var(--find); border-radius: 4px; background: rgba(56, 189, 248, 0.08); }
+.finds .find.hl { border-style: solid; background: rgba(56, 189, 248, 0.25); }
+.finds .find b { position: absolute; top: -10px; left: -10px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: var(--find); color: #04212f; font: 700 11px/18px var(--sans); text-align: center; }
+.caption .finds-list { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.caption .finds-list:empty { display: none; }
+.caption .finds-list svg.i { width: 13px; height: 13px; vertical-align: -2px; color: #38bdf8; }
+.caption .finds-list .fd { cursor: default; }
+.caption .finds-list .n { display: inline-block; min-width: 16px; height: 16px; border-radius: 8px; background: #38bdf8; color: #04212f; font: 700 10px/16px var(--sans); text-align: center; margin-right: 4px; }
+.caption .finds-list code { font: 11px var(--mono); color: var(--faint); }
+.fc { display: inline-flex; align-items: center; gap: 2px; flex: none; font-style: normal; padding: 0 5px 0 3px; border-radius: 999px; background: #38bdf8; color: #04212f; font: 700 10.5px/16px var(--sans); }
+.fc svg.i { width: 11px; height: 11px; }
+.step .fc { margin: 1px 0 0 6px; }
+.thumb .fdot { position: absolute; top: 4px; left: 4px; width: 9px; height: 9px; border-radius: 50%; background: #38bdf8; box-shadow: 0 0 0 2px #0c0d10; }
 .pin { position: absolute; transform: translate(-50%, -50%); width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #fff; font: 700 12px/26px var(--sans); text-align: center; box-shadow: 0 0 0 4px rgba(225, 29, 72, 0.3), 0 0 0 2px #fff inset; }
 .pin.type { background: #7c3aed; box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.3), 0 0 0 2px #fff inset; }
 /* THE NOTES (cockpit.js, «notes on the photos»): amber tacks and yellow

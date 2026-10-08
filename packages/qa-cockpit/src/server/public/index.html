@@ -42,6 +42,7 @@
         <div class="menu">
           <label class="opt"><input type="checkbox" id="optHeaded"><div><b data-i18n="opts.headed"></b><span data-i18n="opts.headed_hint"></span></div></label>
           <label class="opt"><input type="checkbox" id="optDocker"><div><b data-i18n="opts.docker"></b><span data-i18n="opts.docker_hint"></span></div></label>
+          <label class="opt"><input type="checkbox" id="optA11y"><div><b data-i18n="opts.a11y"></b><span data-i18n="opts.a11y_hint"></span></div></label>
         </div>
       </details>
       <details class="opts lang" id="lang">
@@ -175,12 +176,13 @@
               <img id="insImg" alt="">
               <div class="seen" id="insSeen" hidden></div>
               <div class="marks" id="insMarks"></div>
+              <div class="finds" id="insFinds"></div>
               <div class="tacks" id="insTacks"></div>
             </div>
             <img id="insLive" alt="" hidden>
             <div class="empty" id="insEmpty" hidden></div>
           </div>
-          <div class="caption"><b id="insCap"></b><span class="where" id="insWhere"></span><span class="marks-list" id="insMarksList"></span></div>
+          <div class="caption"><b id="insCap"></b><span class="where" id="insWhere"></span><span class="marks-list" id="insMarksList"></span><span class="finds-list" id="insFindsList"></span></div>
         </div>
       </div>
       <div class="ins-foot">
@@ -198,6 +200,7 @@
           <div class="grp">
             <button class="btn pill" id="pLive" hidden></button>
             <label class="toggle" data-i18n-title="ins.marks_title"><input type="checkbox" id="optMarks"> <span data-i18n="ins.marks"></span></label>
+            <label class="toggle" id="findsToggle" data-i18n-title="ins.finds_title" hidden><input type="checkbox" id="optFinds"> <span data-i18n="ins.finds"></span></label>
           </div>
         </div>
       </div>

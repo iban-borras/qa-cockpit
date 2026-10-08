@@ -204,6 +204,16 @@ project. It is safe for an agent to read and for you to pass on. The text
 of the responses is kept only when asked (`--bodies`), cleaned the same
 way. Any HAR opens in DevTools as a waterfall (Network, Import HAR).
 
+## Accessibility
+
+Replay a suite with `--a11y` and, with the cockpit following the run, each
+step's screen is read as a screen reader reads it (Chromium's accessibility
+tree): a button or a link with no name, a field with no label, an image with
+no text alternative, a control the keyboard cannot reach. Each problem is a
+box on the photo of the step where it first showed, and the run ends with
+their list in the terminal, for an agent to read. In the cockpit it is one of
+the run's options. Four rules that are sure, not a full audit.
+
 ## Commands
 
 ```
@@ -215,6 +225,7 @@ sessions                          fresh saved sessions for the cast
 decide <suite>                    REPLAY | GENERATE <why> | ENV <why>
 replay <suite> [playwright args]  the recording (sessions renewed when old)
 replay <suite> --network          ... and each person's requests, as HARs without secrets (--bodies)
+replay <suite> --a11y             ... and each step's screen looked at for accessibility (with the cockpit)
 network [run]                     what they show, step by step (--against previous: what a change changed)
 stamp <suite> | hash <suite>      the suite's hash in the recording's first line
 pass <suite> <who> <result> ...   a row in the suite's runs table

@@ -22,6 +22,7 @@ without a person beside it.
 | `src/cli.mjs` | every command |
 | `src/fixtures.mjs`, `src/playwright.mjs` | the cast as Playwright fixtures; the default Playwright config |
 | `src/reporter.mjs`, `src/worker.mjs` | what a run tells the cockpit: tests and steps; each person's photos (a step's, and one before each action) and the time they took, clicks and requests |
+| `src/a11y.mjs` | `replay --a11y`: a step's screen read from Chromium's accessibility tree, its problems as boxes on the step's photo |
 | `src/devices.mjs` | a person's device, from Playwright's profiles or the project's own sizes, and their own context options; the device a suite gives each person, for the sessions it signs in |
 | `src/deps.mjs` | the project's package manager: which one, whether `node_modules` match its lockfile, how to heal them |
 | `src/suites.mjs` | the Markdown suites: their cast, their hash, `decide` |

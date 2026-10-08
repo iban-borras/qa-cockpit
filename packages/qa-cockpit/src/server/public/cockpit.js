@@ -53,6 +53,7 @@ const ICONS = {
   pin: '<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>',
   trash: '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
   radio: '<path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/>',
+  a11y: '<circle cx="16" cy="4" r="1"/><path d="m18 19 1-7-6 1"/><path d="m5 8 3-3 5.5 3-2.36 3.5"/><path d="M4.24 14.5a5 5 0 0 0 6.88 6"/><path d="M13.76 17.5a5 5 0 0 0-6.88-6"/>',
 };
 const icon = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
 const withIcon = (el, name, text = '') => (el.innerHTML = icon(name) + (text ? `<span>${esc(text)}</span>` : ''));
@@ -187,7 +188,7 @@ async function act(action, extra = {}) {
     const res = await api('/api/action', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, suite: S.suite, headed: $('optHeaded').checked, docker: $('optDocker').checked, ...extra }),
+      body: JSON.stringify({ action, suite: S.suite, headed: $('optHeaded').checked, docker: $('optDocker').checked, a11y: $('optA11y').checked, ...extra }),
     });
     if (res.ok === false) banner(res.error, 'err');
     else if (res.warning) banner(desktopText(res.warning), 'warn');
@@ -1389,7 +1390,7 @@ function renderInspector(first = false) {
     const sel = x === shown ? ' sel' : x.seq === open ? ' open' : '';
     const dur = Number.isFinite(x.ms) ? `<span class="dur${x.ms >= SLOW_STEP_MS ? ' slow' : ''}">${esc(fmtDur(x.ms))}</span>` : '';
     const pins = pinsOf(x) + (x.seq === open ? 0 : (actionPins.get(x.seq) ?? 0));
-    html += `<button class="step${sel}" data-i="${i}"><span class="st ${st}">${icon(ic, 'sm')}</span><span class="sx">${esc(x.step)}</span>${pinBadge(pins)}${dur}</button>`;
+    html += `<button class="step${sel}" data-i="${i}"><span class="st ${st}">${icon(ic, 'sm')}</span><span class="sx">${esc(x.step)}</span>${findBadge(findingsOf(x).length)}${pinBadge(pins)}${dur}</button>`;
     if (x.seq !== open) return;
     list.forEach((a, j) => {
       if (a.of !== x.seq) return;
@@ -1456,6 +1457,9 @@ function renderInspector(first = false) {
     $('insWhere').textContent = '';
   }
   $('insMarksList').innerHTML = !ins.live && f ? marksList(f) : '';
+  $('insFindsList').innerHTML = !ins.live && f ? findsList(f) : '';
+  // Its switch only in a run that found something.
+  $('findsToggle').hidden = !list.some((x) => findingsOf(x).length);
 
   // Filmstrip: a step's actions, smaller, close before its own photo.
   let group = null;
@@ -1467,7 +1471,8 @@ function renderInspector(first = false) {
       group = g;
       const title = act ? `${x.test} › ${x.step} · ${t('ins.before', { n: actionNo(x) })}` : `${x.test} › ${x.step}`;
       const label = act ? `<i class="d ${x.marks?.[0]?.kind === 'type' ? 'type' : ''}"></i>${esc(actionNo(x))}` : esc(frameLabel(x) || '·');
-      return `<button class="${cls}" data-i="${i}" title="${esc(title)}"><img src="${esc(frameUrl(x))}" alt="" loading="lazy"><span>${label}</span>${pinBadge(pinsOf(x))}</button>`;
+      const found = findingsOf(x).length ? '<i class="fdot"></i>' : '';
+      return `<button class="${cls}" data-i="${i}" title="${esc(title)}"><img src="${esc(frameUrl(x))}" alt="" loading="lazy"><span>${label}</span>${found}${pinBadge(pinsOf(x))}</button>`;
     })
     .join('');
   const selThumb = $('insStrip').querySelector('.thumb.sel') ?? $('insStrip').lastElementChild;
@@ -1518,6 +1523,14 @@ function runReport(notesMd = '') {
     photosByStep.set(key, Math.max(photosByStep.get(key) ?? 0, f.photosMs));
   }
   const photosAll = [...photosByStep.values()].reduce((a, b) => a + b, 0);
+  const finds = S.frames.reduce((n, f) => n + findingsOf(f).length, 0);
+  // A finding in the report's words (a11y.mjs), as the CLI says it too.
+  const said = {
+    name: (x) => `${x.role} with no name`,
+    label: (x) => `field with no label (${x.role})`,
+    alt: () => 'image with no text alternative',
+    keyboard: (x) => `${x.role} the keyboard cannot reach${x.name ? ` («${x.name}»)` : ''}`,
+  };
   const lines = [
     `# QA run: ${r.suite} · ${r.id}`,
     '',
@@ -1531,6 +1544,7 @@ function runReport(notesMd = '') {
         return `${cap(a)}${d ? ` on ${d.name}${d.width ? ` (${d.kind}, ${d.width}×${d.height})` : ` (${d.kind})`}` : ''}`;
       })
       .join('; ')}`,
+    ...(finds ? [`- Accessibility (--a11y): ${finds} problem${finds === 1 ? '' : 's'}, each under the step where it first showed`] : []),
     '',
     'How to read it: one section per test, in the order they ran. A step\'s time runs from its start to its',
     'photo and includes the recording\'s own waits, not the cockpit\'s photos (their time is said apart); the',
@@ -1539,7 +1553,9 @@ function runReport(notesMd = '') {
     'Actions and requests carry their offset from the step\'s start. «context» photos are people a failed',
     'step does not name, photographed as they were. A step\'s photo is the whole page once its checks',
     'passed; each action (a click, a field typed in, a key pressed) has a photo of its own, the window',
-    'just before it, with its mark on what it was done to.',
+    'just before it, with its mark on what it was done to. With --a11y, a step lists its screen\'s',
+    'accessibility problems (Chromium\'s accessibility tree), each told once a run where it first showed,',
+    'with its box on the step\'s photo, at the page\'s pixels.',
     ...(S.state.reportNotes?.length ? ['', ...S.state.reportNotes.map((n) => `Note: ${n}`)] : []),
     '',
     ...(notesMd ? [notesMd, ''] : []),
@@ -1620,6 +1636,11 @@ function runReport(notesMd = '') {
         if (reqs.length) {
           const shown = reqs.slice(0, 10).map((q) => `${q.kind === 'page' ? 'page load ' : ''}${q.method} ${q.path} ${q.status || 'failed'} in ${Number.isFinite(q.ms) ? `${q.ms} ms` : 'n/a'}${off(q.at)}`);
           lines.push(`  - Requests (${reqs.length}, slowest first): ${shown.join('; ')}${reqs.length > 10 ? '; …' : ''}`);
+        }
+        const found = findingsOf(f);
+        if (found.length) {
+          const where = (x) => (x.box ? ` at ${x.box.x},${x.box.y} (${x.box.w}×${x.box.h})` : '');
+          lines.push(`  - Accessibility: ${found.map((x, i) => `${i + 1}. ${(said[x.rule] ?? (() => x.rule))(x)} \`${x.what}\`${where(x)}`).join('; ')}`);
         }
       }
       if (head.error) lines.push('- Error:', '', '```text', head.error, '```');
@@ -1712,6 +1733,22 @@ function marksOf(f) {
  *  of the step in order, each with its photo a click away; those this
  *  photo shows, drawn and numbered on it; a click that took the person
  *  elsewhere, with where it happened. */
+// WHAT A LOOK AT A STEP'S SCREEN FOUND (`replay --a11y`, a11y.mjs): each a
+// box on the step's photo, numbered as in the list under it, each told once
+// a run where it first showed.
+const findingsOf = (f) => (f && !isAction(f) ? (f.findings ?? []) : []);
+// The role in the page's language («botó»), or as ARIA names it when it has no word of its own.
+const roleWord = (role) => (t(`role.${role}`) === `role.${role}` ? role : t(`role.${role}`));
+const findText = (x) => `${cap(t(`find.a11y.${x.rule}`, { role: roleWord(x.role) }))}${x.name ? ` «${x.name}»` : ''}`;
+const findBadge = (n) => (n ? `<i class="fc" title="${esc(t('find.count', { n }))}">${icon('a11y', 'sm')}${n}</i>` : '');
+
+function findsList(f) {
+  const list = findingsOf(f);
+  if (!list.length) return '';
+  const items = list.map((x, i) => `<span class="fd" data-f="${i}"><span class="n">${i + 1}</span>${esc(findText(x))} <code>${esc(x.what)}</code></span>`);
+  return `${icon('a11y', 'sm')} ${items.join(' · ')}`;
+}
+
 function marksList(f) {
   const item = (m, i) => `<span class="n ${m.kind}">${esc(markNo(m, i))}</span>${esc(verbOf(m))} «${esc(m.label)}»`;
   // How long after the step's start each action came: the gaps between
@@ -1764,6 +1801,17 @@ function placeOnSheet(f) {
       (m, i) =>
         `<span class="pin ${m.kind}" style="left:${(100 * m.x) / W}%;top:${(100 * m.y) / H}%" title="${esc(m.label)}">${esc(markNo(m, i))}</span>`,
     )
+    .join('');
+  // What a look at its screen found: a box on each (a11y.mjs).
+  const finds = $('insFinds');
+  finds.classList.toggle('off', !$('optFinds').checked);
+  finds.innerHTML = findingsOf(f)
+    .map((x, i) => {
+      if (!x.box) return '';
+      const { x: bx, y: by, w, h } = x.box;
+      const style = `left:${(100 * bx) / W}%;top:${(100 * by) / H}%;width:${(100 * Math.max(w, 8)) / W}%;height:${(100 * Math.max(h, 8)) / H}%`;
+      return `<span class="find" data-f="${i}" style="${style}" title="${esc(findText(x))}"><b>${i + 1}</b></span>`;
+    })
     .join('');
   if (S.ins.placed !== f.seq) {
     S.ins.placed = f.seq;
@@ -2787,9 +2835,21 @@ $('optMarks').onchange = () => {
   localStorageSet('optMarks', $('optMarks').checked ? '1' : '0');
   $('insMarks').classList.toggle('off', !$('optMarks').checked);
 };
-for (const id of ['optHeaded', 'optDocker']) {
+for (const id of ['optHeaded', 'optDocker', 'optA11y']) {
   $(id).checked = localStorageGet(id) === '1';
   $(id).onchange = () => localStorageSet(id, $(id).checked ? '1' : '0');
+}
+$('optFinds').checked = localStorageGet('optFinds') !== '0';
+$('optFinds').onchange = () => {
+  localStorageSet('optFinds', $('optFinds').checked ? '1' : '0');
+  $('insFinds').classList.toggle('off', !$('optFinds').checked);
+};
+// A finding named under the photo lights its box on it.
+for (const [type, on] of [['mouseover', true], ['mouseout', false]]) {
+  $('insFindsList').addEventListener(type, (e) => {
+    const i = e.target.closest('[data-f]')?.dataset.f;
+    if (i !== undefined) $('insFinds').querySelector(`[data-f="${i}"]`)?.classList.toggle('hl', on);
+  });
 }
 $('tRange').oninput = (e) => tableGo(Number(e.target.value));
 $('tFirst').onclick = () => tableGo(0);

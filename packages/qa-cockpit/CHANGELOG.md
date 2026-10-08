@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.8.0 (unreleased)
+
+- `replay --a11y`: each step's screen is looked at for accessibility as its
+  photo is taken, in Chromium's own accessibility tree, as a screen reader
+  reads it. Four rules, few and sure: a button, a link or a tab with no
+  name; a field with no label; an image with no text alternative; a control
+  the keyboard cannot reach. Each problem is told once a run, where it first
+  shows. In the cockpit it is a box on that step's photo, numbered as in the
+  list under it, with a badge on the step and a dot on its thumbnail, and a
+  switch to hide them. At the end of the run it is a list in the terminal
+  (the step, the person, the element as `button#close.icon
+  [data-testid=close]`) and a section in the run report. In the cockpit, an
+  option of the run. It needs the cockpit, and its time goes with the
+  cockpit's own, said apart from the step's. Not a full audit: no
+  contrast, no focus order.
+
 ## 0.7.4 (2026-10-07)
 
 - «Play as» opens on a device of the project's own. It named the device the

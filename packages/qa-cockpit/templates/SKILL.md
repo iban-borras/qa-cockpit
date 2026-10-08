@@ -160,6 +160,7 @@ npx qa-cockpit decide <suite>   # REPLAY | GENERATE <why> | ENV <why>
 npx qa-cockpit replay <suite>   # fresh sessions if old, then the recording
 npx qa-cockpit replay <suite> -g T1   # one test; extra args go to Playwright
 npx qa-cockpit replay <suite> --network   # each person's requests kept as HARs, without secrets; «A look at the network»
+npx qa-cockpit replay <suite> --a11y      # each step's screen looked at for accessibility, with the cockpit; «Accessibility»
 npx qa-cockpit network [run]    # what they show, step by step (--against previous, --test <id>, --json, --list)
 npx qa-cockpit open <person>    # a browser window signed in as that person
 npx qa-cockpit stamp <suite>    # write the suite's hash into the recording's first line
@@ -328,6 +329,35 @@ like secrets (a game's `session_id`) names them in the config's
 `network.notSecret`, and their values stay. The Playwright traces under
 `<out>` are not cleaned: they keep everything the browser sent, to debug a
 failure. Never pass one on.
+
+## Accessibility (when a person asks, or before a release)
+
+`npx qa-cockpit replay <suite> --a11y`, with the cockpit following the run
+(in the cockpit: the run's options menu, «Accessibility»). As each step's
+photo is taken, its screen is read from Chromium's accessibility tree, as a
+screen reader reads it, by four rules:
+
+- **name**: a button, a link, a tab or a menu item with no name;
+- **label**: a field with no label;
+- **alt**: an image with no text alternative (an `<img>`, or what says
+  `role="img"`);
+- **keyboard**: a control the keyboard cannot reach (a `<div
+  role="button">` without `tabindex`).
+
+Each problem is told once a run, where it first shows: a box on that step's
+photo in the cockpit, and when the run ends a list in the terminal, with the
+step, the person and the element as `button#close.icon [data-testid=close]`
+to find it in the code. The run report has them too, with their boxes.
+
+1. **What you deliver is a report.** The problems, the ones every screen
+   has first (a header's button), each with the element and its fix (an
+   `aria-label`, a `<label for>`, an `alt`, a `<button>` instead of a
+   `<div>`). Change the app only when the person says so.
+2. **It is not a full audit.** Four rules that are sure, not all of them:
+   no contrast, no focus order, nothing inside an `<iframe>`. Say so when
+   you report.
+3. **It costs time on every step** (the cockpit's own, said apart from the
+   step's): not on every replay, only when asked.
 
 ## Demo videos (only when a person asks)
 

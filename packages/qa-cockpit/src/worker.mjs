@@ -11,6 +11,8 @@
 //     ACTION the step took, the window just before it (see ACTION PHOTOS
 //     below), with its click or its typing marked on it (MARKS). The images
 //     go to <out>/cockpit/<run>/frames/ on disk; the cockpit gets their paths.
+//     With `replay --a11y`, a step's photo brings its screen's accessibility
+//     problems too, each a box on it (a11y.mjs).
 //   - A LIVE picture, only while somebody watches that person in the
 //     cockpit: a CDP screencast of their page, about four frames a second.
 //     The cockpit says who is watched (GET /api/watch); nobody watching costs
@@ -21,9 +23,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { a11yFindings } from './a11y.mjs';
 
 const URL_BASE = process.env.COCKPIT_URL || '';
 export const enabled = Boolean(URL_BASE);
+// `replay --a11y`: each step's screen looked at as its photo is taken
+// (a11y.mjs), each problem told once a run.
+const A11Y = process.env.QA_A11Y === '1';
+const toldA11y = new Set();
 const RUN = (process.env.COCKPIT_RUN || 'adhoc').replace(/[^\w.-]/g, '_');
 const LIVE_INTERVAL_MS = 250;
 // The package's own files: a step's location is the first frame outside them.
@@ -158,6 +165,8 @@ export async function photo(f) {
       // Chromium takes a full page beyond the viewport without resizing it,
       // so the page under test never sees its window change.
       await quietly(f.page, () => f.page.screenshot({ path: file, type: 'jpeg', quality: 60, scale: 'css', fullPage: true, timeout: 8_000 }));
+      // The same screen's accessibility, as boxes on this photo.
+      const findings = A11Y ? await quietly(f.page, () => a11yFindings(f.page, scroll, toldA11y)).catch(() => []) : [];
       await post('/api/frame', {
         run: RUN,
         actor: f.actor,
@@ -180,6 +189,7 @@ export async function photo(f) {
           marks: marks.filter((m) => m.shot === s).map(plain),
         })),
         requests: f.requests ?? [],
+        findings,
         // The device the person plays on: its name and kind, for the card.
         device: f.device ?? null,
         // The step's start and how long it took, the photos aside: where a

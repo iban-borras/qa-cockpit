@@ -340,6 +340,56 @@ export async function runCli(rawConfig, argv) {
     });
   }
 
+  // `replay --a11y` (a11y.mjs): each step's screen looked at as the cockpit
+  // photographs it, so only with the cockpit following the run. At the end,
+  // every problem found, each where it first showed: what an agent reads
+  // here, and a person on the photos, as boxes.
+  function lookAtA11y() {
+    const run = process.env.COCKPIT_RUN;
+    if (!process.env.COCKPIT_URL || !run) {
+      console.log(`--a11y looks at each step's screen as the cockpit photographs it, and no cockpit follows this run: start one first (${CLI} cockpit).`);
+      return;
+    }
+    process.env.QA_A11Y = '1';
+    const said = {
+      name: (x) => `a ${x.role} with no name`,
+      label: (x) => `a field with no label (${x.role})`,
+      alt: () => 'an image with no text alternative',
+      keyboard: (x) => `a ${x.role} the keyboard cannot reach${x.name ? ` («${x.name}»)` : ''}`,
+    };
+    // «T3/2 alice»: the test's id and the step's number, as the suite has them.
+    const where = (f) => {
+      const test = /^(\S+)\s+·/.exec(f.test)?.[1];
+      const step = /^(\d+)\s+·/.exec(f.step)?.[1];
+      return test && step ? `${test}/${step} ${f.actor}` : `${f.step} (${f.actor})`;
+    };
+    process.once('exit', () => {
+      let frames;
+      try {
+        frames = fs
+          .readFileSync(path.join(P.out, 'cockpit', run, 'frames.jsonl'), 'utf8')
+          .split('\n')
+          .filter(Boolean)
+          .map((line) => JSON.parse(line));
+      } catch {
+        return;
+      }
+      const seen = new Set();
+      const found = [];
+      for (const f of frames) {
+        for (const x of f.findings ?? []) {
+          const key = `${x.rule}|${x.role}|${x.name}|${x.what}`;
+          if (x.kind !== 'a11y' || seen.has(key)) continue;
+          seen.add(key);
+          found.push(`  ${where(f)}  ${(said[x.rule] ?? (() => x.rule))(x)}: ${x.what}`);
+        }
+      }
+      if (!found.length) return console.log('\nAccessibility: nothing found on the screens photographed.');
+      console.log(`\nAccessibility: ${found.length} problem${found.length === 1 ? '' : 's'}, each where it first showed (the cockpit draws them on its photos):`);
+      for (const line of found) console.log(line);
+    });
+  }
+
   const ctx = { config, holdStack, clearSavedSessions, waitHealthy: () => waitHealthy(config), log: (...a) => console.log(...a) };
   const STACK = config.stack.name;
 
@@ -437,12 +487,13 @@ export async function runCli(rawConfig, argv) {
     // requests kept too, as HARs without their secrets (network/).
     async replay() {
       const suite = rest[0];
-      if (!suite) fail(`Usage: ${CLI} replay <suite> [--network [--bodies]] [--in-docker] [playwright args]`);
+      if (!suite) fail(`Usage: ${CLI} replay <suite> [--network [--bodies]] [--a11y] [--in-docker] [playwright args]`);
       const file = recordingOf(config, suite);
       if (!file) fail(`No recording for the suite "${suite}" in ${P.recordings}`);
       const network = rest.includes('--network');
       const bodies = rest.includes('--bodies');
-      const pwArgs = rest.slice(1).filter((a) => a !== '--network' && a !== '--bodies');
+      const a11y = rest.includes('--a11y');
+      const pwArgs = rest.slice(1).filter((a) => a !== '--network' && a !== '--bodies' && a !== '--a11y');
       if (bodies && !network) fail('--bodies goes with --network: it keeps the text of the responses in its HARs.');
       // In a container the requests cross another network, and the HARs
       // would have to come back from it: a look is taken on this machine.
@@ -463,6 +514,7 @@ export async function runCli(rawConfig, argv) {
       // From its first test on, a recording changes the data.
       noteData(config, { state: 'spent', suite });
       if (network) await lookAtNetwork(suite, bodies);
+      if (a11y) lookAtA11y();
       await playwright(['test', testFileArg(file), ...pwArgs]);
     },
 
@@ -1006,7 +1058,10 @@ export async function runCli(rawConfig, argv) {
   stamp <suite>    write that header into the recording's first line
   replay <suite>   fresh sessions, then the suite's recording (extra args go to Playwright);
                    --network: each person's requests kept too, as HARs without their secrets
-                   (--bodies: with the text of the app's responses)
+                   (--bodies: with the text of the app's responses);
+                   --a11y: each step's screen looked at for accessibility, with the cockpit:
+                   a button or a link with no name, a field with no label, an image with no
+                   text alternative, a control the keyboard cannot reach
   network [run]    what a replay --network found, step by step: calls one after another,
                    repeated or per item, slow, heavy or failed (--against previous: what a
                    change changed; --test <id>; --json; --list)
