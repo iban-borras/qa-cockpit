@@ -89,6 +89,19 @@
 - The run picker counts every test a run ran: a full run (reset, setup and
   the recording) said «5 of 3 tests pass», its setup's tests passed against
   its recording's count.
+- Reports from «Play as». The window a person plays in is followed as a
+  run is: each of their actions (a click, a field typed in, Enter or
+  Escape, an option picked) with the window just before it, from a
+  screencast kept for a few seconds, so the window is never slowed; the
+  page's requests and errors. A strip under the run says who plays, what
+  they did since the last report and the errors their page met, with the
+  window as it is now. «Make a report» asks what went wrong and turns it
+  into a run of kind «play»: steps in a suite's words («4 · Bob: types
+  «hola» in «Message»»), each with its photos, requests and page errors,
+  then each window as it was when reported, with the note as its error.
+  `qa-cockpit play` prints it for an agent (`--list`, every one kept).
+  What is typed is kept, to be typed again, but never what went in a
+  password's field, a card's, a code's or a token's.
 - «Play as» is off for the people the run going now plays, and for
   everybody while a reset or a renewal of the saved sessions goes: the
   window would open from the very session the run is using, so what was

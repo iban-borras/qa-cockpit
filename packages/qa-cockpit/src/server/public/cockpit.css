@@ -449,6 +449,25 @@ dialog#inspector::backdrop { background: rgba(4, 4, 6, 0.72); }
 .races li code { flex-basis: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 11.5px/1.4 var(--mono); color: var(--err); }
 .races li .again { margin-left: auto; }
 .races .again svg.i { width: 13px; height: 13px; }
+/* REPORTS FROM «PLAY AS» (cockpit.js renderPlays): who plays in a window
+   of their own, what they did since the last report, the window as it is
+   now; and the report's button. */
+.plays { grid-column: 1 / -1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
+.plays .pl { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.plays .pl img { height: 34px; width: auto; max-width: 64px; object-fit: cover; object-position: top; border-radius: 4px; border: 1px solid var(--line-2); }
+.plays .pl b { color: var(--text); font-weight: 550; }
+.plays .pl.open b::before { content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: var(--ok); vertical-align: 1px; }
+.plays .pl .bad { color: var(--err); }
+.plays #playReport { margin-left: auto; }
+.plays #playReport svg.i { width: 13px; height: 13px; }
+dialog.play-dialog { width: min(480px, 92vw); }
+.play-dialog p b { display: block; margin-bottom: 4px; font-size: 15px; }
+.play-dialog p span { color: var(--muted); font-size: 13px; }
+.play-dialog textarea { display: block; width: 100%; box-sizing: border-box; margin: 0 0 14px; padding: 10px 12px; border: 1px solid var(--line-2); border-radius: 8px; background: var(--panel-2); color: var(--text); font: 13.5px/1.5 var(--sans); resize: vertical; }
+.play-dialog textarea:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.caption .console-line { font-size: 12px; color: var(--err); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.caption .console-line:empty { display: none; }
+.caption .console-line svg.i { width: 12px; height: 12px; vertical-align: -2px; }
 .who > span > .line.slowed { color: #c4b5fd; }
 .line.slowed svg.i { width: 12px; height: 12px; margin-right: 4px; vertical-align: -2px; color: #a78bfa; }
 .langs { display: flex; flex-wrap: wrap; gap: 6px; flex: none; }
@@ -457,7 +476,7 @@ dialog#inspector::backdrop { background: rgba(4, 4, 6, 0.72); }
 .langs .lt.sel { color: var(--text); border-color: #e879f9; box-shadow: inset 0 0 0 1px #e879f9; }
 .langs .lt i { font-style: normal; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: #e879f9; color: #2a0631; font: 700 10px/16px var(--sans); text-align: center; }
 .pin { position: absolute; transform: translate(-50%, -50%); width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #fff; font: 700 12px/26px var(--sans); text-align: center; box-shadow: 0 0 0 4px rgba(225, 29, 72, 0.3), 0 0 0 2px #fff inset; }
-.pin.type { background: #7c3aed; box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.3), 0 0 0 2px #fff inset; }
+.pin.type, .pin.key { background: #7c3aed; box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.3), 0 0 0 2px #fff inset; }
 /* THE NOTES (cockpit.js, «notes on the photos»): amber tacks and yellow
    post-its, apart from the clicks' red and the typing's violet. A tack's
    needle ends at its note's point; its head (drawn the same on the copy
@@ -502,7 +521,7 @@ dialog.ask p { margin: 0 0 16px; font-size: 14px; line-height: 1.5; }
 @media (prefers-reduced-motion: reduce) { .tack.fresh, .postit { animation: none; } }
 .caption .marks-list { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .caption .marks-list .n { display: inline-block; min-width: 16px; height: 16px; border-radius: 50%; background: var(--accent); color: #fff; font: 700 10px/16px var(--sans); text-align: center; margin-right: 4px; }
-.caption .marks-list .n.type { background: #7c3aed; }
+.caption .marks-list .n.type, .caption .marks-list .n.key { background: #7c3aed; }
 .caption .marks-list .at { font: 11px var(--mono); color: var(--faint); }
 .caption .marks-list .mk { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
 .caption .marks-list .mk:hover { color: var(--text); }

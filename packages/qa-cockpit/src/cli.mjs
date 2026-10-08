@@ -819,6 +819,69 @@ export async function runCli(rawConfig, argv) {
       await playwright(['test', testFileArg(file), ...pwArgs]);
     },
 
+    // What a person reported from «Play as» in the cockpit (play.mjs): their
+    // note, then what they did as steps in a suite's words, each with its
+    // photos (the window just before the action, its mark, and after it),
+    // its requests and the page's errors. The newest report, or the one
+    // named; --list, every one kept.
+    async play() {
+      const root = path.join(P.out, 'cockpit');
+      const metaOf = (d) => {
+        try {
+          return JSON.parse(fs.readFileSync(path.join(root, d, 'run.json'), 'utf8'));
+        } catch {
+          return null;
+        }
+      };
+      const reports = fs.existsSync(root)
+        ? fs
+            .readdirSync(root)
+            .filter((d) => metaOf(d)?.kind === 'play')
+            .sort()
+            .reverse()
+        : [];
+      if (rest.includes('--list')) {
+        if (!reports.length) console.log('No report from «Play as» yet.');
+        for (const d of reports) {
+          const m = metaOf(d);
+          console.log(`${d}  ${(m.play?.people ?? []).join(', ')}, ${m.play?.acts ?? 0} actions: ${(m.play?.note || '(no note)').split(/\r?\n/)[0]}`);
+        }
+        return;
+      }
+      const want = rest[0] && rest[0] !== 'latest' ? rest[0] : reports[0];
+      if (!want) fail('No report from «Play as» yet: in the cockpit, «Play as» a person, play, then «Make a report».');
+      if (!metaOf(want)) fail(`No run ${want} in ${shown(config, root)} (${CLI} play --list).`);
+      if (metaOf(want).kind !== 'play') fail(`${want} is a run, not a report from «Play as»: ${CLI} notes ${want} says what was pinned on it.`);
+      const { readRunFiles } = await import('./notes.mjs');
+      const { meta, frames } = readRunFiles(path.join(root, want));
+      const photo = (f) => shown(config, path.join(P.out, f.file));
+      const people = (meta.play?.people ?? []).map((id) => {
+        const d = frames.find((f) => f.actor === id && f.device)?.device;
+        return `${id[0].toUpperCase()}${id.slice(1)}${d ? ` (${d.name})` : ''}`;
+      });
+      const steps = frames.filter((f) => f.kind !== 'action');
+      console.log(`# Report from «Play as»: ${meta.suite} · ${want}`);
+      console.log(`Made ${meta.endedAt}, playing as ${people.join(', ')}: ${meta.play?.acts ?? 0} actions${meta.play?.dropped ? ` (and ${meta.play.dropped} earlier ones left out)` : ''}.`);
+      console.log('\nWhat went wrong, in the person\'s words:');
+      for (const line of (meta.play?.note || '(no note)').split(/\r?\n/)) console.log(`> ${line}`);
+      console.log('');
+      for (const f of steps) {
+        console.log(f.step);
+        const before = frames.find((a) => a.kind === 'action' && a.of === f.seq);
+        if (before) {
+          const m = before.marks?.[0];
+          console.log(`   before: ${photo(before)}${m ? ` (its mark at ${m.x},${m.y} of the window)` : ''}`);
+        }
+        console.log(`   ${f.status === 'failed' ? 'photo' : 'after'}: ${photo(f)}`);
+        const reqs = (f.requests ?? []).map((r) => `${r.method} ${r.path} ${r.status || 'failed'}`);
+        if (reqs.length) console.log(`   requests: ${reqs.slice(0, 12).join(', ')}${reqs.length > 12 ? ', …' : ''}`);
+        for (const c of f.console ?? []) console.log(`   page error: ${c.level === 'exception' ? 'uncaught ' : ''}${c.text}`);
+      }
+      console.log(
+        "\nTo make it a test: write these steps, and what should have happened, as a test of a suite (the person's words for it); record it, and replay it: red until the fix turns it green.",
+      );
+    },
+
     // How a person changes the app's language (`languages.switchTo` in the
     // config): tried on one person's screen, each other language and back,
     // before a run relies on it (languages.mjs). Its photos stay to look at.
@@ -1418,6 +1481,9 @@ export async function runCli(rawConfig, argv) {
                    whoever asked (what an agent runs); --restart: a fresh one
   notes [run]      the notes pinned on a run's photos in the cockpit, as Markdown
                    (the newest run with notes; --list: every run that has some)
+  play [run]       a report a person made from «Play as» in the cockpit: their note, and what
+                   they did as steps in a suite's words, with photos, requests and page errors
+                   (the newest; --list: every one kept)
   video <suite>    a demo video: reset, setup, the recording captured, then drawn with a
                    cursor, subtitles, cards and sound (--motion: real time, animations on;
                    --clips: each step as it played, for an editor; --script <file>)

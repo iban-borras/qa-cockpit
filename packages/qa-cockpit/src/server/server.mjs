@@ -21,6 +21,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { shown } from '../config.mjs';
 import { acquireLock, isAlive, lockFileOf, readLock, StackBusy } from '../lock.mjs';
@@ -29,6 +30,7 @@ import { deviceFor, deviceLabel } from '../devices.mjs';
 import { cleanNote, notesMarkdown, pinnedFileOf, pinnedSeqs, readNotes, readRunFiles, writeNotes } from '../notes.mjs';
 import { readData } from '../stackdata.mjs';
 import { desktopOf } from '../desktop.mjs';
+import { playRun } from '../play.mjs';
 import { playwrightCoreDir } from '../deps.mjs';
 
 const PACKAGE_JSON = new URL('../../package.json', import.meta.url);
@@ -636,6 +638,183 @@ function externalLines(body) {
   return true;
 }
 
+// ---------------------------------------------------------------- reports from «Play as»
+
+// A window opened by «Play as» is followed for a report (open-browser.mjs,
+// play.mjs): its process tells what the person does there, each action
+// with the window just before it, and the page's requests and errors.
+// «Make a report» turns what every window did since its last report into
+// a run of kind «play», closed from birth: a run going on the stack is not
+// touched. The sessions live while the cockpit does; their photos, in
+// <cockpit>/play/<session>/, until the next ones push them out.
+const plays = new Map();
+const PLAY_EVENTS = 2_000;
+const PLAY_SESSIONS = 8;
+const capWord = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
+
+/** What the page shows of each window: open, and what it did since its last report. */
+function playsInfo() {
+  return [...plays.values()]
+    .map((p) => {
+      const fresh = p.events.filter((e) => e.t > p.since);
+      const errors = fresh.filter((e) => e.kind === 'console' || (e.kind === 'request' && (e.status === 0 || e.status >= 500))).length;
+      return { session: p.session, actor: p.actor, open: p.open, acts: fresh.filter((e) => e.kind === 'act').length, errors, latest: p.latest?.t ?? null };
+    })
+    .filter((p) => p.open || p.acts > 0);
+}
+
+let playsTimer = null;
+function playsChanged() {
+  if (playsTimer) return;
+  playsTimer = setTimeout(() => {
+    playsTimer = null;
+    broadcast('plays', playsInfo());
+  }, 400);
+}
+
+/** The oldest closed windows' sessions, and their photos, beyond the few kept. */
+function forgetOldPlays() {
+  const closed = [...plays.values()].filter((p) => !p.open);
+  for (const p of closed.slice(0, Math.max(0, plays.size - PLAY_SESSIONS))) {
+    plays.delete(p.session);
+    fs.rmSync(p.dir, { recursive: true, force: true });
+  }
+}
+
+const numOf = (v) => (v !== null && v !== '' && Number.isFinite(Number(v)) ? Math.round(Number(v)) : null);
+const strOf = (v, n) => (typeof v === 'string' ? v.slice(0, n) : '');
+const PLAY_PHOTO = /^[\w.-]{1,80}\.jpg$/;
+
+/** A window's event as the cockpit keeps it, or null. */
+function playEventOf(e) {
+  if (!e || typeof e !== 'object') return null;
+  const t = numOf(e.t);
+  if (t === null) return null;
+  const viewport = viewportOf(e.viewport);
+  switch (e.kind) {
+    case 'hello': {
+      const d = e.device;
+      const device =
+        d && typeof d.name === 'string'
+          ? { name: d.name.slice(0, 60), kind: ['phone', 'tablet', 'laptop', 'desktop'].includes(d.kind) ? d.kind : 'desktop', width: numOf(d.width), height: numOf(d.height) }
+          : null;
+      return { kind: 'hello', t, device };
+    }
+    case 'latest':
+      return { kind: 'latest', t, viewport, url: strOf(e.url, 500) };
+    case 'closed':
+      return { kind: 'closed', t };
+    case 'nav':
+      return { kind: 'nav', t, url: strOf(e.url, 500) };
+    case 'console':
+      return { kind: 'console', t, level: e.level === 'exception' ? 'exception' : 'error', text: strOf(e.text, 300) };
+    case 'request':
+      return {
+        kind: 'request',
+        t,
+        type: e.type === 'page' ? 'page' : 'api',
+        method: strOf(e.method, 10),
+        path: strOf(e.path, 200),
+        status: numOf(e.status) ?? 0,
+        ms: numOf(e.ms),
+        ...(e.failure ? { failure: strOf(e.failure, 120) } : {}),
+      };
+    case 'act':
+      if (!['click', 'type', 'key', 'pick'].includes(e.act)) return null;
+      return {
+        kind: 'act',
+        act: e.act,
+        t,
+        label: strOf(e.label, 60),
+        value: typeof e.value === 'string' ? e.value.slice(0, 200) : null,
+        hidden: e.hidden === true,
+        ...(e.act === 'key' ? { key: strOf(e.key, 20) } : {}),
+        url: strOf(e.url, 500),
+        x: numOf(e.x) ?? 0,
+        y: numOf(e.y) ?? 0,
+        vx: numOf(e.vx) ?? 0,
+        vy: numOf(e.vy) ?? 0,
+        photo: typeof e.photo === 'string' && PLAY_PHOTO.test(e.photo) ? e.photo : null,
+        viewport,
+      };
+    default:
+      return null;
+  }
+}
+
+/** A window's events, from its own process: only with its session's token. */
+function playEvents(body) {
+  const p = plays.get(String(body?.session ?? ''));
+  if (!p || body.token !== p.token || !Array.isArray(body.events)) return false;
+  for (const raw of body.events.slice(0, 500)) {
+    const e = playEventOf(raw);
+    if (!e) continue;
+    if (e.kind === 'hello') p.device = e.device;
+    else if (e.kind === 'latest') p.latest = { t: e.t, viewport: e.viewport, url: e.url };
+    else if (e.kind === 'closed') p.open = false;
+    else p.events.push(e);
+  }
+  if (p.events.length > PLAY_EVENTS) p.events.splice(0, p.events.length - PLAY_EVENTS);
+  playsChanged();
+  return true;
+}
+
+/**
+ * «Make a report»: what every window did since its last report, as a run
+ * of the suite on screen, with the person's note on what went wrong.
+ */
+function playReport(body) {
+  const suite = listSuites(CFG).find((s) => s.name === body?.suite)?.name;
+  if (!suite) throw new Refusal('no_suite', { suite: String(body?.suite ?? '') });
+  const note = typeof body.note === 'string' ? body.note.trim().slice(0, 2000) : '';
+  const sessions = [...plays.values()].filter((p) => p.events.some((e) => e.kind === 'act' && e.t > p.since));
+  if (!sessions.length) throw new Refusal('play_nothing');
+  const now = Date.now();
+  const first = note.split('\n')[0].trim();
+  const title = `P · ${first ? first.slice(0, 80) : `${sessions.map((p) => capWord(p.actor)).join(', ')} at play`}`;
+  let id = `${stamp()}-${suite}`;
+  for (let k = 2; fs.existsSync(path.join(COCKPIT_DIR, id)); k++) id = `${stamp()}-${suite}-${k}`;
+  const dir = path.join(COCKPIT_DIR, id);
+  fs.mkdirSync(path.join(dir, 'frames'), { recursive: true });
+  const built = playRun({
+    sessions: sessions.map((p) => ({ actor: p.actor, device: p.device, dir: p.dir, events: p.events, since: p.since, latest: p.latest })),
+    note,
+    title,
+    runDir: dir,
+    relOut: (abs) => path.relative(CFG.paths.out, abs).split(path.sep).join('/'),
+    now,
+  });
+  for (const c of built.copies) {
+    try {
+      fs.copyFileSync(c.from, c.to);
+    } catch {
+      // A photo gone: its step says what was done all the same.
+    }
+  }
+  const wrong = note || 'Reported from «Play as», with no note.';
+  const meta = {
+    id,
+    suite,
+    label: `play of ${suite}`,
+    kind: 'play',
+    startedAt: built.startedAt,
+    endedAt: new Date(now).toISOString(),
+    status: 'failed',
+    phase: { files: 1, total: 1, done: 1 },
+    current: null,
+    tests: { [title]: { status: 'failed', duration: Math.max(0, now - Date.parse(built.startedAt)), errors: [{ message: wrong }], trace: null } },
+    testOrder: [title],
+    play: { note, people: built.people, acts: built.acts, dropped: built.dropped },
+  };
+  fs.writeFileSync(path.join(dir, 'run.json'), JSON.stringify(meta, null, 1));
+  fs.writeFileSync(path.join(dir, 'frames.jsonl'), built.frames.map((f) => `${JSON.stringify(f)}\n`).join(''));
+  for (const p of sessions) p.since = now;
+  pruneRuns();
+  playsChanged();
+  log(`[cockpit] a report from «Play as» (${built.people.join(', ')}, ${built.acts} actions): ${id}`);
+  return { ok: true, run: id };
+}
+
 // ---------------------------------------------------------------- races between people
 
 // A search for races (`replay --chaos`, cli.mjs and chaos.mjs) plays its
@@ -1007,20 +1186,42 @@ function sessionInUse(actor) {
 
 function playAs(actor) {
   const last = run?.frames?.findLast?.((f) => f.actor === actor && f.device)?.device;
+  // The window followed for a report (play.mjs): a session of its own.
+  const session = `${stamp()}-${actor}-${randomBytes(3).toString('hex')}`;
+  const p = { session, actor, token: randomBytes(16).toString('hex'), dir: path.join(COCKPIT_DIR, 'play', session), startedAt: new Date().toISOString(), open: true, events: [], since: 0, latest: null, device: null };
+  plays.set(session, p);
+  forgetOldPlays();
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [OPEN_BROWSER, actor], {
       cwd: CFG.paths.project,
-      env: { ...process.env, QA_COCKPIT_CONFIG: CFG.file, FRONTEND_URL: stack.front ?? '', ...(last ? { QA_DEVICE: last.name } : {}) },
+      env: {
+        ...process.env,
+        QA_COCKPIT_CONFIG: CFG.file,
+        FRONTEND_URL: stack.front ?? '',
+        ...(last ? { QA_DEVICE: last.name } : {}),
+        COCKPIT_URL: `http://${HOST}:${PORT}`,
+        QA_PLAY_SESSION: session,
+        QA_PLAY_TOKEN: p.token,
+        QA_PLAY_DIR: p.dir,
+      },
       // Hides this node's console only; the browser it starts shows itself.
       windowsHide: true,
     });
     let out = '';
     let err = '';
+    let ready = false;
     const done = (result) => {
       clearTimeout(timer);
       child.stdout.removeAllListeners('data');
+      if (!result.ok && !ready) plays.delete(session);
+      ready ||= result.ok;
+      playsChanged();
       resolve(result);
     };
+    child.on('exit', () => {
+      p.open = false;
+      playsChanged();
+    });
     const timer = setTimeout(() => done({ ok: false, error: 'The browser said nothing in 30 seconds.' }), 30_000);
     child.stdout.on('data', (d) => {
       out += d;
@@ -1123,6 +1324,8 @@ function state() {
     run: summary(run),
     runs: runsIndex(),
     watched: watchedActors(),
+    // The windows of «Play as» followed for a report, and what each did since the last.
+    plays: playsInfo(),
   };
 }
 
@@ -1349,6 +1552,14 @@ async function handle(req, res) {
     if (ours) finishTask(body.code === 0 ? 'passed' : 'failed', body.code);
     return send(res, 200, { ok: ours });
   }
+  if (req.method === 'POST' && p === '/api/play/event') return send(res, 200, { ok: playEvents(await readJson(req)) });
+  if (req.method === 'POST' && p === '/api/play/report') {
+    try {
+      return send(res, 200, playReport(await readJson(req)));
+    } catch (e) {
+      return send(res, 400, { ok: false, code: e instanceof Refusal ? e.code : 'error', params: e instanceof Refusal ? e.params : {}, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
   if (req.method === 'POST' && p === '/api/chaos/round') return send(res, 200, chaosRound(await readJson(req)));
   if (req.method === 'POST' && p === '/api/chaos/end') return send(res, 200, chaosEnd(await readJson(req)));
   if (req.method === 'POST' && p === '/api/report-event') {
@@ -1398,6 +1609,16 @@ export function startCockpit(config, port = config.cockpit.port) {
   CFG = config;
   PORT = port;
   COCKPIT_DIR = path.join(config.paths.out, 'cockpit');
+  // The photos of «Play as» windows an earlier cockpit followed: nobody's
+  // now (one still open writes on, and stays).
+  try {
+    for (const d of fs.readdirSync(path.join(COCKPIT_DIR, 'play'))) {
+      const at = path.join(COCKPIT_DIR, 'play', d);
+      if (Date.now() - fs.statSync(at).mtimeMs > 10 * 60_000) fs.rmSync(at, { recursive: true, force: true });
+    }
+  } catch {
+    // None yet.
+  }
   LOCK_FILE = lockFileOf(config);
   KEEP_RUNS = config.cockpit.keepRuns;
   TRACE_VIEWER_DIR = traceViewerDir(config);

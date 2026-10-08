@@ -123,6 +123,7 @@
       <div class="track"><div id="progressBar"></div></div>
     </div>
     <div class="races" id="races" hidden></div>
+    <div class="plays" id="plays" hidden></div>
   </section>
 
   <section class="panel table" data-i18n-aria="table.title">
@@ -189,7 +190,7 @@
             <img id="insLive" alt="" hidden>
             <div class="empty" id="insEmpty" hidden></div>
           </div>
-          <div class="caption"><b id="insCap"></b><span class="where" id="insWhere"></span><span class="marks-list" id="insMarksList"></span><span class="finds-list" id="insFindsList"></span><span class="handoff" id="insHandOff"></span></div>
+          <div class="caption"><b id="insCap"></b><span class="where" id="insWhere"></span><span class="marks-list" id="insMarksList"></span><span class="finds-list" id="insFindsList"></span><span class="handoff" id="insHandOff"></span><span class="console-line" id="insConsole"></span></div>
         </div>
       </div>
       <div class="ins-foot">
@@ -228,6 +229,13 @@
     <form method="dialog">
       <p id="askText"></p>
       <div class="ask-buttons" id="askButtons"></div>
+    </form>
+  </dialog>
+  <dialog id="playDialog" class="ask play-dialog" aria-labelledby="playDialogTitle">
+    <form method="dialog">
+      <p><b id="playDialogTitle" data-i18n="play.dialog_title"></b><span data-i18n="play.dialog_hint"></span></p>
+      <textarea id="playNote" rows="5" data-i18n-placeholder="play.dialog_placeholder" data-i18n-aria="play.dialog_title"></textarea>
+      <div class="ask-buttons"><button class="btn" value="cancel" data-i18n="ask.cancel"></button><button class="btn primary" value="report" data-i18n="play.dialog_ok"></button></div>
     </form>
   </dialog>
 

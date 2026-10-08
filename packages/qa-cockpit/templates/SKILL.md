@@ -194,6 +194,7 @@ npx qa-cockpit stamp <suite>    # write the suite's hash into the recording's fi
 npx qa-cockpit pass <suite> <who> <result> <notes...>   # a row in the suite's runs table
 npx qa-cockpit mcp              # .mcp.json: one Playwright MCP server per saved session
 npx qa-cockpit notes [run]      # the notes a person pinned on a run's photos (--list: runs with notes)
+npx qa-cockpit play [run]       # a report a person made from «Play as»: note, steps, photos, errors (--list); «Reports from Play as»
 npx qa-cockpit video check      # what a demo video needs from this machine (only when asked for one)
 npx qa-cockpit video script <suite>   # a first video script, in the suite's words
 npx qa-cockpit video voices <suite>   # its narration in the system's own voice (no voice service)
@@ -299,6 +300,37 @@ are asked to act on them:
    suite and GENERATE. Say which, note by note, in your answer.
 4. Notes stay until a person deletes them in the cockpit: never delete one
    yourself.
+
+## Reports from «Play as» (when a person says they made one)
+
+In the cockpit, «Play as» opens a window signed in as somebody of the
+cast, for a person to use the app by hand. The cockpit follows it as it
+follows a run: each action (a click, a field typed in, Enter or Escape, an
+option picked) with the window just before it, the page's requests and its
+errors. When something goes wrong, «Make a report» asks the person what,
+and turns what every window did since the last report into a run of kind
+«play»: steps in a suite's words («4 · Bob: types «hola» in «Message»»),
+then each window as it was when reported, with the person's note.
+
+```bash
+npx qa-cockpit play          # the newest report: the note, the steps, their photos, requests and page errors
+npx qa-cockpit play --list   # every report kept
+```
+
+1. **Read the note first**, then the photos of the steps around what it
+   says: each action's photo is the window just before it, its mark on what
+   was done; the step's is the window after it.
+2. **A page error or a failed request** in a step is often the cause: say
+   which step it came in.
+3. **Reproduce it as a test** when the person asks: the steps as a test of
+   the suite (or of a new one), in its words, with what should have
+   happened; GENERATE its recording and replay it, red until the fix turns
+   it green.
+4. **What was typed is in the steps**, but never what went in a password's
+   field, a card's, a code's or a token's: those say «(hidden)». Use the
+   cast's own, or ask.
+5. While a run plays somebody, their «Play as» is off: the window would be
+   the run's very session.
 
 ## A look at the network (when a person asks)
 

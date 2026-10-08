@@ -34,6 +34,7 @@ without a person beside it.
 | `src/stackdata.mjs` | what the stack's data is now: the setup of which suite, or spent by a replay |
 | `src/detach.mjs`, `src/desktop.mjs` | `cockpit --detach`: the cockpit started for a person, on their desktop, outliving whoever asked |
 | `src/notes.mjs` | the notes pinned on a run's photos, and their Markdown |
+| `src/play.mjs`, `src/open-browser.mjs` | «Play as»: the window a person plays in, followed for a report (their actions in the page; the window's frames, requests and errors in its process), and the report as a run of kind «play» (the cockpit writes it) |
 | `src/network/` | `replay --network` and `network`: each person's HAR in a run (`capture.mjs`), its secrets taken out before it reaches the project (`sanitize.mjs`), and what it shows, step by step (`report.mjs`) |
 | `src/video/` | `video`: the capture in a run (`capture.mjs`), the plan of a video (`plan.mjs`), its drawing on a Chromium stage and its encoding (`render.mjs`; the design is `stage.html`), its sound (`audio.mjs`), its script (`script.mjs`), the system's voice (`voices.mjs`) |
 | `src/server/server.mjs` | the cockpit's server: the runs, the API, the files it serves |

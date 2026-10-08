@@ -240,6 +240,16 @@ when they reached the screen with no pushed message carrying them. The
 cockpit shows it under the step's photo; the terminal lists every hand-off
 when the run ends.
 
+## Reports from «Play as»
+
+«Play as» opens a window signed in as somebody of the cast, to use the app
+by hand. The cockpit follows it as it follows a run: each action with the
+window just before it, the page's requests and its errors, never slowing
+the window. Something wrong? «Make a report», say what, and what every
+window did since the last report becomes a run of its own, steps written
+in a suite's words with their photos, for an agent to turn into a test
+(`qa-cockpit play`). What is typed in a password's field is never kept.
+
 ## Races between people
 
 On your machine everybody is fast, and the steps of several people come in
@@ -279,6 +289,7 @@ mcp                               .mcp.json: one Playwright MCP server per perso
 cockpit [--port p] [--no-open]    the cockpit
 cockpit --detach | --restart      the cockpit for a person, outliving whoever asked
 notes [run] [--list]              the notes pinned on a run's photos, as Markdown
+play [run] [--list]               a report a person made from «Play as»: note, steps, photos, errors
 video <suite> [--motion|--clips]  a demo video: reset, setup, recording, drawn
 video render [capture]            the last capture drawn again (a new narration)
 video script <suite>              a first video script, in the suite's words

@@ -56,6 +56,8 @@ const ICONS = {
   a11y: '<circle cx="16" cy="4" r="1"/><path d="m18 19 1-7-6 1"/><path d="m5 8 3-3 5.5 3-2.36 3.5"/><path d="M4.24 14.5a5 5 0 0 0 6.88 6"/><path d="M13.76 17.5a5 5 0 0 0-6.88-6"/>',
   // A round of a search for races (`replay --chaos`): a die.
   dice: '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><path d="M16 8h.01"/><path d="M8 8h.01"/><path d="M8 16h.01"/><path d="M16 16h.01"/><path d="M12 12h.01"/>',
+  // A report from «Play as»: a flag on what went wrong.
+  flag: '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/>',
 };
 const icon = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
 const withIcon = (el, name, text = '') => (el.innerHTML = icon(name) + (text ? `<span>${esc(text)}</span>` : ''));
@@ -92,7 +94,7 @@ const actionsOf = (step) => S.frames.filter((x) => x.of === step.seq);
 // A mark's number: its action's in the step; in a run from before, its
 // place among the marks drawn.
 const markNo = (m, i) => m.n ?? i + 1;
-const verbOf = (m) => t(m.kind === 'type' ? 'mark.type' : 'mark.click');
+const verbOf = (m) => t(m.kind === 'type' ? 'mark.type' : m.kind === 'key' ? 'mark.key' : m.kind === 'pick' ? 'mark.pick' : 'mark.click');
 /** How long after its step began a mark came: where a slow screen shows. */
 function sinceStep(f, m) {
   if (!Number.isFinite(m?.at) || !f.began) return '';
@@ -1017,6 +1019,7 @@ function renderStatus() {
   $('progressBar').dataset.st = broke || r?.status === 'failed' ? 'failed' : ['stopped', 'interrupted'].includes(r?.status) ? r.status : 'passed';
   tickElapsed();
   renderRaces();
+  renderPlays();
 }
 
 // ---------------------------------------------------------------- the run picker
@@ -1458,7 +1461,7 @@ function renderInspector(first = false) {
       if (a.of !== x.seq) return;
       const m = a.marks?.[0];
       const what = (a.marks ?? []).map((k) => `${verbOf(k)} «${k.label}»`).join(' · ');
-      html += `<button class="action${a === shown ? ' sel' : ''}" data-i="${j}"><span class="n ${m?.kind === 'type' ? 'type' : ''}">${esc(actionNo(a))}</span><span class="sx">${esc(what)}</span>${pinBadge(pinsOf(a))}<span class="at">${esc(sinceStep(a, m))}</span></button>`;
+      html += `<button class="action${a === shown ? ' sel' : ''}" data-i="${j}"><span class="n ${m?.kind === 'type' || m?.kind === 'key' ? 'type' : ''}">${esc(actionNo(a))}</span><span class="sx">${esc(what)}</span>${pinBadge(pinsOf(a))}<span class="at">${esc(sinceStep(a, m))}</span></button>`;
     });
   });
   $('insSteps').innerHTML = html || `<p class="muted" style="margin:12px">${esc(t('ins.no_photos_long'))}</p>`;
@@ -1530,6 +1533,7 @@ function renderInspector(first = false) {
   $('insMarksList').innerHTML = !ins.live && f ? marksList(f) : '';
   $('insFindsList').innerHTML = !ins.live && f ? findsList(f) : '';
   $('insHandOff').innerHTML = !ins.live && f && !isAction(f) ? handOffLine(f.realtime) : '';
+  $('insConsole').innerHTML = !ins.live && f && !isAction(f) ? consoleLine(f) : '';
   // Its switch only in a run that found something.
   $('findsToggle').hidden = !list.some((x) => allFindings(x).some((y) => y.kind === 'a11y'));
   renderLangTabs(f);
@@ -1543,7 +1547,7 @@ function renderInspector(first = false) {
       const cls = ['thumb', act ? 'mini' : '', g === group ? 'tight' : '', !ins.live && i === ins.idx ? 'sel' : '', !act && x.status === 'failed' ? 'failed' : ''].join(' ');
       group = g;
       const title = act ? `${x.test} › ${x.step} · ${t('ins.before', { n: actionNo(x) })}` : `${x.test} › ${x.step}`;
-      const label = act ? `<i class="d ${x.marks?.[0]?.kind === 'type' ? 'type' : ''}"></i>${esc(actionNo(x))}` : esc(frameLabel(x) || '·');
+      const label = act ? `<i class="d ${x.marks?.[0]?.kind === 'type' || x.marks?.[0]?.kind === 'key' ? 'type' : ''}"></i>${esc(actionNo(x))}` : esc(frameLabel(x) || '·');
       const kinds = new Set(allFindings(x).map((y) => y.kind));
       const found = `${kinds.has('a11y') ? '<i class="fdot"></i>' : ''}${kinds.has('lang') ? '<i class="fdot lang"></i>' : ''}`;
       return `<button class="${cls}" data-i="${i}" title="${esc(title)}"><img src="${esc(frameUrl(x))}" alt="" loading="lazy"><span>${label}</span>${found}${pinBadge(pinsOf(x))}</button>`;
@@ -1681,6 +1685,21 @@ function runReport(notesMd = '') {
         ]
       : []),
     ...(S.state.reportNotes?.length ? ['', ...S.state.reportNotes.map((n) => `Note: ${n}`)] : []),
+    ...(r.kind === 'play'
+      ? [
+          '',
+          '## Reported from «Play as»',
+          '',
+          `A person played as ${(r.play?.people ?? []).map(cap).join(', ')} in a window of their own, and made this report. What they said went wrong:`,
+          '',
+          ...(r.play?.note ? r.play.note.split(/\r?\n/).map((l) => `> ${l}`) : ['> (no note)']),
+          '',
+          `The steps below are what they did, in a suite's words (${r.play?.acts ?? 0} actions${r.play?.dropped ? `, and ${r.play.dropped} earlier ones left out` : ''}), each with the`,
+          "window just before it (its mark on what was done) and after it, the requests and the page's errors; the last",
+          'step is each window as it was when reported. To make it a test: write these steps, and what should have',
+          'happened, as a test of a suite; record it, and replay it red until the fix turns it green.',
+        ]
+      : []),
     '',
     ...(notesMd ? [notesMd, ''] : []),
   ];
@@ -1811,6 +1830,8 @@ function runReport(notesMd = '') {
         if (f.langsSkipped) lines.push(`  - No other language at this step: ${f.langsSkipped}`);
         // Another person's action reaching this screen (`--realtime`).
         if (f.realtime) lines.push(`  - Real time from ${cap(f.realtime.from)} («${f.realtime.what}»): ${handOffText(f.realtime)}`);
+        // A report from «Play as»: what the page said went wrong.
+        if (f.console?.length) lines.push(`  - Page errors: ${f.console.map((c) => `${c.level === 'exception' ? 'uncaught ' : ''}${c.text}`).join('; ')}`);
       }
       if (head.error) lines.push('- Error:', '', '```text', head.error, '```');
       lines.push('');
@@ -2058,6 +2079,74 @@ function renderRaces() {
   box.dataset.html = html;
   box.innerHTML = html;
 }
+
+// REPORTS FROM «PLAY AS» (play.mjs): every window a person plays in is
+// followed, and the strip under the run says who plays, what they did
+// since the last report and the errors their page met, with the window as
+// it is now. «Make a report» asks what went wrong, then turns it into a
+// run of kind «play», which the page opens.
+function renderPlays() {
+  const box = $('plays');
+  const list = S.state?.plays ?? [];
+  if (!list.length) {
+    box.hidden = true;
+    box.dataset.html = '';
+    box.innerHTML = '';
+    return;
+  }
+  const acts = list.reduce((n, p) => n + p.acts, 0);
+  const people = list
+    .map((p) => {
+      const bits =
+        esc(t(p.acts === 1 ? 'play.acts_one' : 'play.acts_many', { n: p.acts })) +
+        (p.errors ? ` · <span class="bad">${esc(t(p.errors === 1 ? 'play.errors_one' : 'play.errors_many', { n: p.errors }))}</span>` : '');
+      const thumb = p.latest ? `<img src="/out/cockpit/play/${encodeURIComponent(p.session)}/latest.jpg?t=${p.latest}" alt="">` : '';
+      return `<span class="pl${p.open ? ' open' : ''}">${thumb}<b>${esc(t(p.open ? 'play.open' : 'play.closed', { name: cap(p.actor) }))}</b><span>${bits}</span></span>`;
+    })
+    .join('');
+  const html = `${people}<button class="btn pill" id="playReport" type="button"${acts ? '' : ' disabled'} data-tip="${esc(t('play.report_tip'))}">${icon('flag', 'sm')}${esc(t('play.report'))}</button>`;
+  box.hidden = false;
+  if (box.dataset.html === html) return;
+  box.dataset.html = html;
+  box.innerHTML = html;
+}
+
+/** A step's page errors (a report from «Play as»), the first few. */
+function consoleLine(f) {
+  const list = f.console ?? [];
+  if (!list.length) return '';
+  const shown = list.slice(0, 2).map((c) => esc(c.text));
+  return `${icon('flag', 'sm')} ${esc(t('ins.console', { n: list.length }))}: ${shown.join(' · ')}${list.length > 2 ? ' · …' : ''}`;
+}
+
+$('plays').addEventListener('click', async (e) => {
+  if (!e.target.closest('#playReport')) return;
+  const d = $('playDialog');
+  $('playNote').value = '';
+  d.returnValue = '';
+  d.showModal();
+  $('playNote').focus();
+  const answer = await new Promise((resolve) => d.addEventListener('close', () => resolve(d.returnValue), { once: true }));
+  if (answer !== 'report') return;
+  try {
+    const res = await api('/api/play/report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ suite: S.suite, note: $('playNote').value }),
+    });
+    await refreshState();
+    await pickRun(res.run);
+  } catch (err) {
+    banner(err.message, 'err');
+  }
+});
+// Ctrl+Enter makes the report; Enter alone is a new line of the note.
+$('playNote').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    $('playDialog').close('report');
+  }
+});
 
 $('races').addEventListener('click', (e) => {
   const round = e.target.closest('.rd[data-run]');
@@ -3028,6 +3117,11 @@ function connect() {
       renderCast();
     }
     if (S.ins) renderInsState();
+  });
+  es.addEventListener('plays', (e) => {
+    if (!S.state) return;
+    S.state.plays = JSON.parse(e.data);
+    renderPlays();
   });
   es.addEventListener('watch', (e) => {
     S.state.watched = JSON.parse(e.data).actors;
