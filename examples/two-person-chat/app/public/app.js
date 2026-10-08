@@ -71,18 +71,20 @@ function show(user) {
   $('username').focus();
 }
 
-// History first, then the live stream; ids dedupe the overlap.
-async function start() {
-  const { ok, data } = await api('/api/messages');
-  if ($('chat').hidden) return; // signed out while loading
-  if (!ok) return setTimeout(boot, 2000);
+// The live stream first, then the history, once the stream is open: the
+// server counts this page in before it answers, so a message sent before
+// that is in the history, one sent after comes by the stream, and one in
+// both, ids dedupe. (The history first lost a message sent while the
+// stream was opening: QA Cockpit's `replay --chaos` found it.) Again at
+// each reconnection, for what was sent while the stream was away.
+function start() {
   shown = new Set();
   $('messages').replaceChildren();
   $('empty').hidden = false;
-  data.messages.forEach(addMessage);
   const es = (stream = new EventSource('/api/events'));
   es.addEventListener('message', (e) => addMessage(JSON.parse(e.data)));
   es.addEventListener('presence', (e) => showPeople(JSON.parse(e.data)));
+  es.addEventListener('open', () => loadHistory(es));
   es.onerror = () => {
     if (es !== stream || es.readyState !== EventSource.CLOSED) return; // still reconnecting
     stream = null;
@@ -91,14 +93,29 @@ async function start() {
   $('message').focus();
 }
 
+async function loadHistory(es) {
+  const { ok, data } = await api('/api/messages');
+  if (es !== stream) return; // signed out, or started again, while loading
+  if (!ok) {
+    es.close();
+    stream = null;
+    return setTimeout(boot, 2000);
+  }
+  data.messages.forEach(addMessage);
+}
+
+// Each message in the server's order (its id), whichever way it came: the
+// sender's own answer and the others' stream do not arrive in one order.
 function addMessage(m) {
   if (shown.has(m.id)) return;
   shown.add(m.id);
   const name = document.createElement('strong');
   name.textContent = m.displayName;
   const li = document.createElement('li');
+  li.dataset.id = m.id;
   li.append(name, `: ${m.text}`);
-  $('messages').append(li);
+  const next = [...$('messages').children].find((x) => Number(x.dataset.id) > m.id);
+  $('messages').insertBefore(li, next ?? null);
   $('messages').scrollTop = $('messages').scrollHeight;
   $('empty').hidden = true;
 }

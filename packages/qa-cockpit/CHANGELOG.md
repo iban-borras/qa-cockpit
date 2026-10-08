@@ -68,6 +68,11 @@
   round a way to its run and each failed one a button to play it again.
   The cockpit's history (`cockpit.keepRuns`) counts a search as one run,
   all its rounds together, so its failed round is not the first to go.
+- The example chat lost a message sent while a person's live stream was
+  still opening, their history already loaded: the race finder's first
+  search found it, with Bob 800 ms behind. It opens the stream first now,
+  loads the history once the stream is open, and puts each message in its
+  place by its id, so everybody sees the server's order.
 - The run picker counts every test a run ran: a full run (reset, setup and
   the recording) said «5 of 3 tests pass», its setup's tests passed against
   its recording's count.
