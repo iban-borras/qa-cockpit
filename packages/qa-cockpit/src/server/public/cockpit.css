@@ -164,6 +164,8 @@ select option { background: var(--panel-2); color: var(--text); }
 .opt { display: flex; gap: 10px; padding: 8px; border-radius: 6px; cursor: pointer; }
 .opt:hover { background: var(--panel-3); }
 .opt input { margin-top: 3px; accent-color: var(--accent); }
+/* Accessibility's own switches in the sky blue of its boxes (.finds). */
+#optA11y, #optFinds { accent-color: #38bdf8; }
 .opt b { display: block; font-weight: 550; font-size: 13px; }
 .opt span { display: block; font-size: 12px; color: var(--muted); }
 
