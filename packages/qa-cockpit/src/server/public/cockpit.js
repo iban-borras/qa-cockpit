@@ -270,11 +270,19 @@ const runsOf = (name) => (S.state?.runs ?? []).filter((r) => r.suite === name);
 function kindLabel(r) {
   if (!r) return '';
   if (!r.kind) return r.label ?? r.id;
-  // A run launched from a terminal says whose it is; a round of a search
+  // A run launched from a terminal says whose it is; the looks it took
+  // (accessibility, the other languages, real time); a round of a search
   // for races, which one and its seed.
+  const l = r.looks;
+  const looks = l
+    ? [l.a11y && t('looks.a11y'), l.languages && t('looks.languages', { list: l.languages.join(', ') }), l.realtime && t('looks.realtime'), l.network && t('looks.network')]
+        .filter(Boolean)
+        .map((x) => ` · ${x}`)
+        .join('')
+    : '';
   const c = r.chaos;
   const round = c ? ` · ${c.group ? t('races.round_short', { round: c.round, of: c.of, seed: c.seed }) : t('races.seed', { seed: c.seed })}` : '';
-  return `${t(`kind.${r.kind}`)}${r.docker ? ` ${t('kind.docker')}` : ''}${r.who ? ` · ${r.who}` : ''}${round}`;
+  return `${t(`kind.${r.kind}`)}${r.docker ? ` ${t('kind.docker')}` : ''}${r.who ? ` · ${r.who}` : ''}${looks}${round}`;
 }
 
 function defaultSuite() {

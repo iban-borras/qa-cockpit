@@ -358,6 +358,7 @@ function runsIndex() {
         status: meta.status === 'running' ? 'interrupted' : meta.status,
         tally: tallyOf(meta),
         notes,
+        looks: meta.looks ?? null,
         // A round of a search for races: its seed, and how many it found.
         ...(meta.chaos ? { chaos: { ...meta.chaos, found: undefined, races: meta.chaos.found ? meta.chaos.found.unstable.length : null } } : {}),
       };
@@ -486,6 +487,32 @@ function runQa(args, env) {
 }
 
 /**
+ * The looks a replay takes, from its command's words: what its run is
+ * named with, so that a run says at a glance it looked at accessibility,
+ * the other languages or real time, or that it was a search for races.
+ * @param {string[]} words
+ */
+function looksOf(words) {
+  const at = words.indexOf('replay');
+  if (at === -1) return null;
+  const rest = words.slice(at + 1);
+  const value = (flag) => {
+    const i = rest.findIndex((w) => w === flag || w.startsWith(`${flag}=`));
+    if (i === -1) return null;
+    const v = rest[i].includes('=') ? rest[i].split('=')[1] : rest[i + 1];
+    return v && !v.startsWith('-') ? v : '';
+  };
+  const langs = value('--languages');
+  const looks = {
+    ...(rest.includes('--a11y') ? { a11y: true } : {}),
+    ...(langs !== null ? { languages: langs ? langs.split(',').filter((x) => /^[a-z]{2,3}(-[A-Za-z0-9]+)?$/.test(x)) : (CFG.languages?.priority ?? []) } : {}),
+    ...(rest.includes('--realtime') ? { realtime: true } : {}),
+    ...(rest.includes('--network') ? { network: true } : {}),
+  };
+  return Object.keys(looks).length ? looks : null;
+}
+
+/**
  * Run a sequence of CLI commands as one task; with a suite, as one run.
  * The kind (reset, setup, replay, full) is what the page names in its
  * language; `label` is only for the log.
@@ -510,6 +537,8 @@ async function startTask(what, sequence) {
     run = newRun(suite, label);
     run.kind = kind;
     run.docker = docker;
+    const looks = looksOf(sequence.find((args) => args[0] === 'replay') ?? []);
+    if (looks) run.looks = looks;
     saveRun(run);
     pruneRuns();
     lastLive.clear();
@@ -588,6 +617,8 @@ function beginExternal(body) {
     run = newRun(suite, label);
     run.kind = kind;
     run.who = who;
+    const looks = looksOf(command.split(/\s+/));
+    if (looks) run.looks = looks;
     saveRun(run);
     pruneRuns();
     lastLive.clear();

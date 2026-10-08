@@ -83,6 +83,9 @@
   a select under its option (3 unless chosen).
 - A run started from the page is followed, even when an older run was on
   screen: whoever starts one is there to watch it.
+- A run says the looks it took, in the run picker, the line under it and
+  the run report: «Full run · languages ca, es · real time». A look at the
+  other languages is no second run, and nothing showed it had been taken.
 - The run picker counts every test a run ran: a full run (reset, setup and
   the recording) said «5 of 3 tests pass», its setup's tests passed against
   its recording's count.
