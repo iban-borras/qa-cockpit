@@ -449,6 +449,45 @@ export async function runCli(rawConfig, argv) {
     });
   }
 
+  // `replay --realtime` (realtime.mjs): how long what one person does takes
+  // to reach another's screen, measured where the cockpit photographs each
+  // step, so only with it following the run. At the end, each hand-off.
+  function timeHandOffs() {
+    const run = process.env.COCKPIT_RUN;
+    if (!process.env.COCKPIT_URL || !run) {
+      console.log(`--realtime measures each step as the cockpit photographs it, and no cockpit follows this run: start one first (${CLI} cockpit).`);
+      return;
+    }
+    process.env.QA_REALTIME = '1';
+    process.once('exit', () => {
+      let frames;
+      try {
+        frames = fs
+          .readFileSync(path.join(P.out, 'cockpit', run, 'frames.jsonl'), 'utf8')
+          .split('\n')
+          .filter(Boolean)
+          .map((line) => JSON.parse(line));
+      } catch {
+        return;
+      }
+      const lines = frames
+        .filter((f) => f.realtime)
+        .map((f) => {
+          const h = f.realtime;
+          const test = /^(\S+)\s+·/.exec(f.test)?.[1];
+          const step = /^(\d+)\s+·/.exec(f.step)?.[1];
+          const legs = [
+            h.sent && `sent +${h.sent.ms} ms (${h.sent.what})`,
+            h.received && `received +${h.received.ms} ms (${h.received.what})`,
+            h.seen && `seen +${h.seen.ms} ms («${h.seen.text}»)`,
+          ].filter(Boolean);
+          return `  ${test && step ? `${test}/${step}` : f.step} ${h.from} → ${f.actor}, from «${h.what}»: ${legs.join(', ')}`;
+        });
+      console.log(lines.length ? `\nReal time: ${lines.length} hand-off${lines.length === 1 ? '' : 's'} between people:` : '\nReal time: no hand-off between people in this run.');
+      for (const line of lines) console.log(line);
+    });
+  }
+
   const ctx = { config, holdStack, clearSavedSessions, waitHealthy: () => waitHealthy(config), log: (...a) => console.log(...a) };
   const STACK = config.stack.name;
 
@@ -546,12 +585,13 @@ export async function runCli(rawConfig, argv) {
     // requests kept too, as HARs without their secrets (network/).
     async replay() {
       const suite = rest[0];
-      if (!suite) fail(`Usage: ${CLI} replay <suite> [--network [--bodies]] [--a11y] [--languages [es,fr]] [--in-docker] [playwright args]`);
+      if (!suite) fail(`Usage: ${CLI} replay <suite> [--network [--bodies]] [--a11y] [--languages [es,fr]] [--realtime] [--in-docker] [playwright args]`);
       const file = recordingOf(config, suite);
       if (!file) fail(`No recording for the suite "${suite}" in ${P.recordings}`);
       const network = rest.includes('--network');
       const bodies = rest.includes('--bodies');
       const a11y = rest.includes('--a11y');
+      const realtime = rest.includes('--realtime');
       // `--languages`: the config's priority ones; `--languages es,fr` (or
       // `=es,fr`): those only, the ones new to the app, say.
       const at = rest.findIndex((a) => a === '--languages' || a.startsWith('--languages='));
@@ -559,7 +599,7 @@ export async function runCli(rawConfig, argv) {
       const LIST = /^[a-z]{2,3}(-[A-Za-z0-9]+)?(,[a-z]{2,3}(-[A-Za-z0-9]+)?)*$/;
       const listed = !languages ? null : rest[at].includes('=') ? rest[at].split('=')[1] : LIST.test(rest[at + 1] ?? '') ? rest[at + 1] : null;
       const dropped = new Set(languages ? [at, ...(listed && !rest[at].includes('=') ? [at + 1] : [])] : []);
-      const pwArgs = rest.slice(1).filter((a, i) => !dropped.has(i + 1) && !['--network', '--bodies', '--a11y'].includes(a));
+      const pwArgs = rest.slice(1).filter((a, i) => !dropped.has(i + 1) && !['--network', '--bodies', '--a11y', '--realtime'].includes(a));
       let langs = null;
       if (languages) {
         if (!config.languages) {
@@ -591,6 +631,7 @@ export async function runCli(rawConfig, argv) {
       if (network) await lookAtNetwork(suite, bodies);
       if (a11y) lookAtA11y();
       if (languages) lookInLanguagesToo(langs);
+      if (realtime) timeHandOffs();
       await playwright(['test', testFileArg(file), ...pwArgs]);
     },
 
@@ -1153,7 +1194,9 @@ export async function runCli(rawConfig, argv) {
                    a button or a link with no name, a field with no label, an image with no
                    text alternative, a control the keyboard cannot reach;
                    --languages [es,fr]: each step's screen in the app's other languages too (the
-                   config's priority ones, or those named), with the cockpit: what does not fit
+                   config's priority ones, or those named), with the cockpit: what does not fit;
+                   --realtime: how long what one person does takes to reach another's screen
+                   (sent, received, seen), with the cockpit
   languages check [person]   that change of language, tried on one screen and back
   network [run]    what a replay --network found, step by step: calls one after another,
                    repeated or per item, slow, heavy or failed (--against previous: what a

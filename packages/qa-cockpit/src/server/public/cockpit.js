@@ -195,6 +195,7 @@ async function act(action, extra = {}) {
         docker: $('optDocker').checked,
         a11y: $('optA11y').checked,
         languages: $('optLangs').checked && S.state?.languages ? chosenLangs() : false,
+        realtime: $('optRealtime').checked,
         ...extra,
       }),
     });
@@ -1401,7 +1402,7 @@ function renderInspector(first = false) {
     const sel = x === shown ? ' sel' : x.seq === open ? ' open' : '';
     const dur = Number.isFinite(x.ms) ? `<span class="dur${x.ms >= SLOW_STEP_MS ? ' slow' : ''}">${esc(fmtDur(x.ms))}</span>` : '';
     const pins = pinsOf(x) + (x.seq === open ? 0 : (actionPins.get(x.seq) ?? 0));
-    html += `<button class="step${sel}" data-i="${i}"><span class="st ${st}">${icon(ic, 'sm')}</span><span class="sx">${esc(x.step)}</span>${findBadges(x)}${pinBadge(pins)}${dur}</button>`;
+    html += `<button class="step${sel}" data-i="${i}"><span class="st ${st}">${icon(ic, 'sm')}</span><span class="sx">${esc(x.step)}</span>${handOffBadge(x.realtime)}${findBadges(x)}${pinBadge(pins)}${dur}</button>`;
     if (x.seq !== open) return;
     list.forEach((a, j) => {
       if (a.of !== x.seq) return;
@@ -1478,6 +1479,7 @@ function renderInspector(first = false) {
   }
   $('insMarksList').innerHTML = !ins.live && f ? marksList(f) : '';
   $('insFindsList').innerHTML = !ins.live && f ? findsList(f) : '';
+  $('insHandOff').innerHTML = !ins.live && f && !isAction(f) ? handOffLine(f.realtime) : '';
   // Its switch only in a run that found something.
   $('findsToggle').hidden = !list.some((x) => allFindings(x).some((y) => y.kind === 'a11y'));
   renderLangTabs(f);
@@ -1547,6 +1549,12 @@ function runReport(notesMd = '') {
   const photosAll = [...photosByStep.values()].reduce((a, b) => a + b, 0);
   const finds = S.frames.reduce((n, f) => n + (f.findings ?? []).filter((x) => x.kind === 'a11y').length, 0);
   const inLangs = S.frames.reduce((n, f) => n + (f.langs?.length ?? 0), 0);
+  const handOffs = S.frames.filter((f) => f.realtime && !isAction(f));
+  const slowest = [...handOffs].sort((a, b) => (handOffMs(b.realtime) ?? 0) - (handOffMs(a.realtime) ?? 0))[0];
+  const handOffText = (h) =>
+    [h.sent && `sent +${h.sent.ms} ms (${h.sent.what})`, h.received && `received +${h.received.ms} ms (${h.received.what})`, h.seen && `seen +${h.seen.ms} ms («${h.seen.text}»)`]
+      .filter(Boolean)
+      .join('; ');
   const unfits = S.frames.reduce((n, f) => n + allFindings(f).filter((x) => x.kind === 'lang').length, 0);
   const saidLang = {
     cut: (x) => `a text that does not fit its box («${x.text}»)`,
@@ -1574,6 +1582,9 @@ function runReport(notesMd = '') {
       })
       .join('; ')}`,
     ...(finds ? [`- Accessibility (--a11y): ${finds} problem${finds === 1 ? '' : 's'}, each under the step where it first showed`] : []),
+    ...(handOffs.length
+      ? [`- Real time (--realtime): ${handOffs.length} hand-off${handOffs.length === 1 ? '' : 's'} between people; the slowest at «${slowest.step}» (${slowest.realtime.from} → ${slowest.actor}): ${handOffText(slowest.realtime)}`]
+      : []),
     ...(inLangs
       ? [`- Languages (--languages): ${inLangs} screens in another language; ${unfits ? `${unfits} thing${unfits === 1 ? '' : 's'} that do not fit, each under the step where it first showed` : 'everything fits'}`]
       : []),
@@ -1589,7 +1600,8 @@ function runReport(notesMd = '') {
     'accessibility problems (Chromium\'s accessibility tree), each told once a run where it first showed,',
     'with its box on the step\'s photo, at the page\'s pixels. With --languages, a step lists the same',
     'screen in each other language of the app (a photo each), and what does not fit there that fit in the',
-    'suite\'s own.',
+    'suite\'s own. With --realtime, a step another person\'s action reached says how long it took: sent',
+    '(their request or message), received here (pushed, or answered), seen on this screen.',
     ...(S.state.reportNotes?.length ? ['', ...S.state.reportNotes.map((n) => `Note: ${n}`)] : []),
     '',
     ...(notesMd ? [notesMd, ''] : []),
@@ -1684,6 +1696,8 @@ function runReport(notesMd = '') {
           lines.push(`  - In ${l.lang}: \`${OUT}/${l.file}\`${l.changed ? '' : ' (no word changed)'}${l.findings?.length ? `; ${unfit(l.findings)}` : '; everything fits'}`);
         }
         if (f.langsSkipped) lines.push(`  - No other language at this step: ${f.langsSkipped}`);
+        // Another person's action reaching this screen (`--realtime`).
+        if (f.realtime) lines.push(`  - Real time from ${cap(f.realtime.from)} («${f.realtime.what}»): ${handOffText(f.realtime)}`);
       }
       if (head.error) lines.push('- Error:', '', '```text', head.error, '```');
       lines.push('');
@@ -1811,6 +1825,24 @@ function renderLangPicks() {
     box.dataset.html = html;
     box.innerHTML = html;
   }
+}
+
+// A HAND-OFF (`replay --realtime`, realtime.mjs): another person's action,
+// and how long until it was sent, received on this page and seen on its
+// screen. In teal, apart from the findings.
+const handOffMs = (h) => h?.seen?.ms ?? h?.received?.ms ?? null;
+const handOffBadge = (h) =>
+  h && Number.isFinite(handOffMs(h)) ? `<i class="ho" title="${esc(t('handoff.title', { from: cap(h.from) }))}">${icon('route', 'sm')}${esc(fmtMs(handOffMs(h)))}</i>` : '';
+const fmtMs = (ms) => (ms < 1000 ? `${ms} ms` : fmtDur(ms));
+
+function handOffLine(h) {
+  if (!h) return '';
+  const legs = [
+    h.sent && t('handoff.sent', { d: fmtMs(h.sent.ms), what: h.sent.what }),
+    h.received && t('handoff.received', { d: fmtMs(h.received.ms), what: h.received.what }),
+    h.seen && t('handoff.seen', { d: fmtMs(h.seen.ms), what: h.seen.text }),
+  ].filter(Boolean);
+  return `${icon('route', 'sm')} ${esc(t('handoff.from', { from: cap(h.from), what: h.what, de: /^h?[aeiouàáèéíïòóúü]/i.test(h.from) ? "d'" : 'de ' }))}: ${legs.map(esc).join(' · ')}`;
 }
 
 /** The tabs over a step's photo: the suite's own language, then each other one it was looked at in. */
@@ -2968,7 +3000,7 @@ $('optMarks').onchange = () => {
   localStorageSet('optMarks', $('optMarks').checked ? '1' : '0');
   $('insMarks').classList.toggle('off', !$('optMarks').checked);
 };
-for (const id of ['optHeaded', 'optDocker', 'optA11y', 'optLangs']) {
+for (const id of ['optHeaded', 'optDocker', 'optA11y', 'optLangs', 'optRealtime']) {
   $(id).checked = localStorageGet(id) === '1';
   $(id).onchange = () => localStorageSet(id, $(id).checked ? '1' : '0');
 }

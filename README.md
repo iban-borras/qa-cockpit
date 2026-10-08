@@ -230,6 +230,15 @@ translation keys left on the screen; the terminal lists them when the run
 ends. It works with any app, whatever its way of changing language, and
 changes nothing in it.
 
+## Real time between people
+
+Replay a suite with `--realtime` and each step where one person sees what
+another did says how long it took, on the browser's own clock: sent (their
+request or WebSocket message), received on the other page (pushed by
+WebSocket or server-sent events, or answered), seen on the other screen.
+The cockpit shows it under the step's photo; the terminal lists every
+hand-off when the run ends.
+
 ## Commands
 
 ```
@@ -244,6 +253,7 @@ replay <suite> --network          ... and each person's requests, as HARs withou
 replay <suite> --a11y             ... and each step's screen looked at for accessibility (with the cockpit)
 replay <suite> --languages [fr,de] ... and each step's screen in the app's other languages: what does not fit
 languages check                   that change of language, tried on one screen and back
+replay <suite> --realtime         ... and how long what one person does takes to reach another's screen
 network [run]                     what they show, step by step (--against previous: what a change changed)
 stamp <suite> | hash <suite>      the suite's hash in the recording's first line
 pass <suite> <who> <result> ...   a row in the suite's runs table

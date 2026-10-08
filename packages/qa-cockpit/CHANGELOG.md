@@ -36,6 +36,17 @@
   `--languages fr,de`; in the cockpit, the run's option, with the
   languages to choose under it, kept in the browser. The example app
   speaks English, Catalan and Spanish now.
+- `replay --realtime`: how long what one person does takes to reach
+  another's screen. When a step ends for somebody who did nothing since
+  another person acted (that step or the one before, in the same test),
+  the hand-off is measured from that action, on the browser's own clock
+  (Chromium's network events, the page's screen changes): sent (the first
+  request or WebSocket message), received (the first message pushed to
+  the other page by WebSocket or server-sent events, or its first answer),
+  seen (the first words changed on its screen). In the cockpit, a teal
+  badge on the step and a line under its photo; at the end, a list in the
+  terminal, and each hand-off in the run report. An option of the run in
+  the cockpit.
 
 ## 0.7.4 (2026-10-07)
 

@@ -24,6 +24,7 @@ without a person beside it.
 | `src/reporter.mjs`, `src/worker.mjs` | what a run tells the cockpit: tests and steps; each person's photos (a step's, and one before each action) and the time they took, clicks and requests |
 | `src/a11y.mjs` | `replay --a11y`: a step's screen read from Chromium's accessibility tree, its problems as boxes on the step's photo |
 | `src/languages.mjs`, `src/languages-check.mjs` | `replay --languages`: a step's screen in the app's other languages, changed by the config's `languages.switchTo`, and what no longer fits; `languages check`, that change tried on one screen |
+| `src/realtime.mjs` | `replay --realtime`: each person's actions, what their page sent and was sent, and their screen's changes, on the browser's clock; the hand-off a step ends with |
 | `src/devices.mjs` | a person's device, from Playwright's profiles or the project's own sizes, and their own context options; the device a suite gives each person, for the sessions it signs in |
 | `src/deps.mjs` | the project's package manager: which one, whether `node_modules` match its lockfile, how to heal them |
 | `src/suites.mjs` | the Markdown suites: their cast, their hash, `decide` |

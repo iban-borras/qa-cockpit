@@ -404,6 +404,15 @@ dialog#inspector::backdrop { background: rgba(4, 4, 6, 0.72); }
 .finds .find.lang.hl { background: rgba(232, 121, 249, 0.25); }
 .finds .find.lang b { background: #e879f9; color: #2a0631; }
 .caption .finds-list .fd.lang .n { background: #e879f9; color: #2a0631; }
+/* A hand-off between people (`replay --realtime`, cockpit.js handOffLine):
+   teal, apart from the findings. */
+.caption .handoff { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.caption .handoff:empty { display: none; }
+.caption .handoff svg.i { width: 13px; height: 13px; vertical-align: -2px; color: #2dd4bf; }
+.ho { display: inline-flex; align-items: center; gap: 3px; flex: none; font-style: normal; padding: 0 6px 0 4px; border-radius: 999px; background: rgba(45, 212, 191, 0.16); color: #2dd4bf; font: 600 10.5px/16px var(--mono); }
+.ho svg.i { width: 11px; height: 11px; }
+.step .ho { margin: 1px 0 0 6px; }
+#optRealtime { accent-color: #2dd4bf; }
 .langs { display: flex; flex-wrap: wrap; gap: 6px; flex: none; }
 .langs .lt { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--panel-2); color: var(--muted); font: 600 11.5px/1 var(--mono); cursor: pointer; }
 .langs .lt:hover { color: var(--text); }

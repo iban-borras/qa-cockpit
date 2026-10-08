@@ -14,7 +14,8 @@
 //     With `replay --a11y`, a step's photo brings its screen's accessibility
 //     problems too, each a box on it (a11y.mjs); with `--languages`, the
 //     same screen in the app's other languages, and what does not fit in
-//     them (languages.mjs).
+//     them (languages.mjs). With `--realtime`, how long another person's action took to
+//     reach this screen: sent, received, seen (realtime.mjs).
 //   - A LIVE picture, only while somebody watches that person in the
 //     cockpit: a CDP screencast of their page, about four frames a second.
 //     The cockpit says who is watched (GET /api/watch); nobody watching costs
@@ -27,6 +28,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { a11yFindings } from './a11y.mjs';
 import { lookInLanguages } from './languages.mjs';
+import { changeScript, handOff, watchRealtime } from './realtime.mjs';
 
 const URL_BASE = process.env.COCKPIT_URL || '';
 export const enabled = Boolean(URL_BASE);
@@ -40,6 +42,12 @@ const toldA11y = new Set();
 const LANGS = (process.env.QA_LANGUAGES || '').split(',').filter(Boolean);
 const toldLangs = new Set();
 let langsOff = null;
+// `replay --realtime`: how long what one person does takes to reach
+// another's screen (realtime.mjs). The actions every person took, the last
+// two minutes; and the step that ended before, where a cause may be.
+const REALTIME = process.env.QA_REALTIME === '1';
+const acts = [];
+let lastStep = null;
 const RUN = (process.env.COCKPIT_RUN || 'adhoc').replace(/[^\w.-]/g, '_');
 const LIVE_INTERVAL_MS = 250;
 // The package's own files: a step's location is the first frame outside them.
@@ -207,6 +215,7 @@ export async function photo(f) {
         langs: tour?.shots.map((s) => ({ lang: s.lang, file: relOut(s.file), scroll: s.scroll, changed: s.changed, findings: s.findings })) ?? [],
         langsSkipped: tour?.skipped ?? null,
         langsStopped: tour?.broken ?? null,
+        realtime: f.realtime ?? null,
         // The device the person plays on: its name and kind, for the card.
         device: f.device ?? null,
         // The step's start and how long it took, the photos aside: where a
@@ -284,6 +293,22 @@ export async function stepEnded(s) {
   const named = peopleIn(s.title).filter((p) => pages.has(p));
   const who = s.status === 'failed' ? [...pages.keys()] : named;
   const error = s.error instanceof Error ? s.error.message : s.error ? String(s.error) : undefined;
+  // The hand-offs it ends with (`--realtime`, realtime.mjs): somebody it
+  // names who did nothing since another person acted, in this step or the
+  // one before it in the same test.
+  const since = lastStep?.test === s.test ? lastStep.began : (s.began ?? ended);
+  lastStep = { test: s.test, began: s.began ?? ended };
+  const handOffs = new Map();
+  if (REALTIME && s.status === 'passed') {
+    for (const actor of named) {
+      const entry = pages.get(actor);
+      if (!entry?.rt) continue;
+      const changes = (after) =>
+        quietly(entry.page, () => entry.page.evaluate((t) => (window.__qaChanges ?? []).filter((c) => c.t >= t), after)).catch(() => []);
+      const h = await handOff({ actor, acts, since, rt: entry.rt, from: (a) => pages.get(a)?.rt, changes }).catch(() => null);
+      if (h) handOffs.set(actor, h);
+    }
+  }
   await Promise.all(
     who.map((actor) =>
       photo({
@@ -299,6 +324,7 @@ export async function stepEnded(s) {
         status: named.includes(actor) ? s.status : 'context',
         // The people it names, in the app's other languages too (`--languages`).
         tour: named.includes(actor),
+        realtime: handOffs.get(actor) ?? null,
         test: s.test,
         error,
         location: s.location,
@@ -341,6 +367,8 @@ function markScript() {
         vy: Math.round(y),
         url: location.href,
         label: label(el),
+        // When, on the page's own clock (`--realtime`).
+        t: Date.now(),
       });
     } catch {
       // The cockpit is a luxury.
@@ -439,6 +467,12 @@ function wrapAction(proto, name, entryOf, prepare) {
     entry.acting = true;
     try {
       entry.shot = await shoot(entry, () => prepare?.(entry, this, args));
+      // An action somebody else's screen may answer: its time, its words
+      // when its mark comes.
+      if (REALTIME) {
+        acts.push({ actor: entry.actor, t: Date.now(), name, shot: entry.shot });
+        while (acts.length && acts[0].t < Date.now() - 120_000) acts.shift();
+      }
       return await original.apply(this, args);
     } finally {
       const shot = entry.shot;
@@ -602,8 +636,16 @@ export async function register(actor, page, device = null) {
       if (shot) shot.marked = true;
       // When it came, from this clock: the step's start is on it too.
       entry.marks.push({ ...mark, at: Date.now(), shot });
+      // The action it marks, timed now: the click itself, not its waits.
+      const act = REALTIME && shot ? acts.findLast((a) => a.actor === entry.actor && a.shot === shot) : null;
+      if (act && !act.label) Object.assign(act, { label: mark.label, t: Number.isFinite(mark.t) ? mark.t : Date.now() });
     });
     await page.context().addInitScript(markScript);
+    if (REALTIME) {
+      entry.rt = { sent: [], got: [] };
+      await quietly(page, () => page.context().addInitScript(changeScript));
+      await watchRealtime(page, entry.rt, quietly);
+    }
   } catch {
     // Without marks the photos still come.
   }

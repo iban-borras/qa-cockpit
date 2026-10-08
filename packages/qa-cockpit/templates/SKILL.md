@@ -185,6 +185,7 @@ npx qa-cockpit replay <suite> --network   # each person's requests kept as HARs,
 npx qa-cockpit replay <suite> --a11y      # each step's screen looked at for accessibility, with the cockpit; «Accessibility»
 npx qa-cockpit replay <suite> --languages # each step's screen in the app's other languages too (--languages fr,de: those), with the cockpit; «Languages»
 npx qa-cockpit languages check  # the config's change of language, tried on one screen and back
+npx qa-cockpit replay <suite> --realtime  # how long what one person does takes to reach another's screen; «Real time»
 npx qa-cockpit network [run]    # what they show, step by step (--against previous, --test <id>, --json, --list)
 npx qa-cockpit open <person>    # a browser window signed in as that person
 npx qa-cockpit stamp <suite>    # write the suite's hash into the recording's first line
@@ -418,6 +419,35 @@ terminal lists them, and the run report has every language's photo.
    word, a box that grows) are the app's, with the person's say.
 4. **It costs time on every step** (the cockpit's own, said apart): only
    when asked.
+
+## Real time between people (when a person asks)
+
+`npx qa-cockpit replay <suite> --realtime`, with the cockpit following the
+run. A suite of several people says it in its own steps: «2 · Alice:
+presses «Send»», then «3 · Bob: sees it arrive». When a step ends for
+somebody who did nothing since another person acted (in that step or the
+one before it, in the same test), it is a hand-off, measured from that
+action, on the browser's own clock:
+
+- **sent**: the first request or WebSocket message the acting person's
+  page made;
+- **received**: the first message pushed to the other page (WebSocket,
+  server-sent events), or, for an app that asks again and again, its first
+  answer;
+- **seen**: the first words that changed on the other person's screen.
+
+In the cockpit the step has a badge with the time it took to be seen, and
+the line under its photo says the three; the terminal lists every
+hand-off when the run ends, and the run report has them.
+
+1. **The milliseconds are the QA copy's, on this machine**, as a look at
+   the network's are: a hint of where the time goes (in the server, before
+   it pushes; in the app, before it paints), not production's numbers.
+   Replay again before believing a small difference.
+2. **A step of nobody's action measures nothing** (a page opened, a
+   wait): only clicks, typing and keys pressed are actions.
+3. **What you deliver is a report**: the slow hand-offs, and on which leg
+   the time goes. Change nothing until the person says so.
 
 ## Demo videos (only when a person asks)
 

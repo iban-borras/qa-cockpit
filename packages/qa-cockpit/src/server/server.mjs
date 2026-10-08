@@ -650,6 +650,17 @@ const findingsOf = (list) =>
         : { kind: 'lang', rule: x.rule, lang: String(x.lang ?? '').slice(0, 12), text: String(x.text ?? '').slice(0, 80), box: boxOf(x.box) },
     );
 
+// The hand-off a step ended with (`replay --realtime`, realtime.mjs):
+// another person's action, and how long until it was sent, received here,
+// and seen on this screen.
+const handOffOf = (h) => {
+  if (!h || typeof h !== 'object') return null;
+  const leg = (x, word) =>
+    x && Number.isFinite(Number(x.ms)) ? { ms: Math.max(0, Math.round(Number(x.ms))), [word]: String(x[word] ?? '').slice(0, 80) } : null;
+  const out = { from: String(h.from ?? '').slice(0, 40), what: String(h.what ?? '').slice(0, 80), sent: leg(h.sent, 'what'), received: leg(h.received, 'what'), seen: leg(h.seen, 'text') };
+  return out.received || out.seen ? out : null;
+};
+
 // A step's screen in the app's other languages: each its photo, where it
 // was scrolled to, whether its words changed, and what does not fit.
 const langsOf = (list) =>
@@ -742,6 +753,7 @@ function onFrame(f) {
     // and the one after which the look stopped (its screen did not come back).
     langsSkipped: f.langsSkipped ? String(f.langsSkipped).slice(0, 200) : null,
     langsStopped: f.langsStopped ? String(f.langsStopped).slice(0, 200) : null,
+    realtime: handOffOf(f.realtime),
     began,
     ms: Number.isFinite(Number(f.ms)) && f.ms !== null ? Math.max(0, Math.round(Number(f.ms))) : null,
     // The cockpit's own photos in the step, and the step's: apart from `ms`.
@@ -912,7 +924,7 @@ function state() {
 }
 
 async function onAction(body) {
-  const { action, suite, headed, docker, a11y, languages, actor } = body;
+  const { action, suite, headed, docker, a11y, languages, realtime, actor } = body;
   const known = listSuites(CFG);
   const pick = () => {
     const s = known.find((x) => x.name === suite);
@@ -928,6 +940,7 @@ async function onAction(body) {
     ...inDocker,
     ...(headed && !docker ? ['--headed'] : []),
     ...(a11y ? ['--a11y'] : []),
+    ...(realtime ? ['--realtime'] : []),
     ...(chosenLangs.length ? ['--languages', chosenLangs.join(',')] : []),
   ];
   if (action === 'stop') {
