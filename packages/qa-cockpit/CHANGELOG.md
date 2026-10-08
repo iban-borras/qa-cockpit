@@ -42,8 +42,13 @@
   the hand-off is measured from that action, on the browser's own clock
   (Chromium's network events, the page's screen changes): sent (the first
   request or WebSocket message), received (the first message pushed to
-  the other page by WebSocket or server-sent events, or its first answer),
-  seen (the first words changed on its screen). In the cockpit, a teal
+  the other page by WebSocket or server-sent events that carries the words
+  its steps quote, as «Hello, Bob!»; with none quoted, the first but a
+  stream's own welcome; or its first answer), seen (the first words
+  changed on its screen, the quoted ones when there are). Words seen that
+  no pushed message carried say «not live», with the answer they likely
+  came with: a person slowed by a round of `--chaos` no longer had their
+  own stream's welcome taken for the other's message. In the cockpit, a teal
   badge on the step and a line under its photo; at the end, a list in the
   terminal, and each hand-off in the run report. An option of the run in
   the cockpit.

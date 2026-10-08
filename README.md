@@ -236,8 +236,10 @@ Replay a suite with `--realtime` and each step where one person sees what
 another did says how long it took, on the browser's own clock: sent (their
 request or WebSocket message), received on the other page (pushed by
 WebSocket or server-sent events, or answered), seen on the other screen.
-The cockpit shows it under the step's photo; the terminal lists every
-hand-off when the run ends.
+It follows the words the steps quote («Hello, Bob!»), and says «not live»
+when they reached the screen with no pushed message carrying them. The
+cockpit shows it under the step's photo; the terminal lists every hand-off
+when the run ends.
 
 ## Races between people
 

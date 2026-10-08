@@ -28,7 +28,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { a11yFindings } from './a11y.mjs';
 import { lookInLanguages } from './languages.mjs';
-import { changeScript, handOff, watchRealtime } from './realtime.mjs';
+import { changeScript, changesSince, handOff, quotedIn, watchRealtime } from './realtime.mjs';
 
 const URL_BASE = process.env.COCKPIT_URL || '';
 export const enabled = Boolean(URL_BASE);
@@ -84,6 +84,8 @@ const entries = new WeakMap();
 let poller = null;
 // The steps of a recording now open: actions are photographed only inside one.
 let openSteps = 0;
+// The titles of the steps open now, the innermost last: an action's step.
+const stepTitles = [];
 // The time this worker's photos have taken, all told: a step's own time is
 // its time without them (the app's and the recording's), and theirs is said
 // apart. Taken as the clock runs, photos side by side counted once.
@@ -275,8 +277,11 @@ async function languagesOf(f) {
  * A step of a recording begins: its actions are photographed from now.
  * Returns the photos' clock, for its end to tell their time apart.
  */
-export function stepBegan() {
-  if (enabled) openSteps += 1;
+export function stepBegan(title = null) {
+  if (enabled) {
+    openSteps += 1;
+    stepTitles.push(title);
+  }
   return photosMs;
 }
 
@@ -287,6 +292,8 @@ export function stepBegan() {
 export async function stepEnded(s) {
   if (!enabled) return;
   openSteps = Math.max(0, openSteps - 1);
+  const open = stepTitles.lastIndexOf(s.title);
+  if (open !== -1) stepTitles.splice(open, 1);
   const ended = Date.now();
   // The photos taken in the step: its actions', a step's within it.
   const inside = Number.isFinite(s.photosFrom) ? Math.max(0, photosMs - s.photosFrom) : 0;
@@ -303,9 +310,8 @@ export async function stepEnded(s) {
     for (const actor of named) {
       const entry = pages.get(actor);
       if (!entry?.rt) continue;
-      const changes = (after) =>
-        quietly(entry.page, () => entry.page.evaluate((t) => (window.__qaChanges ?? []).filter((c) => c.t >= t), after)).catch(() => []);
-      const h = await handOff({ actor, acts, since, rt: entry.rt, from: (a) => pages.get(a)?.rt, changes }).catch(() => null);
+      const changes = (after, words) => quietly(entry.page, () => entry.page.evaluate(changesSince, [after, words])).catch(() => []);
+      const h = await handOff({ actor, acts, since, rt: entry.rt, from: (a) => pages.get(a)?.rt, changes, step: s.title }).catch(() => null);
       if (h) handOffs.set(actor, h);
     }
   }
@@ -467,10 +473,11 @@ function wrapAction(proto, name, entryOf, prepare) {
     entry.acting = true;
     try {
       entry.shot = await shoot(entry, () => prepare?.(entry, this, args));
-      // An action somebody else's screen may answer: its time, its words
-      // when its mark comes.
+      // An action somebody else's screen may answer: its time, its label
+      // when its mark comes, and the words its step quotes (what travels).
       if (REALTIME) {
-        acts.push({ actor: entry.actor, t: Date.now(), name, shot: entry.shot });
+        const step = stepTitles.at(-1) ?? null;
+        acts.push({ actor: entry.actor, t: Date.now(), name, shot: entry.shot, step, words: quotedIn(step) });
         while (acts.length && acts[0].t < Date.now() - 120_000) acts.shift();
       }
       return await original.apply(this, args);
@@ -644,7 +651,7 @@ export async function register(actor, page, device = null) {
     if (REALTIME) {
       entry.rt = { sent: [], got: [] };
       await quietly(page, () => page.context().addInitScript(changeScript));
-      await watchRealtime(page, entry.rt, quietly);
+      await watchRealtime(page, entry.rt, quietly, () => [...new Set(acts.flatMap((a) => a.words ?? []))]);
     }
   } catch {
     // Without marks the photos still come.
@@ -666,7 +673,10 @@ export async function unregister(actor) {
   await stopLive(entry);
   // Nobody's page left: the test is over, and no step of it is open (one
   // cut short by a timeout never said it ended).
-  if (pages.size === 0) openSteps = 0;
+  if (pages.size === 0) {
+    openSteps = 0;
+    stepTitles.length = 0;
+  }
   if (pages.size === 0 && poller) {
     clearInterval(poller);
     poller = null;

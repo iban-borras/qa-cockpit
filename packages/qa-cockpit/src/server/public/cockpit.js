@@ -1594,7 +1594,12 @@ function runReport(notesMd = '') {
   const handOffs = S.frames.filter((f) => f.realtime && !isAction(f));
   const slowest = [...handOffs].sort((a, b) => (handOffMs(b.realtime) ?? 0) - (handOffMs(a.realtime) ?? 0))[0];
   const handOffText = (h) =>
-    [h.sent && `sent +${h.sent.ms} ms (${h.sent.what})`, h.received && `received +${h.received.ms} ms (${h.received.what})`, h.seen && `seen +${h.seen.ms} ms («${h.seen.text}»)`]
+    [
+      h.sent && `sent +${h.sent.ms} ms (${h.sent.what})`,
+      h.received && `received +${h.received.ms} ms (${h.received.what})`,
+      h.seen && `seen +${h.seen.ms} ms («${h.seen.text}»)`,
+      h.live === false && `not live: no pushed message carried it${h.via ? `, it likely came with an answer (${h.via})` : ''}`,
+    ]
       .filter(Boolean)
       .join('; ');
   const unfits = S.frames.reduce((n, f) => n + allFindings(f).filter((x) => x.kind === 'lang').length, 0);
@@ -1932,7 +1937,9 @@ function renderLangPicks() {
 // screen. In teal, apart from the findings.
 const handOffMs = (h) => h?.seen?.ms ?? h?.received?.ms ?? null;
 const handOffBadge = (h) =>
-  h && Number.isFinite(handOffMs(h)) ? `<i class="ho" title="${esc(t('handoff.title', { from: cap(h.from) }))}">${icon('route', 'sm')}${esc(fmtMs(handOffMs(h)))}</i>` : '';
+  h && Number.isFinite(handOffMs(h))
+    ? `<i class="ho${h.live === false ? ' answer' : ''}" title="${esc(t('handoff.title', { from: cap(h.from) }))}">${icon('route', 'sm')}${esc(fmtMs(handOffMs(h)))}</i>`
+    : '';
 const fmtMs = (ms) => (ms < 1000 ? `${ms} ms` : fmtDur(ms));
 
 function handOffLine(h) {
@@ -1941,6 +1948,8 @@ function handOffLine(h) {
     h.sent && t('handoff.sent', { d: fmtMs(h.sent.ms), what: h.sent.what }),
     h.received && t('handoff.received', { d: fmtMs(h.received.ms), what: h.received.what }),
     h.seen && t('handoff.seen', { d: fmtMs(h.seen.ms), what: h.seen.text }),
+    // On the screen with no pushed message carrying it: it came another way.
+    h.live === false && (h.via ? t('handoff.not_live', { what: h.via }) : t('handoff.not_live_bare')),
   ].filter(Boolean);
   return `${icon('route', 'sm')} ${esc(t('handoff.from', { from: cap(h.from), what: h.what, de: /^h?[aeiouàáèéíïòóúü]/i.test(h.from) ? "d'" : 'de ' }))}: ${legs.map(esc).join(' · ')}`;
 }

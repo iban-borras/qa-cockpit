@@ -180,7 +180,7 @@ export function cockpitFixtures(base, rawConfig) {
           const began = Date.now();
           let ended = null;
           // The photos' clock: the step's time is told without them.
-          const photosFrom = cockpit.stepBegan();
+          const photosFrom = cockpit.stepBegan(title);
           try {
             const result = await body(info);
             ended = Date.now();

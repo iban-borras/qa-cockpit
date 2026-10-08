@@ -483,6 +483,7 @@ export async function runCli(rawConfig, argv) {
             h.sent && `sent +${h.sent.ms} ms (${h.sent.what})`,
             h.received && `received +${h.received.ms} ms (${h.received.what})`,
             h.seen && `seen +${h.seen.ms} ms («${h.seen.text}»)`,
+            h.live === false && `not live: no pushed message carried it${h.via ? `, it likely came with an answer (${h.via})` : ''}`,
           ].filter(Boolean);
           return `  ${test && step ? `${test}/${step}` : f.step} ${h.from} → ${f.actor}, from «${h.what}»: ${legs.join(', ')}`;
         });

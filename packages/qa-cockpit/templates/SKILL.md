@@ -434,9 +434,20 @@ action, on the browser's own clock:
 - **sent**: the first request or WebSocket message the acting person's
   page made;
 - **received**: the first message pushed to the other page (WebSocket,
-  server-sent events), or, for an app that asks again and again, its first
+  server-sent events) that carries the words the steps quote («Hello,
+  Bob!»; not the «Send» pressed). With no words quoted, the first pushed
+  but a stream's own welcome (what a stream the page opened late says the
+  moment it opens); for an app that asks again and again, its first
   answer;
-- **seen**: the first words that changed on the other person's screen.
+- **seen**: the first words that changed on the other person's screen: the
+  quoted ones, when the steps quote some.
+
+Words seen that no pushed message carried came another way (a history
+loaded late, an answer the page asked for): the hand-off says «not live»,
+with the answer they likely came with. Quote in the steps' titles what
+travels from one person to the other, as the suites do, and the measure
+follows it. Of what the messages say nothing is kept: only whether one
+carried the quoted words.
 
 In the cockpit the step has a badge with the time it took to be seen, and
 the line under its photo says the three; the terminal lists every

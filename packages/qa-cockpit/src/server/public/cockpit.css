@@ -414,6 +414,8 @@ dialog#inspector::backdrop { background: rgba(4, 4, 6, 0.72); }
 .caption .handoff svg.i { width: 13px; height: 13px; vertical-align: -2px; color: #2dd4bf; }
 .ho { display: inline-flex; align-items: center; gap: 3px; flex: none; font-style: normal; padding: 0 6px 0 4px; border-radius: 999px; background: rgba(45, 212, 191, 0.16); color: #2dd4bf; font: 600 10.5px/16px var(--mono); }
 .ho svg.i { width: 11px; height: 11px; }
+/* Seen, and no pushed message carried it: it came with an answer, not live. */
+.ho.answer { background: transparent; box-shadow: inset 0 0 0 1px rgba(45, 212, 191, 0.55); }
 .step .ho { margin: 1px 0 0 6px; }
 #optRealtime { accent-color: #2dd4bf; }
 /* A SEARCH FOR RACES (`replay --chaos`, cockpit.js renderRaces): in violet,

@@ -813,6 +813,8 @@ const handOffOf = (h) => {
   const leg = (x, word) =>
     x && Number.isFinite(Number(x.ms)) ? { ms: Math.max(0, Math.round(Number(x.ms))), [word]: String(x[word] ?? '').slice(0, 80) } : null;
   const out = { from: String(h.from ?? '').slice(0, 40), what: String(h.what ?? '').slice(0, 80), sent: leg(h.sent, 'what'), received: leg(h.received, 'what'), seen: leg(h.seen, 'text') };
+  // Seen with no pushed message carrying it: not live, and the answer it likely came with.
+  if (h.live === false && out.seen) Object.assign(out, { live: false, via: h.via ? String(h.via).slice(0, 80) : null });
   return out.received || out.seen ? out : null;
 };
 
