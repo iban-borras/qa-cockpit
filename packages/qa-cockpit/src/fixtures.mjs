@@ -25,6 +25,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { recordingOf, resolveConfig } from './config.mjs';
+import * as chaos from './chaos.mjs';
 import { contextOptions, deviceFor, deviceLabel, noteSuiteDevice } from './devices.mjs';
 import * as network from './network/capture.mjs';
 import * as video from './video/capture.mjs';
@@ -99,6 +100,8 @@ export function cockpitFixtures(base, rawConfig) {
       // fetch, to every person (video/capture.mjs).
       await video.cacheFor(context, config.video.cache);
       const page = await context.newPage();
+      // A round of `replay --chaos` (chaos.mjs): this person slowed, as its seed says.
+      await chaos.disturb(id, page, cockpit.quietly);
       await cockpit.register(id, page, deviceLabel(device));
       // For `qa-cockpit video` (video/capture.mjs): the page's own frames,
       // which the cockpit's live view then shares: two screencasts on one
@@ -121,7 +124,14 @@ export function cockpitFixtures(base, rawConfig) {
     };
 
   // `devices`: a test's own devices, by person (an option, set with test.use).
-  const fixtures = { devices: [{}, { option: true }] };
+  // `together`: several people's actions at once (chaos.mjs); a project's
+  // own helper of that name comes after it, and wins.
+  const fixtures = {
+    devices: [{}, { option: true }],
+    together: async ({}, use) => {
+      await use(chaos.together);
+    },
+  };
   for (const p of config.cast) fixtures[p.id] = person(p.id);
   for (const [name, value] of Object.entries(config.helpers)) {
     // Playwright reads a fixture's dependencies from its first parameter,
@@ -129,6 +139,17 @@ export function cockpitFixtures(base, rawConfig) {
     fixtures[name] = async ({}, use) => {
       await use(value);
     };
+  }
+  // A round of `replay --chaos` notes how each test ended, in its steps or
+  // not (a fixture, a hook), for the rounds to be compared.
+  if (chaos.logging) {
+    fixtures.chaosNote = [
+      async ({}, use, testInfo) => {
+        await use(undefined);
+        chaos.testEnded(testInfo);
+      },
+      { auto: true },
+    ];
   }
   const extended = base.extend(fixtures);
 
@@ -141,7 +162,8 @@ export function cockpitFixtures(base, rawConfig) {
   // A video's run (video/capture.mjs) wraps them too: it notes when each
   // step began and ended, on the clock of its frames. So does a look at the
   // network (network/capture.mjs): each request goes in the step it began in.
-  if (cockpit.enabled || video.enabled || network.enabled) {
+  // So does a round of `replay --chaos` (chaos.mjs): how each step ended.
+  if (cockpit.enabled || video.enabled || network.enabled || chaos.logging) {
     const plainStep = extended.step;
     const withPhotos = async (title, body, options = {}) => {
       const location = options.location ?? cockpit.callerLocation();
@@ -182,13 +204,16 @@ export function cockpitFixtures(base, rawConfig) {
             const soft = testInfo.errors.slice(softBefore);
             if (soft.length) {
               const error = new Error(soft.map((e) => e.message ?? String(e.value ?? '')).join('\n\n'));
+              chaos.stepEnded({ test: testInfo.title, step: title, status: 'failed', error });
               await cockpit.stepEnded({ title, status: 'failed', error, began, photosFrom, ...where });
             } else {
+              chaos.stepEnded({ test: testInfo.title, step: title, status: 'passed' });
               await cockpit.stepEnded({ title, status: 'passed', began, photosFrom, ...where });
             }
             return result;
           } catch (error) {
             if (ended === null) network.stepRecorded(testInfo, { title, began, ended: Date.now(), status: 'failed' });
+            chaos.stepEnded({ test: testInfo.title, step: title, status: 'failed', error });
             await cockpit.stepEnded({ title, status: 'failed', error, began, photosFrom, ...where });
             throw error;
           }

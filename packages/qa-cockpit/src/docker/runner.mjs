@@ -157,8 +157,10 @@ export async function runInDocker(config, playwrightArgs) {
   }
   // The suite being run: the device its sessions are signed in on (devices.mjs);
   // and whether its screens are looked at for accessibility (a11y.mjs), and
-  // in which other languages (languages.mjs).
-  for (const name of ['QA_SUITE', 'QA_RUN_ID', 'QA_A11Y', 'QA_LANGUAGES', 'QA_REALTIME']) if (process.env[name]) args.push('-e', `${name}=${process.env[name]}`);
+  // in which other languages (languages.mjs). A round of `replay --chaos`
+  // (chaos.mjs): its seed, and its log where the container sees it.
+  for (const name of ['QA_SUITE', 'QA_RUN_ID', 'QA_A11Y', 'QA_LANGUAGES', 'QA_REALTIME', 'QA_CHAOS']) if (process.env[name]) args.push('-e', `${name}=${process.env[name]}`);
+  if (process.env.QA_CHAOS_LOG) args.push('-e', `QA_CHAOS_LOG=/work/${posix(path.relative(root, process.env.QA_CHAOS_LOG))}`);
   args.push(image, 'node', '/qa-cockpit/src/docker/runner-entry.mjs', ...playwrightArgs);
 
   console.log(`Playwright in ${image} (${desktop ? 'Docker Desktop, the stack\'s network' : 'host network'})`);

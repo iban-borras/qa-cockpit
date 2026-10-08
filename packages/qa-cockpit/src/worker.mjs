@@ -147,7 +147,7 @@ async function post(route, body, headers = { 'Content-Type': 'application/json' 
  * @param {() => Promise<T>} fn
  * @returns {Promise<T>}
  */
-function quietly(page, fn) {
+export function quietly(page, fn) {
   if (typeof page._wrapApiCall !== 'function') return fn();
   return page._wrapApiCall(async (zone) => {
     if (zone && zone.internal === false) throw new Error('Inside a call of the recording.');

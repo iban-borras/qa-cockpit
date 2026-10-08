@@ -186,6 +186,8 @@ npx qa-cockpit replay <suite> --a11y      # each step's screen looked at for acc
 npx qa-cockpit replay <suite> --languages # each step's screen in the app's other languages too (--languages fr,de: those), with the cockpit; «Languages»
 npx qa-cockpit languages check  # the config's change of language, tried on one screen and back
 npx qa-cockpit replay <suite> --realtime  # how long what one person does takes to reach another's screen; «Real time»
+npx qa-cockpit replay <suite> --chaos 5  # races between people: rounds from fresh data, each person slowed by a seed; «Races»
+npx qa-cockpit replay <suite> --chaos-seed <n>  # that round again, with any look
 npx qa-cockpit network [run]    # what they show, step by step (--against previous, --test <id>, --json, --list)
 npx qa-cockpit open <person>    # a browser window signed in as that person
 npx qa-cockpit stamp <suite>    # write the suite's hash into the recording's first line
@@ -448,6 +450,56 @@ hand-off when the run ends, and the run report has them.
    wait): only clicks, typing and keys pressed are actions.
 3. **What you deliver is a report**: the slow hand-offs, and on which leg
    the time goes. Change nothing until the person says so.
+
+## Races between people (when a person asks, or before a release)
+
+`npx qa-cockpit replay <suite> --chaos [N]` plays the recording in N rounds
+(5 unless said; 2 to 50). Each round starts from fresh data (`reset`, then
+the suite's setup, as a video does) and slows each person in their own way,
+drawn from the round's seed:
+
+- **network**: every request of theirs waits that long for its answer;
+- **pushes**: what is pushed to their page (WebSocket messages, server-sent
+  events) reaches the app that late, in the order it came;
+- **CPU**: their page runs that many times slower.
+
+On this machine everybody is fast and the steps come in one order; on a
+slow phone they may come in another, and the app may not expect it (a
+message lost between loading the history and opening the live stream, a
+list redrawn from an answer older than what was pushed). **A step that
+passes in some rounds and fails in others is a race**: the terminal lists
+each, with the rounds it failed in, how each person was slowed there and the
+error; the cockpit shows each round as a run of its own, with its seed, and
+under the run what the rounds found. A step that fails in every round is
+not a race: the app, the recording, or a slowness it cannot take.
+
+1. **A seed plays its round again**: `replay <suite> --chaos-seed <n>`, from
+   fresh data, each person slowed the same way. It takes any look, so
+   `--chaos-seed <n> --realtime` says where the time went, and the trace
+   and photos of that run show what each person saw. Timing is never exact:
+   a round may need two or three tries to fail again.
+2. **Several people at once**: `together` (a fixture, like the cast) starts
+   their actions in the same instant; in a round, each at the offset its
+   seed says, one before the other or both at once:
+
+   ```js
+   test('T4 · Both save at once', async ({ alice, bob, together }) => {
+     await test.step('1 · Alice, Bob: both press «Save»', async () => {
+       await together(
+         () => alice.getByRole('button', { name: 'Save' }).click(),
+         () => bob.getByRole('button', { name: 'Save' }).click(),
+       );
+     });
+   });
+   ```
+
+   Write it only where the suite says the people act at the same time.
+3. **No round proves there is no race**: more rounds look further. A search
+   costs N runs of the suite with their setups: say how long before you
+   start a long one.
+4. **What you deliver is a report**: each race, its seed, and what you think
+   the order was. Change nothing until the person says so; a fix is proved
+   by the same seed passing several times, then a new search.
 
 ## Demo videos (only when a person asks)
 

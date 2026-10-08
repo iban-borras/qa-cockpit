@@ -302,8 +302,23 @@ function listRuns() {
 const noteCount = (dir) => readNotes(dir).filter((n) => n.text.trim()).length;
 
 function pruneRuns() {
-  for (const id of listRuns().slice(KEEP_RUNS)) {
-    if (noteCount(path.join(COCKPIT_DIR, id))) continue;
+  // The newest `keepRuns` runs stay, and those with notes. A search for
+  // races (`replay --chaos`) counts as one, all its rounds together: its
+  // failed round is what it is for, and the oldest of its rounds.
+  const groupOf = (id) => {
+    try {
+      return JSON.parse(fs.readFileSync(path.join(COCKPIT_DIR, id, 'run.json'), 'utf8')).chaos?.group ?? null;
+    } catch {
+      return null;
+    }
+  };
+  let kept = 0;
+  let last = null;
+  for (const id of listRuns()) {
+    const group = groupOf(id);
+    if (!group || group !== last) kept += 1;
+    last = group;
+    if (kept <= KEEP_RUNS || noteCount(path.join(COCKPIT_DIR, id))) continue;
     fs.rmSync(path.join(COCKPIT_DIR, id), { recursive: true, force: true });
   }
 }
@@ -319,6 +334,9 @@ function tallyOf(r) {
     done: r.phase?.done ?? null,
     passed: tests.filter(([, x]) => x.status === 'passed').length,
     failedAt: broke?.[0] ?? null,
+    // Every test it ran: a run of several commands (reset, setup and the
+    // recording; a round of a search) ran more than its last one counted.
+    count: tests.length,
   };
 }
 
@@ -340,6 +358,8 @@ function runsIndex() {
         status: meta.status === 'running' ? 'interrupted' : meta.status,
         tally: tallyOf(meta),
         notes,
+        // A round of a search for races: its seed, and how many it found.
+        ...(meta.chaos ? { chaos: { ...meta.chaos, found: undefined, races: meta.chaos.found ? meta.chaos.found.unstable.length : null } } : {}),
       };
     } catch {
       return { id };
@@ -583,6 +603,141 @@ function externalLines(body) {
   if (!task?.external || Number(body.pid) !== task.external.pid) return false;
   for (const line of Array.isArray(body.lines) ? body.lines : []) log(String(line.text ?? ''), line.err ? true : false);
   return true;
+}
+
+// ---------------------------------------------------------------- races between people
+
+// A search for races (`replay --chaos`, cli.mjs and chaos.mjs) plays its
+// rounds in one process, the cockpit's task or a terminal's: each round is
+// a run of its own here, with its seed and how it slowed each person, and
+// the search's end leaves what the rounds found in each of its runs.
+const intIn = (v, lo, hi) => (Number.isInteger(v) && v >= lo && v <= hi ? v : null);
+const textOf = (v, max = 300) => (typeof v === 'string' && v ? v.slice(0, max) : null);
+const RUN_ID = /^[\w.-]{1,120}$/;
+
+const slowedOf = (people) =>
+  Object.fromEntries(
+    Object.entries(people && typeof people === 'object' ? people : {})
+      .filter(([id, p]) => ACTOR.test(id) && p && typeof p === 'object')
+      .slice(0, 20)
+      .map(([id, p]) => [id, { network: intIn(p.network, 0, 60_000) ?? 0, pushes: intIn(p.pushes, 0, 60_000) ?? 0, cpu: intIn(p.cpu, 1, 20) ?? 1 }]),
+  );
+
+function chaosOf(x) {
+  if (!x || typeof x !== 'object') return null;
+  const round = intIn(x.round, 1, 50);
+  const of = intIn(x.of, 1, 50);
+  const seed = intIn(x.seed, 1, 999_999_999);
+  if (!round || !of || !seed || round > of) return null;
+  return { group: typeof x.group === 'string' && RUN_ID.test(x.group) ? x.group : null, round, of, seed, people: slowedOf(x.people) };
+}
+
+function foundOf(x) {
+  if (!x || typeof x !== 'object') return null;
+  const list = (v, n) => (Array.isArray(v) ? v.slice(0, n) : []);
+  const steps = (v) =>
+    list(v, 200)
+      .map((s) => ({
+        test: textOf(s?.test),
+        step: textOf(s?.step),
+        passed: list(s?.passed, 50).filter((n) => intIn(n, 1, 50)),
+        failed: list(s?.failed, 50)
+          .map((f) => ({ round: intIn(f?.round, 1, 50), seed: intIn(f?.seed, 1, 999_999_999), error: textOf(f?.error) }))
+          .filter((f) => f.round && f.seed),
+      }))
+      .filter((s) => s.test && s.step);
+  return {
+    of: intIn(x.of, 1, 50),
+    stopped: intIn(x.stopped, 1, 50),
+    rounds: list(x.rounds, 50)
+      .map((r) => ({
+        round: intIn(r?.round, 1, 50),
+        seed: intIn(r?.seed, 1, 999_999_999),
+        status: r?.status === 'passed' ? 'passed' : 'failed',
+        run: typeof r?.run === 'string' && RUN_ID.test(r.run) ? r.run : null,
+        people: slowedOf(r?.people),
+      }))
+      .filter((r) => r.round && r.seed),
+    unstable: steps(x.unstable),
+    always: steps(x.always),
+    outside: list(x.outside, 50)
+      .map((o) => ({
+        round: intIn(o?.round, 1, 50),
+        seed: intIn(o?.seed, 1, 999_999_999),
+        tests: list(o?.tests, 50)
+          .map((t) => ({ test: textOf(t?.test), error: textOf(t?.error) }))
+          .filter((t) => t.test),
+      }))
+      .filter((o) => o.round && o.seed),
+  };
+}
+
+/** The run a search reports to, named by the process playing it. */
+const searching = (body) => Boolean(task && run && !run.closed && task.suite && body?.run === run.id);
+
+/** The end of a round's run: its status, as the search tells it. */
+function closeRound(status) {
+  run.status = status === 'passed' ? 'passed' : 'failed';
+  run.endedAt = new Date().toISOString();
+  run.current = null;
+  saveRun(run);
+  run.closed = true;
+  forgetUnseenPhotos(run);
+  broadcast('run', summary(run));
+}
+
+/**
+ * A round begins. The first names the run that follows the search; each
+ * next one closes the round before, with its status, and opens a run of
+ * its own, of the same kind. Its id goes back, for the round's reports.
+ */
+function chaosRound(body) {
+  const chaos = chaosOf(body?.chaos);
+  // Asked again, its answer lost on the way: the round has its run already.
+  if (chaos?.group && task && run && !run.closed && run.chaos?.group === chaos.group && run.chaos.round === chaos.round) return { ok: true, run: run.id };
+  if (!searching(body) || !chaos) return { ok: false };
+  if (run.chaos) {
+    const { suite, label, kind, docker, who } = run;
+    closeRound(body.previous);
+    run = newRun(suite, label);
+    Object.assign(run, { kind, docker }, who ? { who } : {});
+    run.chaos = chaos;
+    saveRun(run);
+    pruneRuns();
+    lastLive.clear();
+  } else {
+    run.chaos = chaos;
+    saveRun(run);
+  }
+  broadcast('run', summary(run));
+  return { ok: true, run: run.id };
+}
+
+/**
+ * The search's end: its last round closed with its status (the process
+ * ends red when any round failed), and what the rounds found kept in each
+ * of its runs, for the report of any of them.
+ */
+function chaosEnd(body) {
+  if (!searching(body) || !run.chaos) return { ok: false };
+  const found = foundOf(body.found);
+  if (found && run.chaos.group) {
+    run.chaos.found = found;
+    for (const id of listRuns()) {
+      if (id === run.id) continue;
+      const file = path.join(COCKPIT_DIR, id, 'run.json');
+      try {
+        const meta = JSON.parse(fs.readFileSync(file, 'utf8'));
+        if (meta.chaos?.group !== run.chaos.group) continue;
+        meta.chaos.found = found;
+        fs.writeFileSync(file, JSON.stringify(meta, null, 1));
+      } catch {
+        // A round gone (pruned, or by hand): the others say it.
+      }
+    }
+  }
+  closeRound(body.status);
+  return { ok: true };
 }
 
 // ---------------------------------------------------------------- report events
@@ -924,7 +1079,7 @@ function state() {
 }
 
 async function onAction(body) {
-  const { action, suite, headed, docker, a11y, languages, realtime, actor } = body;
+  const { action, suite, headed, docker, a11y, languages, realtime, chaos, chaosSeed, actor } = body;
   const known = listSuites(CFG);
   const pick = () => {
     const s = known.find((x) => x.name === suite);
@@ -934,14 +1089,25 @@ async function onAction(body) {
   const inDocker = docker ? ['--in-docker'] : [];
   // The languages chosen on the page, each one of the config's; `true`, its priority ones.
   const chosenLangs = !CFG.languages || !languages ? [] : (Array.isArray(languages) ? languages.map(String) : CFG.languages.priority).filter((x) => CFG.languages.others.includes(x));
+  // A search for races (`--chaos`): its rounds, each from fresh data by
+  // itself, compared rather than looked at, so without the looks.
+  const rounds = intIn(Number(chaos), 2, 50);
+  // One round of a search again (`--chaos-seed`): from fresh data too, and
+  // with any look.
+  const seed = rounds ? null : intIn(Number(chaosSeed), 1, 999_999_999);
   const replayArgs = (name) => [
     'replay',
     name,
     ...inDocker,
     ...(headed && !docker ? ['--headed'] : []),
-    ...(a11y ? ['--a11y'] : []),
-    ...(realtime ? ['--realtime'] : []),
-    ...(chosenLangs.length ? ['--languages', chosenLangs.join(',')] : []),
+    ...(rounds
+      ? ['--chaos', String(rounds)]
+      : [
+          ...(seed ? ['--chaos-seed', String(seed)] : []),
+          ...(a11y ? ['--a11y'] : []),
+          ...(realtime ? ['--realtime'] : []),
+          ...(chosenLangs.length ? ['--languages', chosenLangs.join(',')] : []),
+        ]),
   ];
   if (action === 'stop') {
     if (!task) return { ok: true, stopped: false };
@@ -973,11 +1139,11 @@ async function onAction(body) {
   } else if (action === 'full') {
     const s = pick();
     if (!s.recorded || !s.setup) throw new Refusal(s.recorded ? 'no_setup' : 'no_recording', { suite: s.name });
-    started = startTask({ kind: 'full', suite: s.name, docker: Boolean(docker) }, [
-      ['reset'],
-      ['setup', s.name, ...inDocker],
-      replayArgs(s.name),
-    ]);
+    // Each round of a search starts from fresh data by itself.
+    started = startTask(
+      { kind: 'full', suite: s.name, docker: Boolean(docker) },
+      rounds ? [replayArgs(s.name)] : [['reset'], ['setup', s.name, ...inDocker], replayArgs(s.name)],
+    );
   } else throw new Refusal('unknown_action', { action });
   started.catch((e) => {
     log(`[cockpit] ${e instanceof Error ? e.message : e}`, 'error');
@@ -1131,6 +1297,8 @@ async function handle(req, res) {
     if (ours) finishTask(body.code === 0 ? 'passed' : 'failed', body.code);
     return send(res, 200, { ok: ours });
   }
+  if (req.method === 'POST' && p === '/api/chaos/round') return send(res, 200, chaosRound(await readJson(req)));
+  if (req.method === 'POST' && p === '/api/chaos/end') return send(res, 200, chaosEnd(await readJson(req)));
   if (req.method === 'POST' && p === '/api/report-event') {
     onReport(await readJson(req));
     return send(res, 200, { ok: true });

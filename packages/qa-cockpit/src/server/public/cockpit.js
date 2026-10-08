@@ -54,6 +54,8 @@ const ICONS = {
   trash: '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
   radio: '<path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9"/><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5"/><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5"/><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19"/>',
   a11y: '<circle cx="16" cy="4" r="1"/><path d="m18 19 1-7-6 1"/><path d="m5 8 3-3 5.5 3-2.36 3.5"/><path d="M4.24 14.5a5 5 0 0 0 6.88 6"/><path d="M13.76 17.5a5 5 0 0 0-6.88-6"/>',
+  // A round of a search for races (`replay --chaos`): a die.
+  dice: '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><path d="M16 8h.01"/><path d="M8 8h.01"/><path d="M8 16h.01"/><path d="M16 16h.01"/><path d="M12 12h.01"/>',
 };
 const icon = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
 const withIcon = (el, name, text = '') => (el.innerHTML = icon(name) + (text ? `<span>${esc(text)}</span>` : ''));
@@ -123,7 +125,12 @@ function insSubHtml(actor, f = null) {
   const p = S.state.cast.find((c) => c.id === actor);
   const d = f?.device ?? lastDeviceOf(actor);
   const rest = [S.run?.suite ?? S.suite ?? '', p?.badge ?? ''].filter(Boolean).map(esc).join(' · ');
-  return `${d ? `<span class="line">${deviceHtml(d)}</span>` : ''}${rest ? `<span class="line">${rest}</span>` : ''}`;
+  // A round of a search for races: how its seed slowed this person.
+  const slowed = S.run?.chaos?.people?.[actor];
+  return (
+    `${d ? `<span class="line">${deviceHtml(d)}</span>` : ''}${rest ? `<span class="line">${rest}</span>` : ''}` +
+    `${slowed ? `<span class="line slowed">${icon('dice', 'sm')}${esc(slowText(slowed))}</span>` : ''}`
+  );
 }
 
 // The card shows what the person had on screen: their whole viewport, fitted
@@ -196,6 +203,7 @@ async function act(action, extra = {}) {
         a11y: $('optA11y').checked,
         languages: $('optLangs').checked && S.state?.languages ? chosenLangs() : false,
         realtime: $('optRealtime').checked,
+        chaos: $('optChaos').checked ? chaosRounds() : false,
         ...extra,
       }),
     });
@@ -254,8 +262,11 @@ const runsOf = (name) => (S.state?.runs ?? []).filter((r) => r.suite === name);
 function kindLabel(r) {
   if (!r) return '';
   if (!r.kind) return r.label ?? r.id;
-  // A run launched from a terminal says whose it is.
-  return `${t(`kind.${r.kind}`)}${r.docker ? ` ${t('kind.docker')}` : ''}${r.who ? ` · ${r.who}` : ''}`;
+  // A run launched from a terminal says whose it is; a round of a search
+  // for races, which one and its seed.
+  const c = r.chaos;
+  const round = c ? ` · ${c.group ? t('races.round_short', { round: c.round, of: c.of, seed: c.seed }) : t('races.seed', { seed: c.seed })}` : '';
+  return `${t(`kind.${r.kind}`)}${r.docker ? ` ${t('kind.docker')}` : ''}${r.who ? ` · ${r.who}` : ''}${round}`;
 }
 
 function defaultSuite() {
@@ -712,6 +723,7 @@ function renderHeader() {
   // The app's other languages, a run's option when its config says how to change them.
   $('optLangsRow').hidden = !st.languages;
   renderLangPicks();
+  renderChaosPicks();
   void waveFavicon(Boolean(st.task));
   waveLogo(Boolean(st.task));
   const chip = $('stackChip');
@@ -988,6 +1000,7 @@ function renderStatus() {
   const broke = Object.values(r?.tests ?? {}).some((x) => x.status === 'failed' || x.status === 'timedOut');
   $('progressBar').dataset.st = broke || r?.status === 'failed' ? 'failed' : ['stopped', 'interrupted'].includes(r?.status) ? r.status : 'passed';
   tickElapsed();
+  renderRaces();
 }
 
 // ---------------------------------------------------------------- the run picker
@@ -1018,12 +1031,14 @@ function runTests(x) {
     done: x.phase?.done ?? null,
     passed: all.filter(([, v]) => v.status === 'passed').length,
     failedAt: broke?.[0] ?? null,
+    count: all.length,
   };
   const n = tally.total;
   if (!n) return '';
   if (runStatus(x) === 'running') return esc(t('runs.done', { done: tally.done ?? 0, n }));
   const where = tally.failedAt ? ` · <span class="bad">${esc(t('runs.failed_at', { test: tally.failedAt.split(' · ')[0] }))}</span>` : '';
-  return esc(t('runs.pass', { ok: tally.passed, n })) + where;
+  // Of every test it ran: a setup's too, in a full run («5 of 3» was its last command's count).
+  return esc(t('runs.pass', { ok: tally.passed, n: Math.max(n, tally.count ?? 0) })) + where;
 }
 
 function renderRunPop({ scroll = false } = {}) {
@@ -1561,6 +1576,14 @@ function runReport(notesMd = '') {
     wide: () => 'the page wider than the window',
     key: (x) => `a translation key left on the screen («${x.text}»)`,
   };
+  // A round of a search for races (`--chaos`), in the CLI's words.
+  const c = r.chaos;
+  const slowMd = (p) => [p.network && `network +${p.network} ms`, p.pushes && `pushes +${p.pushes} ms`, p.cpu > 1 && `CPU ×${p.cpu}`].filter(Boolean).join(', ') || 'as it is';
+  const slowedMd = (people) =>
+    Object.entries(people ?? {})
+      .map(([id, p]) => `${cap(id)} ${slowMd(p)}`)
+      .join('; ');
+  const again = (seed) => `\`${S.state.cli} replay ${r.suite} --chaos-seed ${seed}\``;
   // A finding in the report's words (a11y.mjs), as the CLI says it too.
   const said = {
     name: (x) => `${x.role} with no name`,
@@ -1588,6 +1611,13 @@ function runReport(notesMd = '') {
     ...(inLangs
       ? [`- Languages (--languages): ${inLangs} screens in another language; ${unfits ? `${unfits} thing${unfits === 1 ? '' : 's'} that do not fit, each under the step where it first showed` : 'everything fits'}`]
       : []),
+    ...(c
+      ? [
+          c.group
+            ? `- Races (--chaos): round ${c.round} of ${c.of}, seed ${c.seed}: ${slowedMd(c.people)}. This round again: ${again(c.seed)}`
+            : `- Races (--chaos-seed ${c.seed}), a round of a search played again: ${slowedMd(c.people)}`,
+        ]
+      : []),
     '',
     'How to read it: one section per test, in the order they ran. A step\'s time runs from its start to its',
     'photo and includes the recording\'s own waits, not the cockpit\'s photos (their time is said apart); the',
@@ -1602,10 +1632,53 @@ function runReport(notesMd = '') {
     'screen in each other language of the app (a photo each), and what does not fit there that fit in the',
     'suite\'s own. With --realtime, a step another person\'s action reached says how long it took: sent',
     '(their request or message), received here (pushed, or answered), seen on this screen.',
+    ...(c
+      ? [
+          'This run is a round of a search for races (--chaos): from fresh data, each person slowed as its seed',
+          'says (network: each request waits that long for its answer; pushes: what is pushed to the page',
+          'reaches the app that late, in order; CPU: the page that many times slower). A step that passes in',
+          'some rounds and fails in others is a race: the order things came in mattered.',
+        ]
+      : []),
     ...(S.state.reportNotes?.length ? ['', ...S.state.reportNotes.map((n) => `Note: ${n}`)] : []),
     '',
     ...(notesMd ? [notesMd, ''] : []),
   ];
+  // WHAT A SEARCH FOR RACES FOUND, in each of its rounds' reports: every
+  // round, then the steps compared across them.
+  const races = c?.found;
+  if (races) {
+    const stepMd = (x) => `${testShort(x.test)}/${x.step}`;
+    lines.push(
+      '## Races across the rounds',
+      '',
+      `${races.rounds.length} round${races.rounds.length === 1 ? '' : 's'}${races.stopped ? ` of ${races.of} (the setup of round ${races.stopped} failed: the search stopped there)` : ''}, each from fresh data; this run is round ${c.round}.`,
+      '',
+      '| Round | Seed | Status | Slowed | Run |',
+      '|---:|---:|---|---|---|',
+      ...races.rounds.map((x) => `| ${x.round} | ${x.seed} | ${x.status} | ${slowedMd(x.people)} | ${x.run ? `\`${OUT}/cockpit/${x.run}\`` : ''} |`),
+      '',
+    );
+    if (races.unstable.length) {
+      lines.push('Steps that pass in some rounds and fail in others (races: the order things came in mattered):', '');
+      for (const x of races.unstable) {
+        lines.push(`- ${stepMd(x)}: failed in ${x.failed.map((y) => `round ${y.round} (seed ${y.seed})`).join(', ')}; passed in ${x.passed.join(', ')}`);
+        for (const y of x.failed) lines.push(`  - Seed ${y.seed}${y.error ? `: ${y.error}` : ''}. Again: ${again(y.seed)}`);
+      }
+      lines.push('');
+    }
+    if (races.always.length) {
+      lines.push('Steps that failed in every round that reached them (not races: the app, the recording, or a slowness it cannot take):', '');
+      for (const x of races.always) lines.push(`- ${stepMd(x)}${x.failed[0].error ? `: ${x.failed[0].error}` : ''}`);
+      lines.push('');
+    }
+    for (const o of races.outside) {
+      lines.push(`- Round ${o.round} (seed ${o.seed}) failed outside its steps${o.tests.length ? `: ${o.tests.map((x) => `${x.test}${x.error ? ` (${x.error})` : ''}`).join('; ')}` : ''}`);
+    }
+    if (races.outside.length) lines.push('');
+    if (!races.unstable.length && !races.always.length && !races.outside.length) lines.push('No race: every step passed in every round. More rounds look further.', '');
+  }
+
   // THE API BY ENDPOINT: every request of every person, ids folded into
   // `{id}`, so the run doubles as a latency check. Page loads (the front's
   // own server under test) are left out: production does not pay them.
@@ -1844,6 +1917,110 @@ function handOffLine(h) {
   ].filter(Boolean);
   return `${icon('route', 'sm')} ${esc(t('handoff.from', { from: cap(h.from), what: h.what, de: /^h?[aeiouàáèéíïòóúü]/i.test(h.from) ? "d'" : 'de ' }))}: ${legs.map(esc).join(' · ')}`;
 }
+
+// A SEARCH FOR RACES (`replay --chaos`, chaos.mjs): the recording played in
+// rounds, each a run of its own from fresh data, each person slowed in
+// their own way by the round's seed. The strip under the run says which
+// round it is and how it slowed each person; once the search is over, what
+// the rounds found: the steps that passed in some and failed in others,
+// each failed round a way to its run, and its seed, to play it again. In
+// violet, apart from the findings.
+const CHAOS_ROUNDS = [3, 5, 10, 20];
+
+/** «network +400 ms · live +250 ms · CPU ×2», or «as it is». */
+function slowText(p) {
+  const parts = [
+    p.network && t('races.network', { ms: p.network }),
+    p.pushes && t('races.pushes', { ms: p.pushes }),
+    p.cpu > 1 && t('races.cpu', { n: p.cpu }),
+  ].filter(Boolean);
+  return parts.length ? parts.join(' · ') : t('races.as_is');
+}
+
+function chaosRounds() {
+  const kept = Number(localStorageGet('optChaosRounds'));
+  return CHAOS_ROUNDS.includes(kept) ? kept : 5;
+}
+
+/** The rounds to play, under the option; and the looks, which a search does without. */
+function renderChaosPicks() {
+  const on = $('optChaos').checked;
+  const box = $('optChaosRounds');
+  box.hidden = !on;
+  const n = chaosRounds();
+  const html = CHAOS_ROUNDS.map((k) => `<label class="pick"><input type="radio" name="chaosRounds" value="${k}"${k === n ? ' checked' : ''}> ${esc(t('races.rounds', { n: k }))}</label>`).join('');
+  if (box.dataset.html !== html) {
+    box.dataset.html = html;
+    box.innerHTML = html;
+  }
+  for (const id of ['optA11y', 'optLangs', 'optRealtime']) {
+    $(id).disabled = on;
+    $(id).closest('.opt').classList.toggle('off', on);
+    $(id).closest('.opt').title = on ? t('races.no_looks') : '';
+  }
+  $('optLangsList').classList.toggle('off', on);
+}
+
+/** «T1/3 · Bob: sees it arrive». */
+const raceStep = (x) => `${testShort(x.test)}/${x.step}`;
+
+function renderRaces() {
+  const box = $('races');
+  const c = S.run?.chaos;
+  if (!c) {
+    box.hidden = true;
+    box.dataset.html = '';
+    box.innerHTML = '';
+    return;
+  }
+  const people = Object.entries(c.people ?? {})
+    .map(([id, p]) => `<span class="slow"><b>${esc(cap(id))}</b> ${esc(slowText(p))}</span>`)
+    .join('');
+  const head = c.group ? t('races.round', { round: c.round, of: c.of, seed: c.seed }) : t('races.again', { seed: c.seed });
+  const f = c.found;
+  let found = '';
+  if (f) {
+    // A round no longer kept (the history keeps its newest runs) is said, not linked.
+    const kept = new Set(runsOf(S.run.suite).map((x) => x.id));
+    const chips = f.rounds
+      .map(
+        (r) =>
+          `<button class="rd" type="button" data-run="${esc(r.run ?? '')}" data-st="${esc(r.status)}"${r.run === S.run.id ? ' aria-current="true"' : ''}${r.run && kept.has(r.run) ? '' : ' disabled'}` +
+          ` data-tip="${esc(`${t('races.seed', { seed: r.seed })}: ${Object.entries(r.people ?? {}).map(([id, p]) => `${cap(id)} ${slowText(p)}`).join('; ')}`)}">${r.round}</button>`,
+      )
+      .join('');
+    const busy = Boolean(S.state?.task) || !S.state?.stack?.up;
+    const again = (seed) =>
+      `<button class="btn pill again" type="button" data-seed="${seed}"${busy ? ' disabled' : ''} data-tip="${esc(t('races.play_again_tip'))}">${icon('rotate', 'sm')}${esc(t('races.play_again', { seed }))}</button>`;
+    const rows = [
+      ...f.unstable.map(
+        (x) =>
+          `<li><b>${esc(raceStep(x))}</b><span>${esc(t('races.failed_in', { rounds: x.failed.map((y) => y.round).join(', '), passed: x.passed.join(', ') }))}</span>` +
+          `${x.failed[0].error ? `<code title="${esc(x.failed[0].error)}">${esc(x.failed[0].error)}</code>` : ''}${again(x.failed[0].seed)}</li>`,
+      ),
+      ...f.always.map((x) => `<li class="always"><b>${esc(raceStep(x))}</b><span>${esc(t('races.always'))}</span>${x.failed[0].error ? `<code title="${esc(x.failed[0].error)}">${esc(x.failed[0].error)}</code>` : ''}</li>`),
+      ...f.outside.map((o) => `<li class="always"><b>${esc(t('races.outside', { round: o.round }))}</b>${o.tests.map((x) => `<span>${esc(x.test)}</span>`).join('')}${again(o.seed)}</li>`),
+    ];
+    const verdict = f.unstable.length
+      ? t(f.unstable.length === 1 ? 'races.found_one' : 'races.found_many', { n: f.unstable.length })
+      : f.rounds.some((r) => r.status === 'failed') || f.stopped
+        ? t('races.none_but')
+        : t('races.none', { n: f.rounds.length });
+    found = `<div class="found"><span class="rounds">${chips}</span><span class="verdict">${esc(verdict)}</span></div>${rows.length ? `<ul>${rows.join('')}</ul>` : ''}`;
+  } else if (c.group) found = `<div class="found"><span class="verdict faint">${esc(t('races.searching'))}</span></div>`;
+  const html = `<div class="head">${icon('dice', 'sm')}<span class="what">${esc(head)}</span>${people}</div>${found}`;
+  box.hidden = false;
+  if (box.dataset.html === html) return;
+  box.dataset.html = html;
+  box.innerHTML = html;
+}
+
+$('races').addEventListener('click', (e) => {
+  const round = e.target.closest('.rd[data-run]');
+  if (round?.dataset.run && round.dataset.run !== S.run?.id) return void pickRun(round.dataset.run);
+  const again = e.target.closest('.again[data-seed]');
+  if (again) void act('replay', { chaos: false, chaosSeed: Number(again.dataset.seed) });
+});
 
 /** The tabs over a step's photo: the suite's own language, then each other one it was looked at in. */
 function renderLangTabs(f) {
@@ -2758,6 +2935,10 @@ function connect() {
     const r = JSON.parse(e.data);
     const isNew = !S.state.run || S.state.run.id !== r.id;
     S.state.run = r;
+    // The picker's copy of it, fresh too (a round of a search names itself
+    // after it began).
+    const listed = S.state.runs?.findIndex((x) => x.id === r.id) ?? -1;
+    if (listed !== -1) S.state.runs[listed] = { ...S.state.runs[listed], ...r, tally: undefined };
     if (isNew) {
       S.state.runs = (await api('/api/state')).runs;
       // A new run of the suite on screen is followed; one of another suite
@@ -2961,7 +3142,8 @@ $('btnSetup').onclick = () => act('setup');
 // setup, recording) is the answer Enter takes.
 $('btnReplay').onclick = async () => {
   const s = suiteOf(S.suite);
-  const why = s?.setup ? staleWhy(s.name) : null;
+  // A search for races starts each round from fresh data by itself.
+  const why = s?.setup && !$('optChaos').checked ? staleWhy(s.name) : null;
   if (why) {
     const pick = await choose(
       t('replay.stale', { suite: s.title, why }),
@@ -3000,10 +3182,16 @@ $('optMarks').onchange = () => {
   localStorageSet('optMarks', $('optMarks').checked ? '1' : '0');
   $('insMarks').classList.toggle('off', !$('optMarks').checked);
 };
-for (const id of ['optHeaded', 'optDocker', 'optA11y', 'optLangs', 'optRealtime']) {
+for (const id of ['optHeaded', 'optDocker', 'optA11y', 'optLangs', 'optRealtime', 'optChaos']) {
   $(id).checked = localStorageGet(id) === '1';
   $(id).onchange = () => localStorageSet(id, $(id).checked ? '1' : '0');
 }
+$('optChaos').addEventListener('change', renderChaosPicks);
+$('optChaosRounds').addEventListener('change', (e) => {
+  if (e.target.name === 'chaosRounds') localStorageSet('optChaosRounds', e.target.value);
+  renderChaosPicks();
+});
+renderChaosPicks();
 $('optLangs').addEventListener('change', renderLangPicks);
 $('optLangsList').addEventListener('change', () => {
   localStorageSet('optLangsList', [...$('optLangsList').querySelectorAll('input:checked')].map((i) => i.value).join(','));

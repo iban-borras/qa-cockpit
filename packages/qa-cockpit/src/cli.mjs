@@ -155,10 +155,11 @@ export async function runCli(rawConfig, argv) {
   }
 
   function flushReport() {
+    clearTimeout(report.timer);
     report.timer = null;
     const lines = report.lines.splice(0);
-    if (!lines.length) return;
-    fetch(`${COCKPIT}/api/external/log`, {
+    if (!lines.length) return Promise.resolve();
+    return fetch(`${COCKPIT}/api/external/log`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pid: process.pid, lines }),
@@ -255,8 +256,9 @@ export async function runCli(rawConfig, argv) {
 
   // Playwright through its own entry point with this very node: no npx, no
   // shell, the same on Windows and Linux. With --in-docker, in the runner
-  // container instead.
-  async function playwright(pwArgs) {
+  // container instead. A red run ends this process with its code; with
+  // `exit: false`, the code is returned (a round of `replay --chaos`).
+  async function playwright(pwArgs, { exit = true } = {}) {
     if (P.playwrightConfig) pwArgs = [pwArgs[0], '--config', P.playwrightConfig, ...pwArgs.slice(1)];
     if (!IN_DOCKER) ensureReady();
     let code;
@@ -272,7 +274,8 @@ export async function runCli(rawConfig, argv) {
         ? await piped(process.execPath, [playwrightCli(), ...pwArgs])
         : (spawnSync(process.execPath, [playwrightCli(), ...pwArgs], { cwd: P.project, stdio: 'inherit' }).status ?? 1);
     }
-    if (code !== 0) process.exit(code);
+    if (code !== 0 && exit) process.exit(code);
+    return code;
   }
 
   /** True when there are saved sessions and none is older than maxAgeMs. */
@@ -488,6 +491,150 @@ export async function runCli(rawConfig, argv) {
     });
   }
 
+  // ── races between people (`replay --chaos`, chaos.mjs) ──
+
+  /** Each round from the same start, as a video's run: fresh data, then the suite's setup. Its code. */
+  async function freshStart(suite) {
+    if (config.stack.reset) await commands.reset();
+    const setup = setupOf(config, suite);
+    fs.mkdirSync(P.state, { recursive: true });
+    if (!setup) return 0;
+    noteData(config, { state: 'setting-up', suite });
+    const code = await playwright(['test', testFileArg(setup)], { exit: false });
+    if (!code) noteData(config, { state: 'setup', suite });
+    return code;
+  }
+
+  /** The cast a recording names: the people its rounds slow. */
+  function playersOf(file) {
+    const text = fs.readFileSync(file, 'utf8');
+    return config.people.filter((id) => new RegExp(`\\b${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(text));
+  }
+
+  const cockpitRun = () => (process.env.COCKPIT_URL && process.env.COCKPIT_RUN && process.env.COCKPIT_RUN !== 'adhoc' ? process.env.COCKPIT_RUN : null);
+
+  /**
+   * The cockpit told of a round (server.mjs): the first one names the run
+   * it follows, each next one is a run of its own; the end, what they found.
+   * The lines this process wrote go first, each to its own round's log.
+   */
+  async function chaosToCockpit(what, body) {
+    const run = cockpitRun();
+    if (!run) return;
+    if (report) await flushReport();
+    // Twice at most: a run played while this process waited on it (the
+    // cockpit's own runs wait without reading anything) leaves the
+    // connection of the call before closed by the cockpit, and this one
+    // finds it so (ECONNRESET). The second goes on a new one.
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const r = await fetch(`${process.env.COCKPIT_URL}/api/chaos/${what}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ run, ...body }),
+          signal: AbortSignal.timeout(5_000),
+        });
+        const answer = r.ok ? await r.json() : null;
+        if (answer?.run) process.env.COCKPIT_RUN = answer.run;
+        return;
+      } catch {
+        // Followed as one run, then, if the second fails too: the rounds
+        // are no worse for it.
+      }
+    }
+  }
+
+  /** «T1/3 · Bob: sees it arrive», as the summaries name a step. */
+  const stepName = (test, step) => {
+    const id = /^(\S+)\s+·/.exec(test)?.[1];
+    return id ? `${id}/${step}` : `${test} › ${step}`;
+  };
+
+  /**
+   * `replay <suite> --chaos N`: the recording played N times, each round
+   * from fresh data with each person slowed as its seed says, then compared
+   * step by step. A step that passes in some rounds and fails in others is
+   * a race; the seed of a round it failed in plays that round again. Each
+   * round's log, and what they found, stay in <out>/chaos/.
+   */
+  async function searchRaces(suite, file, pwArgs, n) {
+    const { foundIn, pickSeeds, profileOf, profileText, readRound } = await import('./chaos.mjs');
+    const stamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15);
+    const dir = path.join(P.out, 'chaos', `${suite}-${stamp}`);
+    fs.mkdirSync(dir, { recursive: true });
+    const startedAt = new Date().toISOString();
+    const group = path.basename(dir);
+    const seeds = pickSeeds(n);
+    const people = playersOf(file);
+    console.log(`Looking for races in ${suite}: ${n} rounds, each from fresh data, each person slowed as its seed says.`);
+    if (!config.stack.reset) console.log(`The stack "${STACK}" has no \`reset\`: each round plays on the data the one before left, and a step that fails only then may be the data, not a race.`);
+    const rounds = [];
+    let previous = null;
+    let stopped = null;
+    for (const [i, seed] of seeds.entries()) {
+      const round = i + 1;
+      const profiles = Object.fromEntries(people.map((id) => [id, profileOf(seed, id)]));
+      console.log(`\n── Round ${round} of ${n}, seed ${seed}`);
+      for (const id of people) console.log(`   ${id}: ${profileText(profiles[id])}`);
+      await chaosToCockpit('round', { previous, chaos: { group, round, of: n, seed, people: profiles } });
+      runsSuite(suite);
+      let code = await freshStart(suite);
+      if (!code && P.sessionsSetup && !sessionsFresh(config.sessions.freshFor)) code = await playwright(['test', testFileArg(P.sessionsSetup)], { exit: false });
+      if (code) {
+        stopped = round;
+        previous = 'failed';
+        console.log(`\nRound ${round}: the setup failed (above), so the search stops here: rounds compare only from the same start.`);
+        break;
+      }
+      noteData(config, { state: 'spent', suite });
+      const log = path.join(dir, `round-${round}.jsonl`);
+      process.env.QA_CHAOS = String(seed);
+      process.env.QA_CHAOS_LOG = log;
+      code = await playwright(['test', testFileArg(file), ...pwArgs], { exit: false });
+      delete process.env.QA_CHAOS;
+      delete process.env.QA_CHAOS_LOG;
+      const seen = readRound(log);
+      previous = code ? 'failed' : 'passed';
+      rounds.push({ round, seed, status: previous, run: cockpitRun(), people: Object.keys(seen.people).length ? seen.people : profiles, steps: seen.steps, tests: seen.tests });
+      console.log(`\nRound ${round} of ${n}, seed ${seed}: ${previous}.`);
+    }
+    const found = { ...foundIn(rounds), of: n, stopped };
+    fs.writeFileSync(path.join(dir, 'found.json'), `${JSON.stringify({ suite, startedAt, endedAt: new Date().toISOString(), command: ['replay', ...rest].join(' '), ...found }, null, 2)}\n`);
+    printRaces(suite, found, profileText);
+    console.log(`\nEach round's log, and what they found: ${shown(config, dir)}`);
+    await chaosToCockpit('end', { status: previous, found });
+    if (stopped || rounds.some((r) => r.status === 'failed')) process.exitCode = 1;
+  }
+
+  /** What the rounds found, for a person and for an agent. */
+  function printRaces(suite, found, profileText) {
+    const failed = found.rounds.filter((r) => r.status === 'failed');
+    console.log(`\nRaces in ${suite}: ${found.rounds.length} round${found.rounds.length === 1 ? '' : 's'}${found.stopped ? ` of ${found.of}` : ''}, ${failed.length ? `${failed.length} failed` : 'every one passed'}.`);
+    const slowed = (r) =>
+      Object.entries(r.people ?? {})
+        .map(([id, p]) => `${id} ${profileText(p)}`)
+        .join('; ');
+    const roundOf = (n) => found.rounds.find((r) => r.round === n);
+    if (found.unstable.length) {
+      console.log('  Steps that pass in some rounds and fail in others (a race: the order things came in mattered):');
+      for (const x of found.unstable) {
+        console.log(`  ${stepName(x.test, x.step)}`);
+        console.log(`     failed in round${x.failed.length === 1 ? '' : 's'} ${x.failed.map((f) => `${f.round} (seed ${f.seed})`).join(', ')}; passed in ${x.passed.join(', ')}`);
+        for (const f of x.failed) console.log(`     seed ${f.seed}: ${slowed(roundOf(f.round))}${f.error ? `\n       ${f.error}` : ''}`);
+      }
+      const first = found.unstable[0].failed[0];
+      console.log(`  That round again, the same start and the same slowness: ${CLI} replay ${suite} --chaos-seed ${first.seed}`);
+    }
+    if (found.always.length) {
+      console.log('  Steps that failed in every round that reached them (not a race: the app, the recording, or a slowness it cannot take):');
+      for (const x of found.always) console.log(`  ${stepName(x.test, x.step)}${x.failed[0].error ? `\n       ${x.failed[0].error}` : ''}`);
+    }
+    for (const r of found.outside) {
+      console.log(`  Round ${r.round} (seed ${r.seed}) failed outside its steps${r.tests.length ? `: ${r.tests.map((t) => `${t.test}${t.error ? ` (${t.error})` : ''}`).join('; ')}` : ''}.`);
+    }
+    if (!failed.length && !found.stopped) console.log('  No race found: every step passed in every round. More rounds look further.');
+  }
+
   const ctx = { config, holdStack, clearSavedSessions, waitHealthy: () => waitHealthy(config), log: (...a) => console.log(...a) };
   const STACK = config.stack.name;
 
@@ -585,21 +732,43 @@ export async function runCli(rawConfig, argv) {
     // requests kept too, as HARs without their secrets (network/).
     async replay() {
       const suite = rest[0];
-      if (!suite) fail(`Usage: ${CLI} replay <suite> [--network [--bodies]] [--a11y] [--languages [es,fr]] [--realtime] [--in-docker] [playwright args]`);
+      if (!suite) fail(`Usage: ${CLI} replay <suite> [--network [--bodies]] [--a11y] [--languages [es,fr]] [--realtime] [--chaos [N] | --chaos-seed <n>] [--in-docker] [playwright args]`);
       const file = recordingOf(config, suite);
       if (!file) fail(`No recording for the suite "${suite}" in ${P.recordings}`);
       const network = rest.includes('--network');
       const bodies = rest.includes('--bodies');
       const a11y = rest.includes('--a11y');
       const realtime = rest.includes('--realtime');
-      // `--languages`: the config's priority ones; `--languages es,fr` (or
-      // `=es,fr`): those only, the ones new to the app, say.
-      const at = rest.findIndex((a) => a === '--languages' || a.startsWith('--languages='));
-      const languages = at !== -1;
-      const LIST = /^[a-z]{2,3}(-[A-Za-z0-9]+)?(,[a-z]{2,3}(-[A-Za-z0-9]+)?)*$/;
-      const listed = !languages ? null : rest[at].includes('=') ? rest[at].split('=')[1] : LIST.test(rest[at + 1] ?? '') ? rest[at + 1] : null;
-      const dropped = new Set(languages ? [at, ...(listed && !rest[at].includes('=') ? [at + 1] : [])] : []);
+      // A flag that may take a value: `--languages`, `--languages es,fr` or
+      // `--languages=es,fr`; the next word is its value only when it looks
+      // like one.
+      const valued = (name, re) => {
+        const at = rest.findIndex((a) => a === name || a.startsWith(`${name}=`));
+        if (at === -1) return { on: false, value: null, used: [] };
+        if (rest[at].includes('=')) return { on: true, value: rest[at].slice(name.length + 1) || null, used: [at] };
+        return re.test(rest[at + 1] ?? '') ? { on: true, value: rest[at + 1], used: [at, at + 1] } : { on: true, value: null, used: [at] };
+      };
+      // `--languages`: the config's priority ones; `--languages es,fr`:
+      // those only, the ones new to the app, say.
+      const langsFlag = valued('--languages', /^[a-z]{2,3}(-[A-Za-z0-9]+)?(,[a-z]{2,3}(-[A-Za-z0-9]+)?)*$/);
+      const languages = langsFlag.on;
+      const listed = langsFlag.value;
+      // `--chaos`: rounds that look for races (5, or as many as it says);
+      // `--chaos-seed <n>`: one of their rounds, played again.
+      const chaosFlag = valued('--chaos', /^\d+$/);
+      const seedFlag = valued('--chaos-seed', /^\d+$/);
+      const rounds = chaosFlag.on ? Number(chaosFlag.value ?? 5) : 0;
+      const seed = seedFlag.on ? Number(seedFlag.value) : null;
+      const dropped = new Set([...langsFlag.used, ...chaosFlag.used, ...seedFlag.used]);
       const pwArgs = rest.slice(1).filter((a, i) => !dropped.has(i + 1) && !['--network', '--bodies', '--a11y', '--realtime'].includes(a));
+      if (seedFlag.on && !(Number.isInteger(seed) && seed >= 1 && seed <= 999_999_999)) fail(`--chaos-seed takes a round's seed, as a search printed it: ${CLI} replay ${suite} --chaos-seed 4711`);
+      if (chaosFlag.on && seedFlag.on) fail(`--chaos-seed plays one round of a search again, by itself: ${CLI} replay ${suite} --chaos-seed ${seed}`);
+      if (chaosFlag.on && !(Number.isInteger(rounds) && rounds >= 2 && rounds <= 50)) {
+        fail(`--chaos ${chaosFlag.value}: from 2 to 50 rounds. A race shows as a step that passes in one round and fails in another.`);
+      }
+      if (chaosFlag.on && (network || a11y || languages || realtime)) {
+        fail(`--chaos compares its rounds; it does not look at each. Once a round fails, its seed plays it again with any look: ${CLI} replay ${suite} --chaos-seed <seed> --realtime`);
+      }
       let langs = null;
       if (languages) {
         if (!config.languages) {
@@ -617,10 +786,24 @@ export async function runCli(rawConfig, argv) {
       await takeStack('replay', suite, ['replay', ...rest].join(' '));
       runsSuite(suite);
       fs.mkdirSync(P.state, { recursive: true });
-      // Said, not refused: one test run again on purpose (`-g T3`) is a
-      // replay after a replay too.
-      const stale = staleFor(readData(config), suite);
-      if (stale) console.log(`${staleLine(stale)} The recording may fail for that: \`${CLI} reset\` and \`${CLI} setup ${suite}\` first.`);
+      if (rounds) return searchRaces(suite, file, pwArgs, rounds);
+      if (seed !== null) {
+        // One round of a search again: from the same start, its people
+        // slowed the same way.
+        const { profileOf, profileText } = await import('./chaos.mjs');
+        const people = playersOf(file);
+        console.log(`The round of seed ${seed}, from fresh data:`);
+        for (const id of people) console.log(`   ${id}: ${profileText(profileOf(seed, id))}`);
+        await chaosToCockpit('round', { previous: null, chaos: { group: null, round: 1, of: 1, seed, people: Object.fromEntries(people.map((id) => [id, profileOf(seed, id)])) } });
+        const code = await freshStart(suite);
+        if (code) process.exit(code);
+        process.env.QA_CHAOS = String(seed);
+      } else {
+        // Said, not refused: one test run again on purpose (`-g T3`) is a
+        // replay after a replay too.
+        const stale = staleFor(readData(config), suite);
+        if (stale) console.log(`${staleLine(stale)} The recording may fail for that: \`${CLI} reset\` and \`${CLI} setup ${suite}\` first.`);
+      }
       if (!P.sessionsSetup || sessionsFresh(config.sessions.freshFor)) {
         if (P.sessionsSetup) console.log('Saved sessions are fresh; not renewing them.');
       } else {
@@ -1196,7 +1379,11 @@ export async function runCli(rawConfig, argv) {
                    --languages [es,fr]: each step's screen in the app's other languages too (the
                    config's priority ones, or those named), with the cockpit: what does not fit;
                    --realtime: how long what one person does takes to reach another's screen
-                   (sent, received, seen), with the cockpit
+                   (sent, received, seen), with the cockpit;
+                   --chaos [N]: races between people, in N rounds (5), each from fresh data
+                   with each person slowed in its own way (network, pushes, CPU), drawn from
+                   the round's seed: a step that passes in some and fails in others is a race;
+                   --chaos-seed <n>: that round again
   languages check [person]   that change of language, tried on one screen and back
   network [run]    what a replay --network found, step by step: calls one after another,
                    repeated or per item, slow, heavy or failed (--against previous: what a

@@ -413,6 +413,37 @@ dialog#inspector::backdrop { background: rgba(4, 4, 6, 0.72); }
 .ho svg.i { width: 11px; height: 11px; }
 .step .ho { margin: 1px 0 0 6px; }
 #optRealtime { accent-color: #2dd4bf; }
+/* A SEARCH FOR RACES (`replay --chaos`, cockpit.js renderRaces): in violet,
+   apart from the findings. Its option, the rounds to play, and the looks it
+   goes without, greyed while it is on. */
+#optChaos, .opt-sub.chaos .pick input { accent-color: #a78bfa; }
+.opt.off, .opt-sub.off { opacity: 0.45; }
+.opt.off { cursor: not-allowed; }
+.opt-sub.off { pointer-events: none; }
+/* The strip under the run: the round, how it slowed each person, then what
+   the rounds found, each round a way to its run. */
+.races { grid-column: 1 / -1; min-width: 0; display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
+.races .head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+.races .head svg.i { width: 15px; height: 15px; color: #a78bfa; }
+.races .what { color: #c4b5fd; font-weight: 600; }
+.races .slow b { color: var(--text); font-weight: 550; }
+.races .found { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.races .rounds { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.races .rd { min-width: 24px; height: 22px; padding: 0 6px; border-radius: 6px; border: 1px solid var(--line-2); background: var(--panel-2); color: var(--text); font: 600 11.5px/1 var(--mono); cursor: pointer; }
+.races .rd[data-st='passed'] { border-color: rgba(52, 211, 153, 0.55); background: var(--ok-soft); }
+.races .rd[data-st='failed'] { border-color: rgba(248, 113, 113, 0.6); background: var(--err-soft); }
+.races .rd[aria-current='true'] { box-shadow: 0 0 0 2px #a78bfa; cursor: default; }
+.races .rd:disabled { cursor: default; opacity: 0.6; }
+.races .verdict { color: var(--text); }
+.races ul { min-width: 0; margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.races li { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 6px 10px; border-radius: 8px; background: rgba(167, 139, 250, 0.08); border: 1px solid rgba(167, 139, 250, 0.28); }
+.races li.always { background: var(--panel-2); border-color: var(--line); }
+.races li b { color: var(--text); font-weight: 550; }
+.races li code { flex-basis: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 11.5px/1.4 var(--mono); color: var(--err); }
+.races li .again { margin-left: auto; }
+.races .again svg.i { width: 13px; height: 13px; }
+.who > span > .line.slowed { color: #c4b5fd; }
+.line.slowed svg.i { width: 12px; height: 12px; margin-right: 4px; vertical-align: -2px; color: #a78bfa; }
 .langs { display: flex; flex-wrap: wrap; gap: 6px; flex: none; }
 .langs .lt { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--panel-2); color: var(--muted); font: 600 11.5px/1 var(--mono); cursor: pointer; }
 .langs .lt:hover { color: var(--text); }

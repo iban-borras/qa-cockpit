@@ -47,6 +47,30 @@
   badge on the step and a line under its photo; at the end, a list in the
   terminal, and each hand-off in the run report. An option of the run in
   the cockpit.
+- `replay --chaos [N]`: races between people. The recording plays in N
+  rounds (5 unless said), each from fresh data (reset, then the suite's
+  setup), each person slowed in their own way by the round's seed: every
+  request of theirs waits longer for its answer (Chromium's network
+  conditions), what is pushed to their page reaches the app later and in
+  order (WebSocket messages, server-sent events), their page runs slower
+  (CPU). The rounds are compared step by step: a step that passes in some
+  and fails in others is a race, and the terminal lists each with the
+  rounds it failed in, how each person was slowed there and its error; a
+  step that fails in every round is said apart, as not a race. Each
+  round's log and what they found stay in `<out>/chaos/`; the command ends
+  red when a round failed. `--chaos-seed <n>` plays one round again, from
+  fresh data and slowed the same way, with any look (`--realtime`, say).
+  `together`, a fixture like the cast, starts several people's actions at
+  once; in a round, each at the offset its seed says. In the cockpit, an
+  option of the run with the rounds to play; each round is a run of its
+  own, with its seed in the run picker and each person's slowness in the
+  inspector, and a strip under the run says what the rounds found, each
+  round a way to its run and each failed one a button to play it again.
+  The cockpit's history (`cockpit.keepRuns`) counts a search as one run,
+  all its rounds together, so its failed round is not the first to go.
+- The run picker counts every test a run ran: a full run (reset, setup and
+  the recording) said «5 of 3 tests pass», its setup's tests passed against
+  its recording's count.
 
 ## 0.7.4 (2026-10-07)
 

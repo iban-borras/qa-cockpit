@@ -239,6 +239,20 @@ WebSocket or server-sent events, or answered), seen on the other screen.
 The cockpit shows it under the step's photo; the terminal lists every
 hand-off when the run ends.
 
+## Races between people
+
+On your machine everybody is fast, and the steps of several people come in
+one order; on a slow phone they may come in another. `replay --chaos 5`
+plays the recording in five rounds, each from fresh data, each person
+slowed in their own way by the round's seed: every request waits longer for
+its answer, what is pushed to their page arrives later (in order), their
+page runs slower. A step that passes in some rounds and fails in others is a
+race: the terminal and the cockpit say which, in which rounds, and how each
+person was slowed there. `replay --chaos-seed <n>` plays that round again,
+with any look (`--realtime`, say). The cockpit shows each round as a run of
+its own. `together` starts several people's actions at once; in a round, at
+the offsets the seed says.
+
 ## Commands
 
 ```
@@ -254,6 +268,8 @@ replay <suite> --a11y             ... and each step's screen looked at for acces
 replay <suite> --languages [fr,de] ... and each step's screen in the app's other languages: what does not fit
 languages check                   that change of language, tried on one screen and back
 replay <suite> --realtime         ... and how long what one person does takes to reach another's screen
+replay <suite> --chaos [N]        races between people: N rounds (5), each person slowed by a seed
+replay <suite> --chaos-seed <n>   one of those rounds again, with any look
 network [run]                     what they show, step by step (--against previous: what a change changed)
 stamp <suite> | hash <suite>      the suite's hash in the recording's first line
 pass <suite> <who> <result> ...   a row in the suite's runs table

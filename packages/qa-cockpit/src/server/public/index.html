@@ -46,6 +46,8 @@
           <label class="opt" id="optLangsRow" hidden><input type="checkbox" id="optLangs"><div><b data-i18n="opts.languages"></b><span id="optLangsHint"></span></div></label>
           <div class="opt-sub" id="optLangsList" hidden></div>
           <label class="opt"><input type="checkbox" id="optRealtime"><div><b data-i18n="opts.realtime"></b><span data-i18n="opts.realtime_hint"></span></div></label>
+          <label class="opt"><input type="checkbox" id="optChaos"><div><b data-i18n="opts.chaos"></b><span data-i18n="opts.chaos_hint"></span></div></label>
+          <div class="opt-sub chaos" id="optChaosRounds" hidden></div>
         </div>
       </details>
       <details class="opts lang" id="lang">
@@ -120,6 +122,7 @@
       <div class="meta"><span id="phaseText"></span><span id="progressText">0%</span></div>
       <div class="track"><div id="progressBar"></div></div>
     </div>
+    <div class="races" id="races" hidden></div>
   </section>
 
   <section class="panel table" data-i18n-aria="table.title">
