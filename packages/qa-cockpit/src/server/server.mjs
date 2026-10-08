@@ -31,6 +31,7 @@ import { cleanNote, notesMarkdown, pinnedFileOf, pinnedSeqs, readNotes, readRunF
 import { noteData, readData } from '../stackdata.mjs';
 import { desktopOf } from '../desktop.mjs';
 import { playRun } from '../play.mjs';
+import { candidatesOf, readChanges } from '../changes.mjs';
 import { playwrightCoreDir } from '../deps.mjs';
 
 const PACKAGE_JSON = new URL('../../package.json', import.meta.url);
@@ -342,10 +343,16 @@ function tallyOf(r) {
   };
 }
 
+/** How much a run changed from the one it was compared with, or null. */
+function changesCount(id) {
+  const c = readChanges(COCKPIT_DIR, id);
+  return c ? { against: c.against, changed: c.summary.changed, new: c.summary.new, gone: c.summary.gone } : null;
+}
+
 function runsIndex() {
   return listRuns().map((id) => {
     const notes = noteCount(path.join(COCKPIT_DIR, id));
-    if (run && run.id === id) return { ...summary(run), notes };
+    if (run && run.id === id) return { ...summary(run), notes, changes: changesCount(id) };
     try {
       const meta = JSON.parse(fs.readFileSync(path.join(COCKPIT_DIR, id, 'run.json'), 'utf8'));
       return {
@@ -361,6 +368,8 @@ function runsIndex() {
         tally: tallyOf(meta),
         notes,
         looks: meta.looks ?? null,
+        // Compared with an earlier run: how much changed (changes.mjs).
+        changes: changesCount(id),
         // A round of a search for races: its seed, and how many it found.
         ...(meta.chaos ? { chaos: { ...meta.chaos, found: undefined, races: meta.chaos.found ? meta.chaos.found.unstable.length : null } } : {}),
       };
@@ -638,6 +647,34 @@ function externalLines(body) {
   return true;
 }
 
+// ---------------------------------------------------------------- changes from an earlier run
+
+// A run compared with another green one (changes.mjs), when a person picks
+// it: the CLI's `changes`, in a process of its own (it opens the project's
+// Chromium), and the page told when it is done. Not a task: the stack is
+// not touched.
+const comparing = new Set();
+function compareAgain(id, against) {
+  if (!RUN_ID.test(id) || !RUN_ID.test(String(against ?? ''))) return { ok: false };
+  if (!candidatesOf(COCKPIT_DIR, id).some((c) => c.id === against)) return { ok: false };
+  if (comparing.has(id)) return { ok: true };
+  comparing.add(id);
+  const child = spawn(process.execPath, [BIN, 'changes', id, '--against', against, '--again', '--quiet'], {
+    cwd: CFG.paths.project,
+    env: { ...process.env, FORCE_COLOR: '0', QA_COCKPIT_CONFIG: CFG.file },
+    windowsHide: true,
+  });
+  let err = '';
+  child.stderr.on('data', (d) => (err += d));
+  child.on('close', (code) => {
+    comparing.delete(id);
+    if (code) log(`[cockpit] ${id} not compared with ${against}: ${stripAnsi(err).trim().split('\n').at(-1) ?? `exit ${code}`}`, 'error');
+    broadcast('changes', { run: id });
+  });
+  broadcast('changes', { run: id, comparing: true });
+  return { ok: true };
+}
+
 // ---------------------------------------------------------------- reports from «Play as»
 
 // A window opened by «Play as» is followed for a report (open-browser.mjs,
@@ -861,10 +898,11 @@ const slowedOf = (people) =>
 
 function chaosOf(x) {
   if (!x || typeof x !== 'object') return null;
-  const round = intIn(x.round, 1, 50);
+  // Round 0 of a search: as it is, nobody slowed, no seed.
+  const round = intIn(x.round, 0, 50);
   const of = intIn(x.of, 1, 50);
-  const seed = intIn(x.seed, 1, 999_999_999);
-  if (!round || !of || !seed || round > of) return null;
+  const seed = round === 0 ? null : intIn(x.seed, 1, 999_999_999);
+  if (round === null || !of || (round && !seed) || round > of) return null;
   return { group: typeof x.group === 'string' && RUN_ID.test(x.group) ? x.group : null, round, of, seed, people: slowedOf(x.people) };
 }
 
@@ -876,35 +914,44 @@ function foundOf(x) {
       .map((s) => ({
         test: textOf(s?.test),
         step: textOf(s?.step),
-        passed: list(s?.passed, 50).filter((n) => intIn(n, 1, 50)),
+        passed: list(s?.passed, 50).filter((n) => intIn(n, 0, 50) !== null),
         failed: list(s?.failed, 50)
-          .map((f) => ({ round: intIn(f?.round, 1, 50), seed: intIn(f?.seed, 1, 999_999_999), error: textOf(f?.error) }))
-          .filter((f) => f.round && f.seed),
+          .map((f) => ({ round: intIn(f?.round, 0, 50), seed: intIn(f?.seed, 1, 999_999_999), error: textOf(f?.error) }))
+          .filter((f) => f.round !== null && (f.round === 0 || f.seed)),
       }))
       .filter((s) => s.test && s.step);
   return {
     of: intIn(x.of, 1, 50),
-    stopped: intIn(x.stopped, 1, 50),
-    rounds: list(x.rounds, 50)
+    stopped: intIn(x.stopped, 0, 50),
+    rounds: list(x.rounds, 51)
       .map((r) => ({
-        round: intIn(r?.round, 1, 50),
+        round: intIn(r?.round, 0, 50),
         seed: intIn(r?.seed, 1, 999_999_999),
         status: r?.status === 'passed' ? 'passed' : 'failed',
         run: typeof r?.run === 'string' && RUN_ID.test(r.run) ? r.run : null,
         people: slowedOf(r?.people),
       }))
-      .filter((r) => r.round && r.seed),
+      .filter((r) => r.round !== null && (r.round === 0 || r.seed)),
+    // Each slowed round compared with round 0 (changes.mjs): how much changed.
+    changes: list(x.changes, 50)
+      .map((c) => ({
+        round: intIn(c?.round, 1, 50),
+        changed: intIn(c?.changed, 0, 10_000) ?? 0,
+        new: intIn(c?.new, 0, 10_000) ?? 0,
+        gone: intIn(c?.gone, 0, 10_000) ?? 0,
+      }))
+      .filter((c) => c.round),
     unstable: steps(x.unstable),
     always: steps(x.always),
     outside: list(x.outside, 50)
       .map((o) => ({
-        round: intIn(o?.round, 1, 50),
+        round: intIn(o?.round, 0, 50),
         seed: intIn(o?.seed, 1, 999_999_999),
         tests: list(o?.tests, 50)
           .map((t) => ({ test: textOf(t?.test), error: textOf(t?.error) }))
           .filter((t) => t.test),
       }))
-      .filter((o) => o.round && o.seed),
+      .filter((o) => o.round !== null && (o.round === 0 || o.seed)),
   };
 }
 
@@ -1041,6 +1088,16 @@ const findingsOf = (list) =>
         : { kind: 'lang', rule: x.rule, lang: String(x.lang ?? '').slice(0, 12), text: String(x.text ?? '').slice(0, 80), box: boxOf(x.box) },
     );
 
+// What changes on a screen by itself (changes.mjs), as boxes at its photo's pixels.
+const masksOf = (list) => (Array.isArray(list) ? list : []).slice(0, 50).map(boxOf).filter(Boolean);
+// What a page said went wrong while its step went: console errors, what it threw.
+const consoleOf = (list) =>
+  (Array.isArray(list) ? list : []).slice(0, 20).map((c) => ({
+    level: c?.level === 'exception' ? 'exception' : 'error',
+    text: String(c?.text ?? '').slice(0, 300),
+    at: Number.isFinite(Number(c?.at)) ? Number(c.at) : null,
+  }));
+
 // The hand-off a step ended with (`replay --realtime`, realtime.mjs):
 // another person's action, and how long until it was sent, received here,
 // and seen on this screen.
@@ -1079,7 +1136,7 @@ function onFrame(f) {
   const shots = [];
   for (const s of (Array.isArray(f.shots) ? f.shots : []).slice(0, 50)) {
     const shot = frameFile(s.file);
-    if (shot) shots.push({ ...s, file: shot });
+    if (shot) shots.push({ ...s, file: shot, masks: masksOf(s.masks) });
     else marks.push(...marksOf(s.marks));
   }
   // In the order they were made, so that the step's list reads 1, 2, 3.
@@ -1115,6 +1172,7 @@ function onFrame(f) {
     viewport: viewportOf(s.viewport),
     scroll: { x: 0, y: 0 },
     marks: marksOf(s.marks, true),
+    masks: s.masks,
     device,
     requests: [],
     began,
@@ -1140,6 +1198,8 @@ function onFrame(f) {
       ms: Number.isFinite(Number(r.ms)) && r.ms !== null ? Math.max(0, Math.round(Number(r.ms))) : null,
       at: Number.isFinite(Number(r.at)) ? Number(r.at) : null,
     })),
+    masks: masksOf(f.masks),
+    console: consoleOf(f.console),
     findings: findingsOf(f.findings),
     langs: langsOf(f.langs),
     // A step whose language could not be changed (its control out of reach),
@@ -1356,7 +1416,7 @@ function state() {
 }
 
 async function onAction(body) {
-  const { action, suite, headed, docker, a11y, languages, realtime, chaos, chaosSeed, actor } = body;
+  const { action, suite, headed, docker, a11y, languages, realtime, chaos, chaosSeed, changes, actor } = body;
   const known = listSuites(CFG);
   const pick = () => {
     const s = known.find((x) => x.name === suite);
@@ -1381,6 +1441,8 @@ async function onAction(body) {
       ? ['--chaos', String(rounds)]
       : [
           ...(seed ? ['--chaos-seed', String(seed)] : []),
+          // Compared with an earlier green run at its end (changes.mjs): the newest, or the one named.
+          ...(changes ? ['--changes', ...(typeof changes === 'string' && RUN_ID.test(changes) ? [changes] : [])] : []),
           ...(a11y ? ['--a11y'] : []),
           ...(realtime ? ['--realtime'] : []),
           ...(chosenLangs.length ? ['--languages', chosenLangs.join(',')] : []),
@@ -1512,7 +1574,15 @@ async function handle(req, res) {
     const id = decodeURIComponent(p.slice('/api/runs/'.length));
     const r = run && run.id === id ? run : loadRun(id);
     if (!r) return send(res, 404, { error: 'No such run' });
-    return send(res, 200, { ...summary(r), frames: r.frames, notes: readNotes(r.dir), pinned: pinnedSeqs(r.dir) });
+    return send(res, 200, {
+      ...summary(r),
+      frames: r.frames,
+      notes: readNotes(r.dir),
+      pinned: pinnedSeqs(r.dir),
+      // Compared with an earlier run (changes.mjs), and the green ones it may be.
+      changes: readChanges(COCKPIT_DIR, id),
+      candidates: r.kind === 'play' || r.chaos ? [] : candidatesOf(COCKPIT_DIR, id).slice(0, 20),
+    });
   }
   if (req.method === 'GET' && p === '/api/watch') return send(res, 200, { actors: watchedActors() });
 
@@ -1578,6 +1648,13 @@ async function handle(req, res) {
     if (ours) finishTask(body.code === 0 ? 'passed' : 'failed', body.code);
     return send(res, 200, { ok: ours });
   }
+  if (req.method === 'POST' && p === '/api/changes/done') {
+    const body = await readJson(req);
+    if (typeof body?.run === 'string' && RUN_ID.test(body.run)) broadcast('changes', { run: body.run });
+    return send(res, 200, { ok: true });
+  }
+  const againstPath = /^\/api\/runs\/([^/]+)\/changes$/.exec(p);
+  if (againstPath && req.method === 'POST') return send(res, 200, compareAgain(decodeURIComponent(againstPath[1]), (await readJson(req))?.against));
   if (req.method === 'POST' && p === '/api/play/event') return send(res, 200, { ok: playEvents(await readJson(req)) });
   if (req.method === 'POST' && p === '/api/play/discard') return send(res, 200, playDiscard());
   if (req.method === 'POST' && p === '/api/play/report') {

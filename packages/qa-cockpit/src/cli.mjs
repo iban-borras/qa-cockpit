@@ -565,18 +565,23 @@ export async function runCli(rawConfig, argv) {
     fs.mkdirSync(dir, { recursive: true });
     const startedAt = new Date().toISOString();
     const group = path.basename(dir);
-    const seeds = pickSeeds(n);
+    // Round 0 as it is, nobody slowed: what every other round is compared
+    // with. If it fails, the suite fails with no slowness at all, and there
+    // is no race to look for until it passes.
+    const seeds = [null, ...pickSeeds(n)];
     const people = playersOf(file);
-    console.log(`Looking for races in ${suite}: ${n} rounds, each from fresh data, each person slowed as its seed says.`);
+    console.log(`Looking for races in ${suite}: round 0 as it is, then ${n} rounds, each from fresh data, each person slowed as its seed says.`);
     if (!config.stack.reset) console.log(`The stack "${STACK}" has no \`reset\`: each round plays on the data the one before left, and a step that fails only then may be the data, not a race.`);
     const rounds = [];
     let previous = null;
     let stopped = null;
-    for (const [i, seed] of seeds.entries()) {
-      const round = i + 1;
-      const profiles = Object.fromEntries(people.map((id) => [id, profileOf(seed, id)]));
-      console.log(`\n── Round ${round} of ${n}, seed ${seed}`);
-      for (const id of people) console.log(`   ${id}: ${profileText(profiles[id])}`);
+    for (const [round, seed] of seeds.entries()) {
+      const profiles = seed === null ? {} : Object.fromEntries(people.map((id) => [id, profileOf(seed, id)]));
+      if (seed === null) console.log(`\n── Round 0 of ${n}, as it is (nobody slowed)`);
+      else {
+        console.log(`\n── Round ${round} of ${n}, seed ${seed}`);
+        for (const id of people) console.log(`   ${id}: ${profileText(profiles[id])}`);
+      }
       await chaosToCockpit('round', { previous, chaos: { group, round, of: n, seed, people: profiles } });
       runsSuite(suite);
       let code = await freshStart(suite);
@@ -589,7 +594,7 @@ export async function runCli(rawConfig, argv) {
       }
       noteData(config, { state: 'spent', suite });
       const log = path.join(dir, `round-${round}.jsonl`);
-      process.env.QA_CHAOS = String(seed);
+      if (seed !== null) process.env.QA_CHAOS = String(seed);
       process.env.QA_CHAOS_LOG = log;
       code = await playwright(['test', testFileArg(file), ...pwArgs], { exit: false });
       delete process.env.QA_CHAOS;
@@ -597,22 +602,76 @@ export async function runCli(rawConfig, argv) {
       const seen = readRound(log);
       previous = code ? 'failed' : 'passed';
       rounds.push({ round, seed, status: previous, run: cockpitRun(), people: Object.keys(seen.people).length ? seen.people : profiles, steps: seen.steps, tests: seen.tests });
-      console.log(`\nRound ${round} of ${n}, seed ${seed}: ${previous}.`);
+      console.log(`\nRound ${round} of ${n}${seed === null ? ', as it is' : `, seed ${seed}`}: ${previous}.`);
+      if (seed === null && code) {
+        stopped = 0;
+        console.log('Round 0, with nobody slowed, failed: the suite fails as it is (above), and no race can be told from that. The search stops here.');
+        break;
+      }
     }
-    const found = { ...foundIn(rounds), of: n, stopped };
+    // Each round compared with round 0 (changes.mjs), with the cockpit:
+    // a round that passed and still changed is a near miss (a message
+    // twice, a call more, an error in the console).
+    const changes = [];
+    const zero = rounds.find((r) => r.round === 0 && r.status === 'passed' && r.run);
+    if (zero && rounds.length > 1) {
+      const { compareRuns } = await import('./changes.mjs');
+      console.log('\nComparing each round with round 0…');
+      for (const r of rounds.filter((x) => x.round > 0 && x.run)) {
+        try {
+          const c = await compareRuns({ config, root: path.join(P.out, 'cockpit'), run: r.run, against: zero.run });
+          changes.push({ round: r.round, seed: r.seed, ...c.summary, steps: c.steps.filter((x) => x.kind !== 'same').map((x) => ({ test: x.test, step: x.step, actor: x.actor, kind: x.kind })) });
+        } catch (e) {
+          console.log(`  Round ${r.round}: not compared (${e instanceof Error ? e.message.split('\n')[0] : e}).`);
+        }
+      }
+    }
+    const found = { ...foundIn(rounds), of: n, stopped, changes };
     fs.writeFileSync(path.join(dir, 'found.json'), `${JSON.stringify({ suite, startedAt, endedAt: new Date().toISOString(), command: ['replay', ...rest].join(' '), ...found }, null, 2)}\n`);
     printRaces(suite, found, profileText);
     console.log(`\nEach round's log, and what they found: ${shown(config, dir)}`);
     await chaosToCockpit('end', { status: previous, found });
-    if (stopped || rounds.some((r) => r.status === 'failed')) process.exitCode = 1;
+    if (stopped !== null || rounds.some((r) => r.status === 'failed')) process.exitCode = 1;
+  }
+
+  /**
+   * `replay --changes`: this run compared with an earlier green one, once it
+   * ended (changes.mjs), and the cockpit told, which shows it on its photos.
+   */
+  async function lookForChanges(run, explicit) {
+    const root = path.join(P.out, 'cockpit');
+    const { baselineOf, changesLines, compareRuns } = await import('./changes.mjs');
+    const against = explicit ?? baselineOf(root, run);
+    if (!against) {
+      console.log('\nChanges: no green run of this suite before this one to compare it with. The next one is compared with this, if it is green.');
+      return;
+    }
+    let c;
+    try {
+      c = await compareRuns({ config, root, run, against });
+    } catch (e) {
+      console.log(`\nChanges: not compared (${e instanceof Error ? e.message.split('\n')[0] : e}).`);
+      return;
+    }
+    const { readRunFiles } = await import('./notes.mjs');
+    const files = new Map(readRunFiles(path.join(root, run)).frames.map((f) => [f.seq, f.file]));
+    console.log('');
+    for (const line of changesLines(c, (seq) => (files.get(seq) ? shown(config, path.join(P.out, files.get(seq))) : `#${seq}`))) console.log(line);
+    await fetch(`${process.env.COCKPIT_URL}/api/changes/done`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ run }),
+      signal: AbortSignal.timeout(3_000),
+    }).catch(() => {});
   }
 
   /** What the rounds found, for a person and for an agent. */
   function printRaces(suite, found, profileText) {
     const failed = found.rounds.filter((r) => r.status === 'failed');
-    console.log(`\nRaces in ${suite}: ${found.rounds.length} round${found.rounds.length === 1 ? '' : 's'}${found.stopped ? ` of ${found.of}` : ''}, ${failed.length ? `${failed.length} failed` : 'every one passed'}.`);
+    const played = found.rounds.filter((r) => r.round > 0).length;
+    console.log(`\nRaces in ${suite}: round 0 and ${played} round${played === 1 ? '' : 's'}${found.stopped !== null ? ` of ${found.of}` : ''}, ${failed.length ? `${failed.length} failed` : 'every one passed'}.`);
     const slowed = (r) =>
-      Object.entries(r.people ?? {})
+      Object.entries(r?.people ?? {})
         .map(([id, p]) => `${id} ${profileText(p)}`)
         .join('; ');
     const roundOf = (n) => found.rounds.find((r) => r.round === n);
@@ -633,7 +692,14 @@ export async function runCli(rawConfig, argv) {
     for (const r of found.outside) {
       console.log(`  Round ${r.round} (seed ${r.seed}) failed outside its steps${r.tests.length ? `: ${r.tests.map((t) => `${t.test}${t.error ? ` (${t.error})` : ''}`).join('; ')}` : ''}.`);
     }
-    if (!failed.length && !found.stopped) console.log('  No race found: every step passed in every round. More rounds look further.');
+    // Passed, and still not as round 0: worth a look.
+    for (const c of found.changes ?? []) {
+      if (!c.changed && !c.new && !c.gone) continue;
+      const r = found.rounds.find((x) => x.round === c.round);
+      if (r?.status !== 'passed') continue;
+      console.log(`  Round ${c.round} (seed ${c.seed}) passed, and changed from round 0: ${c.steps.slice(0, 4).map((x) => stepName(x.test, x.step)).join('; ')}${c.steps.length > 4 ? '; …' : ''} (${CLI} changes ${r.run}).`);
+    }
+    if (!failed.length && found.stopped === null) console.log('  No race found: every step passed in every round. More rounds look further.');
   }
 
   const ctx = { config, holdStack, clearSavedSessions, waitHealthy: () => waitHealthy(config), log: (...a) => console.log(...a) };
@@ -733,7 +799,7 @@ export async function runCli(rawConfig, argv) {
     // requests kept too, as HARs without their secrets (network/).
     async replay() {
       const suite = rest[0];
-      if (!suite) fail(`Usage: ${CLI} replay <suite> [--network [--bodies]] [--a11y] [--languages [es,fr]] [--realtime] [--chaos [N] | --chaos-seed <n>] [--in-docker] [playwright args]`);
+      if (!suite) fail(`Usage: ${CLI} replay <suite> [--network [--bodies]] [--a11y] [--languages [es,fr]] [--realtime] [--changes [run]] [--chaos [N] | --chaos-seed <n>] [--in-docker] [playwright args]`);
       const file = recordingOf(config, suite);
       if (!file) fail(`No recording for the suite "${suite}" in ${P.recordings}`);
       const network = rest.includes('--network');
@@ -760,13 +826,17 @@ export async function runCli(rawConfig, argv) {
       const seedFlag = valued('--chaos-seed', /^\d+$/);
       const rounds = chaosFlag.on ? Number(chaosFlag.value ?? 3) : 0;
       const seed = seedFlag.on ? Number(seedFlag.value) : null;
-      const dropped = new Set([...langsFlag.used, ...chaosFlag.used, ...seedFlag.used]);
+      // `--changes`: compared with the newest green run before it, made the
+      // same way; `--changes <run>`: with that one (changes.mjs).
+      const changesFlag = valued('--changes', /^\d{8}-\d{6}-[\w.-]+$/);
+      const dropped = new Set([...langsFlag.used, ...chaosFlag.used, ...seedFlag.used, ...changesFlag.used]);
       const pwArgs = rest.slice(1).filter((a, i) => !dropped.has(i + 1) && !['--network', '--bodies', '--a11y', '--realtime'].includes(a));
       if (seedFlag.on && !(Number.isInteger(seed) && seed >= 1 && seed <= 999_999_999)) fail(`--chaos-seed takes a round's seed, as a search printed it: ${CLI} replay ${suite} --chaos-seed 4711`);
       if (chaosFlag.on && seedFlag.on) fail(`--chaos-seed plays one round of a search again, by itself: ${CLI} replay ${suite} --chaos-seed ${seed}`);
       if (chaosFlag.on && !(Number.isInteger(rounds) && rounds >= 2 && rounds <= 50)) {
         fail(`--chaos ${chaosFlag.value}: from 2 to 50 rounds. A race shows as a step that passes in one round and fails in another.`);
       }
+      if (chaosFlag.on && changesFlag.on) fail('--chaos compares each round with its round 0, played as it is: no --changes with it.');
       if (chaosFlag.on && (network || a11y || languages || realtime)) {
         fail(`--chaos compares its rounds; it does not look at each. Once a round fails, its seed plays it again with any look: ${CLI} replay ${suite} --chaos-seed <seed> --realtime`);
       }
@@ -816,7 +886,15 @@ export async function runCli(rawConfig, argv) {
       if (a11y) lookAtA11y();
       if (languages) lookInLanguagesToo(langs);
       if (realtime) timeHandOffs();
-      await playwright(['test', testFileArg(file), ...pwArgs]);
+      if (!changesFlag.on) return void (await playwright(['test', testFileArg(file), ...pwArgs]));
+      if (!cockpitRun()) {
+        console.log(`--changes compares the photos the cockpit takes of each step, and no cockpit follows this run: start one first (${CLI} cockpit).`);
+        return void (await playwright(['test', testFileArg(file), ...pwArgs]));
+      }
+      // Red or green, what it reached is compared, then it ends with its code.
+      const code = await playwright(['test', testFileArg(file), ...pwArgs], { exit: false });
+      await lookForChanges(cockpitRun(), changesFlag.value);
+      process.exit(code);
     },
 
     // What a person reported from «Play as» in the cockpit (play.mjs): their
@@ -880,6 +958,37 @@ export async function runCli(rawConfig, argv) {
       console.log(
         "\nTo make it a test: write these steps, and what should have happened, as a test of a suite (the person's words for it); record it, and replay it: red until the fix turns it green.",
       );
+    },
+
+    // A run compared with an earlier green one (changes.mjs): what changed
+    // on its screens (regions of its photos), in its requests and in its
+    // page's errors, step by step. The newest run, or the one named; with
+    // the run it was compared with, or `--against <run>`. Computed once, kept
+    // in the run (`changes.json`).
+    async changes() {
+      const root = path.join(P.out, 'cockpit');
+      const RUN = /^\d{8}-\d{6}-[\w.-]+$/;
+      const at = rest.indexOf('--against');
+      const against = at === -1 ? null : rest[at + 1];
+      if (at !== -1 && !RUN.test(against ?? '')) fail(`Usage: ${CLI} changes [run] [--against <run>] [--json]`);
+      const named = rest.find((a, i) => RUN.test(a) && (at === -1 || i !== at + 1));
+      const { readRunFiles } = await import('./notes.mjs');
+      const ids = fs.existsSync(root) ? fs.readdirSync(root).filter((d) => RUN.test(d) && fs.existsSync(path.join(root, d, 'run.json'))).sort().reverse() : [];
+      const run = named ?? ids.find((d) => readRunFiles(path.join(root, d)).meta.kind !== 'play');
+      if (!run || !ids.includes(run)) fail(run ? `No run ${run} in ${shown(config, root)}.` : 'No run yet: the cockpit keeps the runs it follows.');
+      if (against && !ids.includes(against)) fail(`No run ${against} in ${shown(config, root)}.`);
+      const { baselineOf, changesLines, compareRuns, readChanges } = await import('./changes.mjs');
+      const kept = readChanges(root, run);
+      let c = kept && (!against || kept.against === against) && !rest.includes('--again') ? kept : null;
+      if (!c) {
+        const base = against ?? baselineOf(root, run);
+        if (!base) fail(`No green run of its suite before ${run} to compare it with.`);
+        c = await compareRuns({ config, root, run, against: base, say: rest.includes('--quiet') ? () => {} : (l) => console.log(l) });
+      }
+      if (rest.includes('--json')) return void console.log(JSON.stringify(c, null, 1));
+      if (rest.includes('--quiet')) return;
+      const files = new Map(readRunFiles(path.join(root, run)).frames.map((f) => [f.seq, f.file]));
+      for (const line of changesLines(c, (seq) => (files.get(seq) ? shown(config, path.join(P.out, files.get(seq))) : `#${seq}`))) console.log(line);
     },
 
     // How a person changes the app's language (`languages.switchTo` in the
@@ -1466,7 +1575,11 @@ export async function runCli(rawConfig, argv) {
                    --chaos [N]: races between people, in N rounds (3), each from fresh data
                    with each person slowed in its own way (network, pushes, CPU), drawn from
                    the round's seed: a step that passes in some and fails in others is a race;
-                   --chaos-seed <n>: that round again
+                   --chaos-seed <n>: that round again;
+                   --changes [run]: then compared with the newest green run before it, made the
+                   same way (or the one named), with the cockpit: what changed on its photos,
+                   in its requests, in its page's errors
+  changes [run]    a run compared with an earlier green one (--against <run>, --json)
   languages check [person]   that change of language, tried on one screen and back
   network [run]    what a replay --network found, step by step: calls one after another,
                    repeated or per item, slow, heavy or failed (--against previous: what a

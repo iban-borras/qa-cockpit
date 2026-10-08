@@ -95,6 +95,28 @@
 - The run picker counts every test a run ran: a full run (reset, setup and
   the recording) said «5 of 3 tests pass», its setup's tests passed against
   its recording's count.
+- `replay --changes [run]`: changes from an earlier run. When the run
+  ends, each step is compared with the same step of the newest green run
+  before it made the same way, or of the run named, aligned by test, step
+  and person: its photos and its actions' (in the project's Chromium, small
+  and with a tolerance; what changed is a box on this run's photo, what was
+  taken out a line where it was, and what something above pushed down or
+  up is said, not boxed), its requests by endpoint (new, gone, another
+  status, more or fewer calls) and its page's errors. In the cockpit, an
+  option of the run, kept on once switched on: a strip under the run says
+  with which run and how much changed, and compares with another green one
+  when picked; a changed step has an orange dot, its photo orange boxes and
+  a line under it; the run picker counts them, and the run report has a
+  section. `qa-cockpit changes [run]` says it in the terminal (`--against`,
+  `--json`), kept in the run (`changes.json`). What changes by itself is
+  left out with selectors (`changes.mask` in the config).
+- Every step of a run notes its page's errors (console errors, what it
+  threw), in the inspector and the run report.
+- A search for races plays round 0 first, as it is, nobody slowed: if it
+  fails, the suite fails with no slowness and the search stops there. With
+  the cockpit, each round is compared with round 0: a round that passed
+  and still changed is a near miss, said in the terminal and marked in
+  orange in the strip.
 - Reports from «Play as». The window a person plays in is followed as a
   run is: each of their actions (a click, a field typed in, Enter or
   Escape, an option picked) with the window just before it, from a

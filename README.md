@@ -125,6 +125,7 @@ The config is the whole contract between your app and the cockpit:
 | `report` | notes the run report should carry |
 | `video` | how demo videos look: the product's name, each person's role, a logo, the colours, the address on the cover, the subtitles' words, the music, the loudness, the ending; what a video's run keeps in memory and the pages it opens first to fill it; where ffmpeg is |
 | `languages` | the app's other languages (`others`), the ones looked at when a run names none (`priority`), and how a person changes it to one (`switchTo({ page, lang })`, with the actions they take on its own control): for `replay --languages` |
+| `changes` | what changes on a screen by itself, as selectors (`mask`): left out when a run is compared with an earlier one (`replay --changes`) |
 | `network` | how many looks at the network of a suite stay (`keep`), to measure a change against; the names that look like a secret's and are none in this app (`notSecret`: a game's `session_id`) |
 
 What differs from one machine to the next (a port your own dev server
@@ -241,6 +242,18 @@ when they reached the screen with no pushed message carrying them. The
 cockpit shows it under the step's photo; the terminal lists every hand-off
 when the run ends.
 
+## Changes from an earlier run
+
+After a change to the code, a suite may pass and the app be different.
+`replay --changes` compares each step with the same step of the last green
+run made the same way (or the one named): the regions of its photos that
+changed (what moved, pushed by something above, is said, not boxed), its
+requests (new, gone, another status, more calls) and its page's errors. In
+the cockpit, an option of the run: orange boxes on the photos, a dot on
+each step that changed, and a strip to compare with another run.
+`qa-cockpit changes` says it in the terminal. What changes by itself (a
+clock) is left out with selectors (`changes.mask` in the config).
+
 ## Reports from «Play as»
 
 «Play as» opens a window signed in as somebody of the cast, to use the app
@@ -282,6 +295,8 @@ languages check                   that change of language, tried on one screen a
 replay <suite> --realtime         ... and how long what one person does takes to reach another's screen
 replay <suite> --chaos [N]        races between people: N rounds (3), each person slowed by a seed
 replay <suite> --chaos-seed <n>   one of those rounds again, with any look
+replay <suite> --changes [run]    ... then compared with the last green run made the same way
+changes [run] [--against <run>]   what changed from an earlier run, step by step
 network [run]                     what they show, step by step (--against previous: what a change changed)
 stamp <suite> | hash <suite>      the suite's hash in the recording's first line
 pass <suite> <who> <result> ...   a row in the suite's runs table

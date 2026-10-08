@@ -181,6 +181,12 @@ export function resolveConfig(raw, file) {
     languages: languagesOf(raw.languages, raw.browser?.locale ?? 'en-GB'),
     // A look at the network (`replay --network`, network/): how many of a
     // suite's stay, to compare a change with the run before it.
+    // Changes from an earlier run (`replay --changes`, changes.mjs): what
+    // changes on a screen by itself (a clock, a date), as selectors, left
+    // out of the comparison of photos.
+    changes: {
+      mask: Array.isArray(raw.changes?.mask) ? raw.changes.mask.map(String) : [],
+    },
     network: {
       keep: raw.network?.keep ?? 5,
       // Names that look like a secret's and are none in this app (a game's

@@ -46,6 +46,7 @@
           <label class="opt" id="optLangsRow" hidden><input type="checkbox" id="optLangs"><div><b data-i18n="opts.languages"></b><span id="optLangsHint"></span></div></label>
           <div class="opt-sub" id="optLangsList" hidden></div>
           <label class="opt"><input type="checkbox" id="optRealtime"><div><b data-i18n="opts.realtime"></b><span data-i18n="opts.realtime_hint"></span></div></label>
+          <label class="opt"><input type="checkbox" id="optChanges"><div><b data-i18n="opts.changes"></b><span data-i18n="opts.changes_hint"></span></div></label>
           <label class="opt"><input type="checkbox" id="optChaos"><div><b data-i18n="opts.chaos"></b><span data-i18n="opts.chaos_hint"></span></div></label>
           <div class="opt-sub chaos" id="optChaosRounds" hidden><span class="field"><label for="optChaosN" data-i18n="races.rounds_label"></label><select id="optChaosN"></select></span></div>
         </div>
@@ -124,6 +125,7 @@
     </div>
     <div class="races" id="races" hidden></div>
     <div class="plays" id="plays" hidden></div>
+    <div class="changes" id="changesStrip" hidden></div>
   </section>
 
   <section class="panel table" data-i18n-aria="table.title">
@@ -190,7 +192,7 @@
             <img id="insLive" alt="" hidden>
             <div class="empty" id="insEmpty" hidden></div>
           </div>
-          <div class="caption"><b id="insCap"></b><span class="where" id="insWhere"></span><span class="marks-list" id="insMarksList"></span><span class="finds-list" id="insFindsList"></span><span class="handoff" id="insHandOff"></span><span class="console-line" id="insConsole"></span></div>
+          <div class="caption"><b id="insCap"></b><span class="where" id="insWhere"></span><span class="marks-list" id="insMarksList"></span><span class="finds-list" id="insFindsList"></span><span class="handoff" id="insHandOff"></span><span class="console-line" id="insConsole"></span><span class="changes-line" id="insChangesLine"></span></div>
         </div>
       </div>
       <div class="ins-foot">

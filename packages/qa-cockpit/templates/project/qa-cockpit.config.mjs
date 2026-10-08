@@ -89,6 +89,13 @@ export default defineConfig({
   //   },
   // },
 
+  // What changes on a screen by itself (a clock, a date, an avatar), as
+  // selectors: left out when a run is compared with an earlier one
+  // (`replay --changes`).
+  // changes: {
+  //   mask: ['[data-testid=clock]', '.last-seen'],
+  // },
+
   // Demo videos of the suites (`qa-cockpit video`), if you ever make them:
   // the product's name on the cards, each person's role on their label, a
   // logo for a dark background, the colours, the words of the subtitles.

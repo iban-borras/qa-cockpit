@@ -188,6 +188,8 @@ npx qa-cockpit languages check  # the config's change of language, tried on one 
 npx qa-cockpit replay <suite> --realtime  # how long what one person does takes to reach another's screen; «Real time»
 npx qa-cockpit replay <suite> --chaos 5  # races between people: rounds from fresh data, each person slowed by a seed; «Races»
 npx qa-cockpit replay <suite> --chaos-seed <n>  # that round again, with any look
+npx qa-cockpit replay <suite> --changes  # then compared with the last green run made the same way; «Changes»
+npx qa-cockpit changes [run]    # what changed from an earlier run, step by step (--against <run>, --json)
 npx qa-cockpit network [run]    # what they show, step by step (--against previous, --test <id>, --json, --list)
 npx qa-cockpit open <person>    # a browser window signed in as that person (not while a run plays them)
 npx qa-cockpit stamp <suite>    # write the suite's hash into the recording's first line
@@ -495,10 +497,44 @@ hand-off when the run ends, and the run report has them.
 3. **What you deliver is a report**: the slow hand-offs, and on which leg
    the time goes. Change nothing until the person says so.
 
+## Changes from an earlier run (when a person asks, or after a change)
+
+`npx qa-cockpit replay <suite> --changes`, with the cockpit following the
+run: when it ends, each step is compared with the same step of the newest
+green run before it, made the same way (a full run with a full run, in a
+container or not); `--changes <run>` names another, so that a fix is not
+taken for a change. Steps are aligned by test, step and person:
+
+- **photos**: each step's and each action's, in the project's Chromium at a
+  small size with a tolerance; what changed is a box on this run's photo,
+  what was taken out a line where it was, and what something above pushed
+  down or up is said, not boxed;
+- **requests**: by endpoint (ids folded), new ones, gone ones, another
+  status, more or fewer calls;
+- **page errors**: what the console said went wrong that it did not before.
+
+In the cockpit it is an option of the run, kept on once switched on; a
+strip under the run says with which run and how much changed, and lets a
+person compare with another green one; a changed step has an orange dot,
+its photo orange boxes, and a line under it with what. In the terminal:
+
+```bash
+npx qa-cockpit changes [run]                   # what changed, step by step (--against <run>, --json)
+```
+
+1. **A change is not a fault**: a new button is a change. Say what changed
+   and where; the person says whether it is wanted.
+2. **What changes by itself** (a clock, a date, an avatar) is left out with
+   selectors in the config (`changes.mask`), never by ignoring a step.
+3. **A red run is compared too**, up to where it got: what changed before
+   the failure is often its cause.
+
 ## Races between people (when a person asks, or before a release)
 
-`npx qa-cockpit replay <suite> --chaos [N]` plays the recording in N rounds
-(3 unless said; 2 to 50). Each round starts from fresh data (`reset`, then
+`npx qa-cockpit replay <suite> --chaos [N]` plays the recording in round 0,
+as it is, then N rounds (3 unless said; 2 to 50). If round 0 fails, the
+suite fails with nobody slowed and the search stops there. Each round
+starts from fresh data (`reset`, then
 the suite's setup, as a video does) and slows each person in their own way,
 drawn from the round's seed:
 
@@ -515,7 +551,10 @@ passes in some rounds and fails in others is a race**: the terminal lists
 each, with the rounds it failed in, how each person was slowed there and the
 error; the cockpit shows each round as a run of its own, with its seed, and
 under the run what the rounds found. A step that fails in every round is
-not a race: the app, the recording, or a slowness it cannot take.
+not a race: the app, the recording, or a slowness it cannot take. With the
+cockpit, each round is also compared with round 0 (as `--changes` does): a
+round that passed and still changed (a message twice, a call more, an
+error in the console) is a near miss, said apart and marked in orange.
 
 1. **A seed plays its round again**: `replay <suite> --chaos-seed <n>`, from
    fresh data, each person slowed the same way. It takes any look, so

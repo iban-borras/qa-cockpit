@@ -56,6 +56,8 @@ const ICONS = {
   a11y: '<circle cx="16" cy="4" r="1"/><path d="m18 19 1-7-6 1"/><path d="m5 8 3-3 5.5 3-2.36 3.5"/><path d="M4.24 14.5a5 5 0 0 0 6.88 6"/><path d="M13.76 17.5a5 5 0 0 0-6.88-6"/>',
   // A round of a search for races (`replay --chaos`): a die.
   dice: '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><path d="M16 8h.01"/><path d="M8 8h.01"/><path d="M8 16h.01"/><path d="M16 16h.01"/><path d="M12 12h.01"/>',
+  // Changes from an earlier run: two things compared.
+  compare: '<circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><path d="M11 18H8a2 2 0 0 1-2-2V9"/>',
   // A report from «Play as»: a flag on what went wrong.
   flag: '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/>',
 };
@@ -208,6 +210,7 @@ async function act(action, extra = {}) {
         languages: $('optLangs').checked && S.state?.languages ? chosenLangs() : false,
         realtime: $('optRealtime').checked,
         chaos: $('optChaos').checked ? chaosRounds() : false,
+        changes: $('optChanges').checked && !$('optChaos').checked,
         ...extra,
       }),
     });
@@ -283,7 +286,9 @@ function kindLabel(r) {
         .join('')
     : '';
   const c = r.chaos;
-  const round = c ? ` · ${c.group ? t('races.round_short', { round: c.round, of: c.of, seed: c.seed }) : t('races.seed', { seed: c.seed })}` : '';
+  const round = c
+    ? ` · ${!c.group ? t('races.seed', { seed: c.seed }) : c.round === 0 ? t('races.round0_short', { of: c.of }) : t('races.round_short', { round: c.round, of: c.of, seed: c.seed })}`
+    : '';
   return `${t(`kind.${r.kind}`)}${r.docker ? ` ${t('kind.docker')}` : ''}${r.who ? ` · ${r.who}` : ''}${looks}${round}`;
 }
 
@@ -1023,6 +1028,7 @@ function renderStatus() {
   tickElapsed();
   renderRaces();
   renderPlays();
+  renderChanges();
 }
 
 // ---------------------------------------------------------------- the run picker
@@ -1070,7 +1076,8 @@ function renderRunPop({ scroll = false } = {}) {
     .map((x, i) => {
       const st = runStatus(x);
       const pins = x.id === S.run?.id ? S.notes.filter(kept).length : (x.notes ?? 0);
-      const meta = [runDuration(x), runTests(x), esc(noteCount(pins))].filter(Boolean).join(' · ');
+      const moved = x.changes ? x.changes.changed + x.changes.new + x.changes.gone : 0;
+      const meta = [runDuration(x), runTests(x), esc(noteCount(pins)), moved ? `<span class="chg">${esc(t('changes.n_short', { n: moved }))}</span>` : ''].filter(Boolean).join(' · ');
       return `<div class="run-item${i === S.runPick.active ? ' active' : ''}" role="option" id="run-opt-${esc(x.id)}" data-run="${esc(x.id)}" data-st="${esc(st)}" aria-selected="${x.id === S.run?.id}">
       <span class="rdot"></span>
       <span class="k"><b>${esc(when(x.startedAt))}</b> · ${esc(kindLabel(x))}</span>
@@ -1458,7 +1465,7 @@ function renderInspector(first = false) {
     const sel = x === shown ? ' sel' : x.seq === open ? ' open' : '';
     const dur = Number.isFinite(x.ms) ? `<span class="dur${x.ms >= SLOW_STEP_MS ? ' slow' : ''}">${esc(fmtDur(x.ms))}</span>` : '';
     const pins = pinsOf(x) + (x.seq === open ? 0 : (actionPins.get(x.seq) ?? 0));
-    html += `<button class="step${sel}" data-i="${i}"><span class="st ${st}">${icon(ic, 'sm')}</span><span class="sx">${esc(x.step)}</span>${handOffBadge(x.realtime)}${findBadges(x)}${pinBadge(pins)}${dur}</button>`;
+    html += `<button class="step${sel}" data-i="${i}"><span class="st ${st}">${icon(ic, 'sm')}</span><span class="sx">${esc(x.step)}</span>${handOffBadge(x.realtime)}${findBadges(x)}${changeOf(x) ? '<i class="cdot" aria-hidden="true"></i>' : ''}${pinBadge(pins)}${dur}</button>`;
     if (x.seq !== open) return;
     list.forEach((a, j) => {
       if (a.of !== x.seq) return;
@@ -1537,6 +1544,7 @@ function renderInspector(first = false) {
   $('insFindsList').innerHTML = !ins.live && f ? findsList(f) : '';
   $('insHandOff').innerHTML = !ins.live && f && !isAction(f) ? handOffLine(f.realtime) : '';
   $('insConsole').innerHTML = !ins.live && f && !isAction(f) ? consoleLine(f) : '';
+  $('insChangesLine').innerHTML = !ins.live && f ? changeLine(f) : '';
   // Its switch only in a run that found something.
   $('findsToggle').hidden = !list.some((x) => allFindings(x).some((y) => y.kind === 'a11y'));
   renderLangTabs(f);
@@ -1553,7 +1561,8 @@ function renderInspector(first = false) {
       const label = act ? `<i class="d ${x.marks?.[0]?.kind === 'type' || x.marks?.[0]?.kind === 'key' ? 'type' : ''}"></i>${esc(actionNo(x))}` : esc(frameLabel(x) || '·');
       const kinds = new Set(allFindings(x).map((y) => y.kind));
       const found = `${kinds.has('a11y') ? '<i class="fdot"></i>' : ''}${kinds.has('lang') ? '<i class="fdot lang"></i>' : ''}`;
-      return `<button class="${cls}" data-i="${i}" title="${esc(title)}"><img src="${esc(frameUrl(x))}" alt="" loading="lazy"><span>${label}</span>${found}${pinBadge(pinsOf(x))}</button>`;
+      const changed = changeOf(x) ? '<i class="cdot"></i>' : '';
+      return `<button class="${cls}" data-i="${i}" title="${esc(title)}"><img src="${esc(frameUrl(x))}" alt="" loading="lazy"><span>${label}</span>${found}${changed}${pinBadge(pinsOf(x))}</button>`;
     })
     .join('');
   const selThumb = $('insStrip').querySelector('.thumb.sel') ?? $('insStrip').lastElementChild;
@@ -1739,6 +1748,40 @@ function runReport(notesMd = '') {
     }
     if (races.outside.length) lines.push('');
     if (!races.unstable.length && !races.always.length && !races.outside.length) lines.push('No race: every step passed in every round. More rounds look further.', '');
+  }
+
+  // WHAT CHANGED FROM AN EARLIER RUN (changes.mjs), when it was compared.
+  const ch = r.changes;
+  if (ch) {
+    const named = (x) => `${testShort(x.test)}/${x.step}${x.actor ? ` (${x.actor})` : ''}`;
+    lines.push('## Changes from an earlier run', '');
+    lines.push(
+      `Compared with the run ${ch.against} (${runName(ch.against)}): ${ch.summary.changed} of ${ch.summary.compared} steps changed, ${ch.summary.new} new, ${ch.summary.gone} gone.`,
+      'Its photos, at this run\'s pixels: each region is a box of what changed; «moved» is what a change above pushed down or up.',
+      '',
+    );
+    for (const x of ch.tests.onlyNow) lines.push(`- A test the earlier run did not have: ${x}`);
+    for (const x of ch.tests.onlyThen) lines.push(`- A test only the earlier run had: ${x}`);
+    for (const x of ch.steps) {
+      if (x.kind === 'same') continue;
+      if (x.kind === 'new' || x.kind === 'gone') {
+        lines.push(`- ${named(x)}: ${x.kind === 'new' ? 'a new step' : 'gone (only the earlier run had it)'}`);
+        continue;
+      }
+      lines.push(`- ${named(x)}:`);
+      if (x.status) lines.push(`  - ${x.status.was} before, ${x.status.now} now`);
+      if (x.photo) {
+        lines.push(`  - Its photo: ${x.photo.regions.map((g) => `${g.x},${g.y} ${g.w}×${g.h}`).join('; ')}${x.photo.moved ? `; what is below moved ${x.photo.moved} px` : ''}`);
+      }
+      for (const a of x.actions ?? []) lines.push(`  - Action ${a.n}: ${[a.new && 'new', a.label && `«${a.label.was}» → «${a.label.now}»`, a.photo && `its photo, ${a.photo.regions.length} region(s)`].filter(Boolean).join('; ')}`);
+      const q = x.requests;
+      for (const y of q?.new ?? []) lines.push(`  - A new request: ${y}`);
+      for (const y of q?.gone ?? []) lines.push(`  - A request gone: ${y}`);
+      for (const y of q?.status ?? []) lines.push(`  - ${y.what}: ${y.was} before, ${y.now} now`);
+      for (const y of q?.count ?? []) lines.push(`  - ${y.what}: ${y.was} calls before, ${y.now} now`);
+      for (const y of x.errors ?? []) lines.push(`  - A page error it did not have: ${y}`);
+    }
+    lines.push('');
   }
 
   // THE API BY ENDPOINT: every request of every person, ids folded into
@@ -2022,7 +2065,7 @@ function renderChaosPicks() {
     select.innerHTML = html;
   }
   select.value = String(chaosRounds());
-  for (const id of ['optA11y', 'optLangs', 'optRealtime']) {
+  for (const id of ['optA11y', 'optLangs', 'optRealtime', 'optChanges']) {
     $(id).disabled = on;
     $(id).closest('.opt').classList.toggle('off', on);
     $(id).closest('.opt').title = on ? t('races.no_looks') : '';
@@ -2045,17 +2088,22 @@ function renderRaces() {
   const people = Object.entries(c.people ?? {})
     .map(([id, p]) => `<span class="slow"><b>${esc(cap(id))}</b> ${esc(slowText(p))}</span>`)
     .join('');
-  const head = c.group ? t('races.round', { round: c.round, of: c.of, seed: c.seed }) : t('races.again', { seed: c.seed });
+  const head = !c.group ? t('races.again', { seed: c.seed }) : c.round === 0 ? t('races.round0', { of: c.of }) : t('races.round', { round: c.round, of: c.of, seed: c.seed });
   const f = c.found;
   let found = '';
   if (f) {
     // A round no longer kept (the history keeps its newest runs) is said, not linked.
     const kept = new Set(runsOf(S.run.suite).map((x) => x.id));
+    // Each round compared with round 0 (changes.mjs): the ones that changed, in orange.
+    const changedRounds = new Set((f.changes ?? []).filter((x) => x.changed || x.new || x.gone).map((x) => x.round));
     const chips = f.rounds
       .map(
         (r) =>
-          `<button class="rd" type="button" data-run="${esc(r.run ?? '')}" data-st="${esc(r.status)}"${r.run === S.run.id ? ' aria-current="true"' : ''}${r.run && kept.has(r.run) ? '' : ' disabled'}` +
-          ` data-tip="${esc(`${t('races.seed', { seed: r.seed })}: ${Object.entries(r.people ?? {}).map(([id, p]) => `${cap(id)} ${slowText(p)}`).join('; ')}`)}">${r.round}</button>`,
+          `<button class="rd${changedRounds.has(r.round) ? ' chg' : ''}" type="button" data-run="${esc(r.run ?? '')}" data-st="${esc(r.status)}"${r.run === S.run.id ? ' aria-current="true"' : ''}${r.run && kept.has(r.run) ? '' : ' disabled'}` +
+          ` data-tip="${esc(
+            `${r.round === 0 ? t('races.round0_short', { of: f.of ?? '' }) : `${t('races.seed', { seed: r.seed })}: ${Object.entries(r.people ?? {}).map(([id, p]) => `${cap(id)} ${slowText(p)}`).join('; ')}`}` +
+              `${changedRounds.has(r.round) ? ` · ${t('races.round_changed')}` : ''}`,
+          )}">${r.round}</button>`,
       )
       .join('');
     const busy = Boolean(S.state?.task) || !S.state?.stack?.up;
@@ -2072,9 +2120,11 @@ function renderRaces() {
     ];
     const verdict = f.unstable.length
       ? t(f.unstable.length === 1 ? 'races.found_one' : 'races.found_many', { n: f.unstable.length })
-      : f.rounds.some((r) => r.status === 'failed') || f.stopped
+      : f.rounds.some((r) => r.status === 'failed') || (f.stopped !== null && f.stopped !== undefined)
         ? t('races.none_but')
-        : t('races.none', { n: f.rounds.length });
+        : changedRounds.size
+          ? t('races.none_changed', { n: changedRounds.size })
+          : t('races.none', { n: f.rounds.length });
     found = `<div class="found"><span class="rounds">${chips}</span><span class="verdict">${esc(verdict)}</span></div>${rows.length ? `<ul>${rows.join('')}</ul>` : ''}`;
   } else if (c.group) found = `<div class="found"><span class="verdict faint">${esc(t('races.searching'))}</span></div>`;
   const html = `<div class="head">${icon('dice', 'sm')}<span class="what">${esc(head)}</span>${people}</div>${found}`;
@@ -2124,6 +2174,120 @@ function consoleLine(f) {
   const shown = list.slice(0, 2).map((c) => esc(c.text));
   return `${icon('flag', 'sm')} ${esc(t('ins.console', { n: list.length }))}: ${shown.join(' · ')}${list.length > 2 ? ' · …' : ''}`;
 }
+
+// CHANGES FROM AN EARLIER RUN (`replay --changes`, changes.mjs): each step
+// compared with the same step of an earlier green run, made the same way
+// (or the one a person picks). The strip under the run says with which and
+// how much changed, and lets a person pick another; a changed step has an
+// orange dot, its photo orange boxes on what changed, and a line under it.
+
+/** The run on screen, from its newer copy: what only its own fetch brings
+ *  (its changes, the runs it may be compared with) kept. */
+const withExtras = (next, prev) => (prev && next && prev.id === next.id ? { ...next, changes: prev.changes, candidates: prev.candidates } : next);
+
+/** What changed in a step or an action from the earlier run, or null. */
+function changeOf(f) {
+  const c = S.run?.changes;
+  if (!c || !f) return null;
+  if (isAction(f)) {
+    for (const s of c.steps) for (const a of s.actions ?? []) if (a.seq === f.seq) return { ...s, action: a };
+    return null;
+  }
+  return c.steps.find((s) => s.seq === f.seq && s.kind !== 'same') ?? null;
+}
+
+/** The line under a photo: what changed, in words. */
+function changeLine(f) {
+  const ch = changeOf(f);
+  if (!ch) return '';
+  const bits = [];
+  const photo = (p) => {
+    if (!p) return null;
+    const boxes = p.regions.filter((r) => !r.gone).length;
+    const out = p.regions.some((r) => r.gone);
+    const said = [boxes && t(boxes === 1 ? 'changes.photo_one' : 'changes.photo_many', { n: boxes }), out && t('changes.taken_out')].filter(Boolean).join(', ');
+    return `${said}${p.moved ? ` (${t('changes.moved', { px: Math.abs(p.moved) })})` : ''}`;
+  };
+  if (ch.action) {
+    if (ch.action.new) bits.push(t('changes.action_new'));
+    if (ch.action.label) bits.push(t('changes.label', { was: ch.action.label.was, now: ch.action.label.now }));
+    bits.push(photo(ch.action.photo));
+  } else {
+    if (ch.kind === 'new') bits.push(t('changes.step_new'));
+    if (ch.status) bits.push(t('changes.status', { was: t(`run.${ch.status.was}`).toLowerCase(), now: t(`run.${ch.status.now}`).toLowerCase() }));
+    bits.push(photo(ch.photo));
+    const r = ch.requests;
+    for (const x of r?.new ?? []) bits.push(t('changes.req_new', { what: x }));
+    for (const x of r?.gone ?? []) bits.push(t('changes.req_gone', { what: x }));
+    for (const x of r?.status ?? []) bits.push(t('changes.req_status', { what: x.what, was: x.was, now: x.now }));
+    for (const x of r?.count ?? []) bits.push(t('changes.req_count', { what: x.what, was: x.was, now: x.now }));
+    for (const x of ch.errors ?? []) bits.push(t('changes.error_new', { what: x }));
+    if (ch.actionsGone) bits.push(t('changes.actions_gone', { n: ch.actionsGone }));
+  }
+  const said = bits.filter(Boolean);
+  return said.length ? `${icon('compare', 'sm')} ${esc(t('changes.from'))}: ${said.map(esc).join(' · ')}` : '';
+}
+
+/** A run as the strip names it: when, and what kind. */
+const runName = (id) => {
+  const x = (S.state?.runs ?? []).find((y) => y.id === id);
+  return x ? `${when(x.startedAt)} · ${kindLabel(x)}` : id;
+};
+
+function renderChanges() {
+  const box = $('changesStrip');
+  const r = S.run;
+  const c = r?.changes ?? null;
+  const cands = r?.candidates ?? [];
+  const comparable = r && r.kind !== 'play' && !r.chaos && r.status !== 'running';
+  const show = Boolean(c) || S.comparing === r?.id || (comparable && $('optChanges').checked && cands.length > 0);
+  if (!show) {
+    box.hidden = true;
+    box.dataset.html = '';
+    box.innerHTML = '';
+    return;
+  }
+  const n = c ? c.summary.changed + c.summary.new + c.summary.gone + c.tests.onlyNow.length + c.tests.onlyThen.length : 0;
+  const counts = c
+    ? [
+        c.summary.changed && t(c.summary.changed === 1 ? 'changes.n_changed_one' : 'changes.n_changed_many', { n: c.summary.changed }),
+        c.summary.new && t('changes.n_new', { n: c.summary.new }),
+        c.summary.gone && t('changes.n_gone', { n: c.summary.gone }),
+      ]
+        .filter(Boolean)
+        .join(' · ') || (n ? '' : t('changes.nothing'))
+    : '';
+  const options =
+    (c ? '' : `<option value="" selected>${esc(t('changes.pick'))}</option>`) +
+    cands.map((x) => `<option value="${esc(x.id)}"${x.id === c?.against ? ' selected' : ''}>${esc(`${when(x.startedAt)} · ${t(`kind.${x.kind ?? 'replay'}`)}`)}</option>`).join('');
+  const select = cands.length
+    ? `<span class="field"><label for="changesAgainst">${esc(t('changes.against'))}</label><select id="changesAgainst"${S.comparing === r.id ? ' disabled' : ''}>${options}</select></span>`
+    : '';
+  const head = c ? t('changes.head', { run: runName(c.against) }) : t('changes.none_yet');
+  const html =
+    `${icon('compare', 'sm')}<span class="what">${esc(head)}</span>` +
+    `${counts ? `<span class="${n ? 'chg' : 'same'}">${esc(counts)}</span>` : ''}` +
+    `${S.comparing === r.id ? `<span class="faint">${esc(t('changes.comparing'))}</span>` : ''}${select}`;
+  box.hidden = false;
+  if (box.dataset.html === html) return;
+  box.dataset.html = html;
+  box.innerHTML = html;
+}
+
+$('changesStrip').addEventListener('change', async (e) => {
+  if (e.target.id !== 'changesAgainst' || !e.target.value || !S.run) return;
+  S.comparing = S.run.id;
+  renderChanges();
+  await api(`/api/runs/${encodeURIComponent(S.run.id)}/changes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ against: e.target.value }),
+  }).catch((err) => {
+    S.comparing = null;
+    banner(err.message, 'err');
+    renderChanges();
+  });
+});
 
 $('plays').addEventListener('click', async (e) => {
   if (e.target.closest('#playDiscard')) {
@@ -2296,6 +2460,17 @@ function placeOnSheet(f) {
       return `<span class="find ${x.kind}" data-f="${i}" style="${style}" title="${esc(findText(x))}"><b>${i + 1}</b></span>`;
     })
     .join('');
+  // What changed from the earlier run (changes.mjs), on the suite's own photo.
+  if (!lang) {
+    const ch = changeOf(f);
+    const regions = (ch?.action ? ch.action.photo?.regions : ch?.photo?.regions) ?? [];
+    finds.innerHTML += regions
+      .map(
+        (r) =>
+          `<span class="find change${r.gone ? ' gone' : ''}" style="left:${(100 * r.x) / W}%;top:${(100 * r.y) / H}%;width:${(100 * Math.max(r.w, 8)) / W}%;height:${(100 * (r.gone ? r.h : Math.max(r.h, 8))) / H}%"${r.gone ? ` title="${esc(t('changes.taken_out'))}"` : ''}></span>`,
+      )
+      .join('');
+  }
   if (S.ins.placed !== f.seq) {
     S.ins.placed = f.seq;
     const view = $('insView');
@@ -3097,7 +3272,7 @@ function connect() {
         void loadRunLog(r.id);
       }
     } else if (S.run && S.run.id === r.id) {
-      S.run = r;
+      S.run = withExtras(r, S.run);
     }
     renderStatus();
     renderTableHead();
@@ -3129,6 +3304,17 @@ function connect() {
     }
     if (S.ins) renderInsState();
   });
+  es.addEventListener('changes', async (e) => {
+    const d = JSON.parse(e.data);
+    S.comparing = d.comparing ? d.run : S.comparing === d.run ? null : S.comparing;
+    if (!d.comparing && S.run?.id === d.run) {
+      const r = await api(`/api/runs/${encodeURIComponent(d.run)}`).catch(() => null);
+      if (r && S.run?.id === d.run) Object.assign(S.run, { changes: r.changes, candidates: r.candidates });
+      await refreshState().catch(() => {});
+    }
+    renderChanges();
+    if (S.ins) renderInspector();
+  });
   es.addEventListener('plays', (e) => {
     if (!S.state) return;
     S.state.plays = JSON.parse(e.data);
@@ -3150,7 +3336,7 @@ async function refreshState() {
   const newest = runsOf(S.suite)[0]?.id ?? null;
   if (S.viewRunId === null && newest && S.run?.id !== newest) await viewRun(newest);
   else {
-    if (S.run && S.state.run && S.run.id === S.state.run.id) S.run = S.state.run;
+    if (S.run && S.state.run && S.run.id === S.state.run.id) S.run = withExtras(S.state.run, S.run);
     renderAll();
   }
 }
@@ -3359,11 +3545,12 @@ $('optMarks').onchange = () => {
   localStorageSet('optMarks', $('optMarks').checked ? '1' : '0');
   $('insMarks').classList.toggle('off', !$('optMarks').checked);
 };
-for (const id of ['optHeaded', 'optDocker', 'optA11y', 'optLangs', 'optRealtime', 'optChaos']) {
+for (const id of ['optHeaded', 'optDocker', 'optA11y', 'optLangs', 'optRealtime', 'optChanges', 'optChaos']) {
   $(id).checked = localStorageGet(id) === '1';
   $(id).onchange = () => localStorageSet(id, $(id).checked ? '1' : '0');
 }
 $('optChaos').addEventListener('change', renderChaosPicks);
+$('optChanges').addEventListener('change', () => renderChanges());
 $('optChaosN').addEventListener('change', () => localStorageSet('optChaosRounds', $('optChaosN').value));
 renderChaosPicks();
 $('optLangs').addEventListener('change', renderLangPicks);

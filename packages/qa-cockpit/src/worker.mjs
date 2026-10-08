@@ -158,6 +158,38 @@ export function quietly(page, fn) {
 }
 
 const newPhotoFile = (actor) => path.join(FRAMES_DIR, `${Date.now()}-${actor}-${Math.random().toString(36).slice(2, 6)}.jpg`);
+
+/**
+ * What changes on a screen by itself (a clock, a date, an avatar): the
+ * boxes of the config's `changes.mask` selectors, at the photo's pixels (the
+ * page's, `inPage`, or the window's), so that a comparison with an earlier
+ * run leaves them out (changes.mjs).
+ */
+async function masksOf(page, inPage) {
+  const sels = CONFIG?.changes?.mask ?? [];
+  if (!sels.length) return [];
+  return quietly(page, () =>
+    page.evaluate(
+      ([selectors, whole]) => {
+        const out = [];
+        for (const s of selectors) {
+          let els = [];
+          try {
+            els = document.querySelectorAll(s);
+          } catch {
+            continue;
+          }
+          for (const el of els) {
+            const r = el.getBoundingClientRect();
+            if (r.width && r.height) out.push({ x: r.left + (whole ? scrollX : 0), y: r.top + (whole ? scrollY : 0), w: r.width, h: r.height });
+          }
+        }
+        return out.slice(0, 50);
+      },
+      [sels, inPage],
+    ),
+  ).catch(() => []);
+}
 const relOut = (abs) => path.relative(OUT_DIR, abs).split(path.sep).join('/');
 const forget = (shots) => shots.forEach((s) => fs.rm(s.file, { force: true }, () => {}));
 
@@ -186,6 +218,7 @@ export async function photo(f) {
       // Chromium takes a full page beyond the viewport without resizing it,
       // so the page under test never sees its window change.
       await quietly(f.page, () => f.page.screenshot({ path: file, type: 'jpeg', quality: 60, scale: 'css', fullPage: true, timeout: 8_000 }));
+      const masks = await masksOf(f.page, true);
       // The same screen's accessibility, as boxes on this photo.
       const findings = A11Y ? await quietly(f.page, () => a11yFindings(f.page, scroll, toldA11y)).catch(() => []) : [];
       // The same screen in the app's other languages, when the step passed.
@@ -209,10 +242,14 @@ export async function photo(f) {
           file: relOut(s.file),
           url: s.url,
           viewport: s.viewport,
+          masks: s.masks ?? [],
           time: new Date(s.time).toISOString(),
           marks: marks.filter((m) => m.shot === s).map(plain),
         })),
+        masks,
         requests: f.requests ?? [],
+        // What the page said went wrong while the step went: its errors.
+        console: f.console ?? [],
         findings,
         langs: tour?.shots.map((s) => ({ lang: s.lang, file: relOut(s.file), scroll: s.scroll, changed: s.changed, findings: s.findings })) ?? [],
         langsSkipped: tour?.skipped ?? null,
@@ -325,6 +362,7 @@ export async function stepEnded(s) {
         // the requests their page made meanwhile.
         marks: pages.get(actor).marks.splice(0),
         requests: pages.get(actor).requests.splice(0),
+        console: pages.get(actor).console.splice(0),
         step: s.title,
         // Somebody the failed step does not name is photographed as context.
         status: named.includes(actor) ? s.status : 'context',
@@ -567,7 +605,8 @@ async function shoot(entry, prepare) {
     await photoTime(() =>
       quietly(entry.page, () => entry.page.screenshot({ path: file, type: 'jpeg', quality: 60, scale: 'css', caret: 'initial', timeout: BEFORE_MS })),
     );
-    return { file, url: entry.page.url(), viewport: entry.page.viewportSize(), time: Date.now(), marked: false };
+    const masks = await photoTime(() => masksOf(entry.page, false));
+    return { file, url: entry.page.url(), viewport: entry.page.viewportSize(), masks, time: Date.now(), marked: false };
   } catch {
     // No photo for this action: its mark stays on the step's.
     return null;
@@ -582,7 +621,7 @@ async function shoot(entry, prepare) {
  */
 export async function register(actor, page, device = null) {
   if (!enabled) return;
-  const entry = { actor, page, device, lastSent: 0, marks: [], requests: [], acting: false, shot: null };
+  const entry = { actor, page, device, lastSent: 0, marks: [], requests: [], console: [], acting: false, shot: null };
   pages.set(actor, entry);
   for (const by of [page, page.mouse, page.keyboard]) entries.set(by, entry);
   installActionPhotos(page);
@@ -615,6 +654,12 @@ export async function register(actor, page, device = null) {
       });
     }
   };
+  // What the page says went wrong: its console's errors and what it threw.
+  const said = (level, text) => {
+    if (!entry.touring && entry.console.length < 20) entry.console.push({ level, text: String(text ?? '').slice(0, 300), at: Date.now() });
+  };
+  page.on('console', (m) => (m.type() === 'error' ? said('error', m.text()) : undefined));
+  page.on('pageerror', (err) => said('exception', err?.message ?? err));
   page.on('requestfinished', (request) => {
     // Its status is one more call to the browser: only for the ones kept,
     // not for each of a development server's hundreds of modules.

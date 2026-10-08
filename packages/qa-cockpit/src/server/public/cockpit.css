@@ -423,6 +423,27 @@ dialog#inspector::backdrop { background: rgba(4, 4, 6, 0.72); }
    apart from the findings. Its option, the rounds to play, and the looks it
    goes without, greyed while it is on. */
 #optChaos { accent-color: #a78bfa; }
+/* CHANGES FROM AN EARLIER RUN (cockpit.js renderChanges): in orange. The
+   option, the strip under the run, the boxes on a photo, the dots on a step
+   and a thumbnail, and the line under the photo. */
+#optChanges { accent-color: #fb923c; }
+.changes { grid-column: 1 / -1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
+.changes svg.i { width: 15px; height: 15px; color: #fb923c; }
+.changes .what { color: #fdba74; font-weight: 600; }
+.changes .same { color: var(--ok); }
+.changes .field { height: 28px; margin-left: auto; font-size: 12px; }
+.changes .field select { height: 26px; color: var(--text); }
+.chg { color: #fb923c; }
+.finds .find.change { border: 2px solid #fb923c; background: rgba(251, 146, 60, 0.14); }
+/* Something taken out: a line across where it was. */
+.finds .find.change.gone { border: 0; border-radius: 2px; background: #fb923c; min-height: 3px; }
+.thumb .cdot { position: absolute; top: 4px; right: 4px; width: 9px; height: 9px; border-radius: 50%; background: #fb923c; box-shadow: 0 0 0 2px #0c0d10; }
+.step .cdot { flex: none; width: 8px; height: 8px; margin: 6px 0 0 6px; border-radius: 50%; background: #fb923c; }
+.caption .changes-line { font-size: 12px; color: #fdba74; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.caption .changes-line:empty { display: none; }
+.caption .changes-line svg.i { width: 12px; height: 12px; vertical-align: -2px; }
+.races .rd.chg { position: relative; }
+.races .rd.chg::after { content: ''; position: absolute; top: -3px; right: -3px; width: 8px; height: 8px; border-radius: 50%; background: #fb923c; box-shadow: 0 0 0 2px var(--panel); }
 .opt-sub.chaos .field { height: 30px; font-size: 12.5px; }
 .opt-sub.chaos .field select { height: 28px; color: var(--text); }
 .opt.off, .opt-sub.off { opacity: 0.45; }
