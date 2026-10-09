@@ -85,34 +85,69 @@ export function scanTexts() {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/** Until the page's words pass `ok` and stand still a moment; false when they do not in time. */
-export async function settle(page, ok, timeout) {
+/**
+ * Until the page's words pass `ok` and stand still a moment (`still` ms at
+ * least, one look more by default); false when they do not in time.
+ */
+export async function settle(page, ok, timeout, still = 0) {
   const end = Date.now() + timeout;
   let last = null;
+  let since = Date.now();
   while (Date.now() < end) {
     const now = await page.evaluate(printOf).catch(() => null);
-    if (now !== null && ok(now) && now === last) return true;
+    if (now !== last) since = Date.now();
+    else if (now !== null && ok(now) && Date.now() - since >= still) return true;
     last = now;
     await sleep(120);
   }
   return false;
 }
 
+// How long a screen's words stand still before the look takes them as the
+// suite's own: a step may end with its screen still moving (a list filling
+// in, a «Saving…» about to say «Saved»), and a print taken then never
+// comes back the same.
+export const STILL_MS = 400;
+
 /**
- * The project's own change of language, with a short time for each of its
- * actions: a control that is not there fails in seconds, and no click is
- * left waiting to land in the next step. Playwright keeps a page's default
- * timeout on its client side: set for the change, put back after.
+ * Playwright's default timeouts made the change's own while `fn` runs (the
+ * project's `switchTo` and `ready`), and put back after: a control that is
+ * not there fails in seconds, and no click is left waiting to land in the
+ * next step. Playwright keeps them on its client side.
  */
-export async function switchTo(config, page, lang, person) {
+async function withShortTimeouts(page, fn) {
   const settings = page._timeoutSettings;
   const before = settings ? [settings._defaultTimeout, settings._defaultNavigationTimeout] : null;
   page.setDefaultTimeout(SWITCH_MS);
   page.setDefaultNavigationTimeout(SWITCH_MS * 2);
   try {
-    await config.languages.switchTo({ page, lang, person, config, timeout: SWITCH_MS });
+    return await fn();
   } finally {
     if (settings) [settings._defaultTimeout, settings._defaultNavigationTimeout] = before;
+  }
+}
+
+/** The project's own change of language, with a short time for each of its actions. */
+export async function switchTo(config, page, lang, person) {
+  await withShortTimeouts(page, () => config.languages.switchTo({ page, lang, person, config, timeout: SWITCH_MS }));
+}
+
+/**
+ * The project's own word on whether this screen can be changed now
+ * (`languages.ready`), asked before anything is touched: it may wait for
+ * the screen to stand still, or say why not (a dialog open, a field being
+ * typed in, «Saving…»), and then the screen is left as it was.
+ * @returns {Promise<string | null>} why not, or null to go on
+ */
+export async function notReady(config, page, person) {
+  const ready = config.languages.ready;
+  if (!ready) return null;
+  try {
+    const said = await withShortTimeouts(page, () => ready({ page, person, config, timeout: SWITCH_MS }));
+    if (said === undefined || said === null || said === true) return null;
+    return `the project's ready said not now${said === false ? '' : `: ${String(said).split('\n')[0].slice(0, 160)}`}`;
+  } catch (e) {
+    return `the project's ready said not now: ${String(e?.message ?? e).split('\n')[0].slice(0, 160)}`;
   }
 }
 
@@ -139,6 +174,13 @@ export function compare(base, scan, lang, told, where) {
  */
 export async function lookInLanguages({ config, page, person, langs, shoot, told }) {
   const base = config.languages.base;
+  // The project's no, before anything is touched: this step is skipped,
+  // and the look goes on at the next one.
+  const why = await notReady(config, page, person);
+  if (why) return { shots: [], skipped: why, broken: null, baseKeys: [] };
+  // A screen still moving at the step's end is given a moment; one that
+  // never stands still (a clock) is taken as it is.
+  await settle(page, () => true, 2_000, STILL_MS);
   const before = await page.evaluate(printOf);
   const baseScan = await page.evaluate(scanTexts);
   let where = '';

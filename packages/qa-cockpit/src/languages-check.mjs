@@ -7,7 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { contextOptions, deviceFor } from './devices.mjs';
-import { compare, printOf, scanTexts, settle, switchTo } from './languages.mjs';
+import { compare, notReady, printOf, scanTexts, settle, switchTo } from './languages.mjs';
 import { playwrightOf } from './playwright.mjs';
 
 const firstLine = (e) => String(e?.message ?? e).split('\n')[0].slice(0, 200);
@@ -32,7 +32,17 @@ export async function checkLanguages(config, id, say) {
     const context = await browser.newContext({ ...contextOptions(config, id, device), storageState: path.join(config.paths.state, `${id}.json`) });
     const page = await context.newPage();
     await page.goto(new URL(config.browser.landing, config.stack.urls().app).href, { waitUntil: 'load' });
-    await settle(page, () => true, 3_000);
+    // A first screen is often still filling in after its load: the screen
+    // to come back to is the one at rest, its requests over and its words
+    // still, as a step's end is (lookInLanguages).
+    await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {});
+    const why = await notReady(config, page, person);
+    if (why) {
+      say(`${person.name} at ${page.url()}: ${why}. The first screen must be one the change can be made on.`);
+      await context.close();
+      return false;
+    }
+    await settle(page, () => true, 5_000, 1_000);
     const shoot = async (name) => {
       const file = path.join(dir, `${name}.jpg`);
       await page.screenshot({ path: file, type: 'jpeg', quality: 70, fullPage: true });

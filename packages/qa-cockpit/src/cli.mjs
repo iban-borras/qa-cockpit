@@ -445,7 +445,7 @@ export async function runCli(rawConfig, argv) {
         for (const line of found) console.log(line);
       } else if (looked) console.log('  Every text fits, in every language.');
       if (skipped.length) {
-        console.log("  Steps whose language could not be changed (the control out of reach, as under a dialog):");
+        console.log("  Steps not looked at in other languages, and why (the change failed, or the project's ready said not now):");
         for (const line of skipped) console.log(line);
       }
       if (stopped) console.log(stopped);

@@ -87,6 +87,11 @@ export default defineConfig({
   //   async switchTo({ page, lang }) {
   //     await page.getByTestId('lang').selectOption(lang);
   //   },
+  //   // Before each step's look: wait until its screen can be changed, or
+  //   // return why not (that step is skipped, untouched).
+  //   // async ready({ page }) {
+  //   //   if (await page.getByRole('dialog').isVisible()) return 'a dialog is open';
+  //   // },
   // },
 
   // What changes on a screen by itself (a clock, a date, an avatar), as

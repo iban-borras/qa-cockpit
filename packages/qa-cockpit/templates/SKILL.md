@@ -150,6 +150,11 @@ everything says ok:
      async switchTo({ page, lang }) {
        await page.getByTestId('lang').selectOption(lang);
      },
+     // Optional: before each step's look, whether its screen can be changed
+     // now. Wait for it here, or return why not; nothing is touched then.
+     async ready({ page }) {
+       if (await page.getByRole('dialog').isVisible()) return 'a dialog is open';
+     },
    },
    ```
 
@@ -159,7 +164,11 @@ everything says ok:
    to each language and back, and says whether the words change, whether
    the page loads again, and whether it comes back the same; look at its
    photos. A change that reloads the page loses what is open on a screen
-   (a dialog, a form half filled): say so when you report.
+   (a dialog, a form half filled): say so when you report. When some
+   screens cannot be changed at a step's end (a dialog open, a field with
+   the cursor, a «Saving…» about to turn «Saved»), write `ready`: it is
+   asked before the look touches the screen, may wait for it, and a reason
+   it returns (or throws) skips that step only.
 5. **The first suite** in `paths.suites` (the guide beside it says how),
    its setup in `paths.setups`, then record it (the director, below).
 
@@ -444,8 +453,10 @@ In the cockpit each step's photo has a tab per language (the `I` key goes
 through them), with what does not fit as boxes; when the run ends the
 terminal lists them, and the run report has every language's photo.
 
-1. **A step whose control is out of reach** (a dialog over the header, a
-   page without the menu, as one signed out) is skipped, and said.
+1. **A step whose language is not changed** is skipped, and said with
+   why: the project's `ready` said not now, or the change failed (a
+   dialog over the header, a page without the menu, as one signed out).
+   The look goes on at the next step.
 2. **A screen that does not come back word for word** in the suite's
    language stops the look for the rest of the run, and the run goes on
    in its own language: said in the log and at the end. Most often the

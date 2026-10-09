@@ -199,7 +199,8 @@ export function resolveConfig(raw, file) {
 }
 
 /**
- * `languages`: { base?, others, priority?, switchTo({ page, lang, person }) }.
+ * `languages`: { base?, others, priority?, switchTo({ page, lang, person }),
+ * ready?({ page, person }) }.
  * The suites' own language is the browser's unless said; the others are the
  * app's other languages; `priority`, the ones looked at when a run names
  * none (every other one, unless said): an app of many languages, its new
@@ -218,7 +219,12 @@ function languagesOf(l, locale) {
   const strange = priority.filter((x) => !others.includes(x));
   if (strange.length) throw new Error(`\`languages.priority\`: ${strange.join(', ')} not among \`languages.others\` (${others.join(', ')}).`);
   if (!priority.length) throw new Error('`languages.priority`: one of `others` at least, or left out for all of them.');
-  return { base, others, priority, switchTo: l.switchTo };
+  // Whether a step's screen can be changed now, asked before the look
+  // touches it: nothing (go on), or why not (languages.mjs, notReady).
+  if (l.ready !== undefined && typeof l.ready !== 'function') {
+    throw new Error('`languages.ready({ page, person })`: a function that waits for the screen to be ready to change, or returns why not.');
+  }
+  return { base, others, priority, switchTo: l.switchTo, ready: l.ready ?? null };
 }
 
 function dirOf(base) {

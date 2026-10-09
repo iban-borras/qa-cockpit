@@ -1202,7 +1202,8 @@ function onFrame(f) {
     console: consoleOf(f.console),
     findings: findingsOf(f.findings),
     langs: langsOf(f.langs),
-    // A step whose language could not be changed (its control out of reach),
+    // A step whose language was not changed (the change failed, or the
+    // project's `ready` said not now),
     // and the one after which the look stopped (its screen did not come back).
     langsSkipped: f.langsSkipped ? String(f.langsSkipped).slice(0, 200) : null,
     langsStopped: f.langsStopped ? String(f.langsStopped).slice(0, 200) : null,

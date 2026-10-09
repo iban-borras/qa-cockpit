@@ -19,6 +19,21 @@
   a language does not have yet is said in English, and
   `scripts/i18n-check.mjs` lists what each one is missing, and any
   placeholder lost on the way.
+- `languages.ready({ page, person })`, optional in the config: before each
+  step's look in other languages, whether its screen can be changed now. It
+  may wait (for a «Saving…» to turn «Saved»), or return or throw why not (a
+  dialog open, a field with the cursor), and that step is skipped with its
+  screen untouched; the look goes on at the next one. Before, a refusal
+  from `switchTo` counted as a change made, and a screen that moved by
+  itself meanwhile stopped the look for the rest of the run.
+- The look in other languages takes a step's screen once its words stand
+  still a moment (up to 2 s; a clock that never stops is taken as it is),
+  and `languages check` once the first page's requests are over and its
+  words still for a second: a page still filling in no longer reads as one
+  that did not come back the same.
+- The end of a run lists the steps not looked at in other languages with
+  their reason, the project's or the change's, no longer as «the control
+  out of reach».
 
 ## 0.8.0 (2026-10-09)
 
