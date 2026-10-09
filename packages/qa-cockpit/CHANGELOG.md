@@ -2,6 +2,16 @@
 
 ## 0.10.0 (unreleased)
 
+- `replay --tag <tag>`: a tag's suites one after another, each as a full
+  run (reset, setup, replay) with the looks asked for (`--changes`, `--a11y`,
+  `--languages`...), a run of its own in the cockpit. The first that fails
+  stops the rest, to look at it; `--keep-going` plays every one, to see how
+  far a problem reaches. A suite that cannot play is passed over, and said;
+  the end lists each one, and the cockpit shows it under each of the
+  group's runs, a click from each. In the cockpit, the suite picker shows a
+  tag's suites and plays its group, «Stop at the first failure» on unless
+  taken off, and the page goes with each suite as it begins. The skill
+  tells an agent how to propose a tag strategy for all the suites.
 - Tags: groups of suites, in one file beside them, `<suites>/tags.json`,
   each with what it is for and its suites in the order they play. Out of the
   suites' documents, so a tag never makes a recording look stale. The

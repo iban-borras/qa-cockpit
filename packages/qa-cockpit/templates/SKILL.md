@@ -184,6 +184,7 @@ npx qa-cockpit lock             # who holds the stack; unlock removes a hung loc
 npx qa-cockpit up               # start the stack and wait until it answers
 npx qa-cockpit status           # where it answers, saved sessions
 npx qa-cockpit suites           # every suite and what it needs next
+npx qa-cockpit tags             # the groups of suites (tags), and what is wrong in tags.json; «Groups of suites»
 npx qa-cockpit reset            # fresh data; saved sessions cleared
 npx qa-cockpit setup <suite>    # the suite's setup, sessions saved
 npx qa-cockpit sessions         # fresh saved sessions for the cast
@@ -198,6 +199,7 @@ npx qa-cockpit replay <suite> --realtime  # how long what one person does takes 
 npx qa-cockpit replay <suite> --chaos 5  # races between people: rounds from fresh data, each person slowed by a seed; «Races»
 npx qa-cockpit replay <suite> --chaos-seed <n>  # that round again, with any look
 npx qa-cockpit replay <suite> --changes  # then compared with the last green run made the same way; «Changes»
+npx qa-cockpit replay --tag <tag>        # a tag's suites one after another, each as a full run; «Groups of suites»
 npx qa-cockpit changes [run]    # what changed from an earlier run, step by step (--against <run>, --json)
 npx qa-cockpit network [run]    # what they show, step by step (--against previous, --test <id>, --json, --list)
 npx qa-cockpit open <person>    # a browser window signed in as that person (not while a run plays them)
@@ -507,6 +509,54 @@ hand-off when the run ends, and the run report has them.
    wait): only clicks, typing and keys pressed are actions.
 3. **What you deliver is a report**: the slow hand-offs, and on which leg
    the time goes. Change nothing until the person says so.
+
+## Groups of suites (tags)
+
+A tag is a group of suites, played one after another to see that nothing
+broke after a change: `smoke` before every push, a tag for one piece of the
+app after touching it, `release` before a release. They live in one file
+beside the suites, `suites/tags.json`, never in a suite's document (a tag
+changed would make its recording look stale):
+
+```json
+{
+  "smoke": { "about": "The paths that must never break: a few minutes", "suites": ["login", "chat"] },
+  "checkout": { "about": "Paying, refunds and invoices", "suites": ["cart", "pay", "refund"] }
+}
+```
+
+A suite may be in several tags; a tag's suites play in its order. Edit the
+file by hand, or:
+
+```bash
+npx qa-cockpit tags                         # every tag, its suites, the suites in none, what is wrong
+npx qa-cockpit tags add smoke login chat     # suites into a tag (made when new), at its end
+npx qa-cockpit tags remove smoke chat        # off it
+npx qa-cockpit tags about smoke "The paths that must never break"
+npx qa-cockpit replay --tag smoke            # its suites, each from fresh data (reset, setup, replay)
+npx qa-cockpit replay --tag smoke --keep-going --changes   # every one, compared with its last green run
+```
+
+`replay --tag` plays each suite as a full run: a run of its own in the
+cockpit (the page goes with it), with any look asked for (`--changes`,
+`--a11y`, `--languages`...; not `--chaos`). **The first suite that fails
+stops the rest**: look at it, fix what broke, play the group again;
+`--keep-going` plays every one, to see how far a problem reaches. A suite
+that cannot play (no recording, a stale one, no setup) is passed over, and
+said. The end lists each suite green, red, passed over or not played, and
+the cockpit shows it under each of the group's runs. In the cockpit, the
+suite picker shows a tag's suites and plays its group, «Stop at the first
+failure» on unless taken off; the suite's panel puts tags on and takes them
+off.
+
+**When a person asks for a tag strategy**, read every suite (`suites`, and
+each one's first paragraph and tests), then propose a few tags, named by
+what they are for, each with its `about`: a short `smoke` of the paths
+that must never break (fast, run often); one per piece of the app, for
+after touching it; perhaps one per kind of person (a host, a guest);
+`release` for every suite that is ready. Order a tag's suites cheapest and
+most telling first. Say what you propose and why before writing it, unless
+the person asked you to write it straight away; then `tags` to check it.
 
 ## Changes from an earlier run (when a person asks, or after a change)
 
@@ -895,6 +945,7 @@ fixtures.mjs            the cast as fixtures (the project's own Playwright)
 playwright.config.mjs   made by the package from the config
 sessions.setup.mjs      fresh sessions for the cast
 suites/                 the suites (Markdown) and their guide, README.md
+suites/tags.json        the groups of suites (tags), and the order each plays in
 setups/                 <suite>.setup.*: the setup table as code
 recordings/             <suite>.spec.*: the recordings, hash in line 1
 videos/                 <suite>.json: video scripts, and their narration's audio

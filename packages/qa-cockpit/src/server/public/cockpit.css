@@ -640,6 +640,34 @@ dialog.ask p { margin: 0 0 16px; font-size: 14px; line-height: 1.5; }
 .picker-group .count { margin-left: 4px; color: var(--muted); letter-spacing: 0; }
 .picker-filter { flex: none; display: flex; align-items: center; gap: 8px; margin: 10px 14px 4px; font-size: 12.5px; color: var(--muted); cursor: pointer; }
 .picker-filter input { accent-color: var(--accent); }
+/* The picker's tags (tags.mjs): a chip each shows only its suites; a tag
+   chosen, its group plays from here, one suite after another. */
+.picker-tags { flex: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 14px 2px; }
+.tag-pick { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line-2); background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
+.tag-pick:hover, .tag-pick:focus-visible { color: var(--text); border-color: #4a4b56; }
+.tag-pick.on { color: #c7d2fe; background: rgba(99, 102, 241, 0.18); border-color: rgba(99, 102, 241, 0.6); }
+.tag-pick .n { color: var(--faint); font-size: 11px; }
+.picker-play { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 8px 12px 4px; padding: 10px 12px; border-radius: var(--radius); background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.3); }
+.picker-play .about { flex-basis: 100%; font-size: 12.5px; color: var(--muted); }
+.picker-play .picker-filter.stop { margin: 0; }
+.picker-play #groupPlay { margin-left: auto; }
+/* A group's strip (renderGroupStrip): a chip per suite, in its state's colour. */
+.group-strip { grid-column: 1 / -1; min-width: 0; display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
+.group-strip .head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+.group-strip .head svg.i { width: 15px; height: 15px; color: #818cf8; }
+.group-strip .what { color: #c7d2fe; font-weight: 600; }
+.group-strip .found { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.group-strip .suites { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.group-strip .gs { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px; border-radius: 6px; border: 1px solid var(--line-2); background: var(--panel-2); color: var(--text); font: 12px var(--mono); cursor: pointer; }
+.group-strip .gs .rdot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+.group-strip .gs[data-st='passed'] { border-color: rgba(52, 211, 153, 0.55); background: var(--ok-soft); }
+.group-strip .gs[data-st='passed'] .rdot { background: var(--ok); }
+.group-strip .gs[data-st='failed'] { border-color: rgba(248, 113, 113, 0.6); background: var(--err-soft); }
+.group-strip .gs[data-st='failed'] .rdot { background: var(--err); }
+.group-strip .gs[data-st='skipped'], .group-strip .gs[data-st='not-run'] { color: var(--faint); border-style: dashed; }
+.group-strip .gs[aria-current='true'] { box-shadow: 0 0 0 2px #818cf8; cursor: default; }
+.group-strip .gs:disabled { cursor: default; }
+.group-strip .verdict { color: var(--text); }
 .picker-empty { margin: 12px 10px; font-size: 13px; color: var(--faint); }
 .opts[open] > summary { border-color: var(--accent); }
 .lang summary.btn { gap: 6px; padding: 0 8px 0 10px; }

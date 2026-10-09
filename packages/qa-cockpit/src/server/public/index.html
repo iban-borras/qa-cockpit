@@ -28,6 +28,12 @@
         <div class="picker-pop" id="pickerPop" hidden>
           <input class="picker-search" id="pickerSearch" type="search" autocomplete="off" data-i18n-placeholder="picker.search" data-i18n-aria="picker.search">
           <label class="picker-filter"><input type="checkbox" id="pickerHide"> <span data-i18n="picker.hide_nosetup"></span></label>
+          <div class="picker-tags" id="pickerTags" hidden></div>
+          <div class="picker-play" id="pickerPlay" hidden>
+            <span class="about" id="pickerPlayAbout"></span>
+            <label class="picker-filter stop"><input type="checkbox" id="groupStopFirst"> <span data-i18n="group.stop_first"></span></label>
+            <button class="btn primary" id="groupPlay" type="button"></button>
+          </div>
           <div class="picker-list" id="pickerList" role="listbox" tabindex="-1" data-i18n-aria="suite.label"></div>
         </div>
       </div>
@@ -131,6 +137,7 @@
       <div class="meta"><span id="phaseText"></span><span id="progressText">0%</span></div>
       <div class="track"><div id="progressBar"></div></div>
     </div>
+    <div class="group-strip" id="groupStrip" hidden></div>
     <div class="races" id="races" hidden></div>
     <div class="plays" id="plays" hidden></div>
     <div class="changes" id="changesStrip" hidden>

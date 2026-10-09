@@ -33,7 +33,7 @@ import { desktopOf } from '../desktop.mjs';
 import { playRun } from '../play.mjs';
 import { candidatesOf, readChanges } from '../changes.mjs';
 import { playwrightCoreDir } from '../deps.mjs';
-import { changeTags, readTags, tagsOfSuite } from '../tags.mjs';
+import { changeTags, readTags, TAG as TAG_NAME, tagsOfSuite } from '../tags.mjs';
 
 const PACKAGE_JSON = new URL('../../package.json', import.meta.url);
 const VERSION = JSON.parse(fs.readFileSync(PACKAGE_JSON, 'utf8')).version;
@@ -308,10 +308,12 @@ const noteCount = (dir) => readNotes(dir).filter((n) => n.text.trim()).length;
 function pruneRuns() {
   // The newest `keepRuns` runs stay, and those with notes. A search for
   // races (`replay --chaos`) counts as one, all its rounds together: its
-  // failed round is what it is for, and the oldest of its rounds.
+  // failed round is what it is for, and the oldest of its rounds. A group
+  // of suites (`replay --tag`) too, all its suites together.
   const groupOf = (id) => {
     try {
-      return JSON.parse(fs.readFileSync(path.join(COCKPIT_DIR, id, 'run.json'), 'utf8')).chaos?.group ?? null;
+      const meta = JSON.parse(fs.readFileSync(path.join(COCKPIT_DIR, id, 'run.json'), 'utf8'));
+      return meta.chaos?.group ?? (meta.group ? `tag:${meta.group.id}` : null);
     } catch {
       return null;
     }
@@ -373,6 +375,8 @@ function runsIndex() {
         changes: changesCount(id),
         // A round of a search for races: its seed, and how many it found.
         ...(meta.chaos ? { chaos: { ...meta.chaos, found: undefined, races: meta.chaos.found ? meta.chaos.found.unstable.length : null } } : {}),
+        // A suite of a group (`replay --tag`): which, and its place in it.
+        ...(meta.group ? { group: { ...meta.group, found: undefined } } : {}),
       };
     } catch {
       return { id };
@@ -604,7 +608,7 @@ function forgetUnseenPhotos(r) {
 
 // ---------------------------------------------------------------- runs from a terminal
 
-const EXTERNAL_KINDS = new Set(['reset', 'setup', 'sessions', 'replay']);
+const EXTERNAL_KINDS = new Set(['reset', 'setup', 'sessions', 'replay', 'full']);
 
 /**
  * A run launched from a terminal while the cockpit is up (cli.mjs,
@@ -1017,6 +1021,78 @@ function chaosEnd(body) {
         fs.writeFileSync(file, JSON.stringify(meta, null, 1));
       } catch {
         // A round gone (pruned, or by hand): the others say it.
+      }
+    }
+  }
+  closeRound(body.status);
+  return { ok: true };
+}
+
+// A GROUP OF SUITES (`replay --tag`, cli.mjs, replayGroup): each suite a run
+// of its own, as a full run, the next one opened as the one before closes,
+// and the task's suite moved on with it (the page follows it, idle). Its
+// end, what each suite did, is kept in every run of the group.
+const GROUP_STATUS = new Set(['passed', 'failed', 'skipped', 'not-run']);
+
+function groupOf(x) {
+  if (!x || typeof x !== 'object') return null;
+  const id = textOf(x.id);
+  const index = intIn(x.index, 1, 500);
+  const of = intIn(x.of, 1, 500);
+  if (!id || !/^[a-z0-9-]{1,80}$/.test(id) || !TAG_NAME.test(String(x.tag ?? '')) || !index || !of || index > of) return null;
+  return { id, tag: x.tag, index, of };
+}
+
+function groupFoundOf(x) {
+  if (!x || typeof x !== 'object' || !TAG_NAME.test(String(x.tag ?? ''))) return null;
+  const results = (Array.isArray(x.results) ? x.results.slice(0, 500) : [])
+    .map((r) => ({
+      suite: textOf(r?.suite),
+      status: GROUP_STATUS.has(r?.status) ? r.status : null,
+      why: ['missing', 'unrecorded', 'stale', 'nosetup'].includes(r?.why) ? r.why : null,
+      run: typeof r?.run === 'string' && RUN_ID.test(r.run) ? r.run : null,
+    }))
+    .filter((r) => r.suite && r.status);
+  return { tag: x.tag, keepGoing: Boolean(x.keepGoing), stopped: textOf(x.stopped) || null, results };
+}
+
+function groupNext(body) {
+  const group = groupOf(body?.group);
+  const suite = listSuites(CFG).find((s) => s.name === body?.suite)?.name;
+  // Asked again, its answer lost on the way: the suite has its run already.
+  if (group && task && run && !run.closed && run.group?.id === group.id && run.group.index === group.index) return { ok: true, run: run.id };
+  if (!searching(body) || !group || !suite) return { ok: false };
+  if (run.group) {
+    const { label, docker, who } = run;
+    closeRound(body.previous);
+    run = newRun(suite, label);
+    Object.assign(run, { kind: 'full', docker }, who ? { who } : {});
+    lastLive.clear();
+  } else run.kind = 'full';
+  run.group = group;
+  saveRun(run);
+  pruneRuns();
+  task.suite = suite;
+  broadcast('task', taskInfo());
+  broadcast('run', summary(run));
+  return { ok: true, run: run.id };
+}
+
+function groupEnd(body) {
+  if (!searching(body) || !run.group) return { ok: false };
+  const found = groupFoundOf(body.found);
+  if (found) {
+    run.group.found = found;
+    for (const id of listRuns()) {
+      if (id === run.id) continue;
+      const file = path.join(COCKPIT_DIR, id, 'run.json');
+      try {
+        const meta = JSON.parse(fs.readFileSync(file, 'utf8'));
+        if (meta.group?.id !== run.group.id) continue;
+        meta.group.found = found;
+        fs.writeFileSync(file, JSON.stringify(meta, null, 1));
+      } catch {
+        // A run of the group gone (pruned, or by hand): the others say it.
       }
     }
   }
@@ -1497,6 +1573,17 @@ async function onAction(body) {
     const s = pick();
     if (!s.recorded) throw new Refusal('no_recording', { suite: s.name });
     started = startTask({ kind: 'replay', suite: s.name, docker: Boolean(docker) }, [replayArgs(s.name)]);
+  } else if (action === 'group') {
+    // A tag's suites, one after another (cli.mjs, replayGroup), the first
+    // that fails stopping the rest unless asked to keep going; the run
+    // opened here is the first that can play's.
+    const { tags } = readTags(CFG, new Set(known.map((x) => x.name)));
+    const tag = tags.find((x) => x.name === body.tag);
+    if (!tag) throw new Refusal('no_tag', { tag: String(body.tag ?? '') });
+    const first = tag.suites.map((n) => known.find((x) => x.name === n)).find((x) => x && x.recorded && x.setup && x.status !== 'stale');
+    if (!first) throw new Refusal('group_none', { tag: tag.name });
+    const looks = replayArgs(first.name).slice(2).filter((a, i, all) => !a.startsWith('--chaos') && !all[i - 1]?.startsWith('--chaos'));
+    started = startTask({ kind: 'full', suite: first.name, docker: Boolean(docker) }, [['replay', '--tag', tag.name, ...(body.keepGoing ? ['--keep-going'] : []), ...looks]]);
   } else if (action === 'full') {
     const s = pick();
     if (!s.recorded || !s.setup) throw new Refusal(s.recorded ? 'no_setup' : 'no_recording', { suite: s.name });
@@ -1684,6 +1771,8 @@ async function handle(req, res) {
   }
   if (req.method === 'POST' && p === '/api/chaos/round') return send(res, 200, chaosRound(await readJson(req)));
   if (req.method === 'POST' && p === '/api/chaos/end') return send(res, 200, chaosEnd(await readJson(req)));
+  if (req.method === 'POST' && p === '/api/group/next') return send(res, 200, groupNext(await readJson(req)));
+  if (req.method === 'POST' && p === '/api/group/end') return send(res, 200, groupEnd(await readJson(req)));
   if (req.method === 'POST' && p === '/api/report-event') {
     onReport(await readJson(req));
     return send(res, 200, { ok: true });

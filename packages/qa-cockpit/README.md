@@ -69,7 +69,14 @@ to agents.
     Spanish, Turkish and Ukrainian; the browser's, until you pick another.
 - **One run at a time.** A lock names who holds the stack («Claude runs
   replay chat since 10:42»). Runs launched from any terminal are followed
-  live as if the cockpit had started them.
+  live as if the cockpit had started them, and the page goes to their
+  suite while nobody is using it.
+- **Groups of suites.** Tags in `suites/tags.json` group suites (`smoke`,
+  one piece of the app, `release`); `replay --tag smoke` plays them one
+  after another, each from fresh data, and stops at the first that fails
+  (`--keep-going` plays every one). An agent can propose and write a tag
+  strategy for all your suites; the cockpit plays a tag from its suite
+  picker.
 - **Agent-first setup.** `init` writes a skill (`SKILL.md`) that tells any
   agent how to configure the project, run, record and heal, and points the
   repo's `AGENTS.md` at it.
@@ -287,6 +294,7 @@ the offsets the seed says.
 up | down | purge | status        the stack
 reset                             fresh data; saved sessions cleared
 suites                            every suite and what it needs next
+tags [add|remove|about <tag> ...]  the groups of suites (tags.json), and what is wrong in it
 setup <suite>                     the suite's setup, sessions saved
 sessions                          fresh saved sessions for the cast
 decide <suite>                    REPLAY | GENERATE <why> | ENV <why>
@@ -300,6 +308,7 @@ replay <suite> --chaos [N]        races between people: N rounds (3), each perso
 replay <suite> --chaos-seed <n>   one of those rounds again, with any look
 replay <suite> --changes [run]    ... then compared with the last green run made the same way
 changes [run] [--against <run>]   what changed from an earlier run, step by step
+replay --tag <tag> [--keep-going] a tag's suites one after another, each as a full run
 network [run]                     what they show, step by step (--against previous: what a change changed)
 stamp <suite> | hash <suite>      the suite's hash in the recording's first line
 pass <suite> <who> <result> ...   a row in the suite's runs table

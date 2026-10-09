@@ -193,6 +193,7 @@ const S = {
   runPick: { open: false, active: 0 },
   cmpPick: { open: false, active: 0 },
   follow: null, // { from, suite, who }: a run followed by itself (renderFollow)
+  chase: false, // a group launched from this page: followed suite by suite
 };
 
 async function api(path, opts) {
@@ -205,7 +206,7 @@ async function api(path, opts) {
   return body;
 }
 
-const RUN_ACTIONS = new Set(['reset', 'setup', 'prepare', 'replay', 'full']);
+const RUN_ACTIONS = new Set(['reset', 'setup', 'prepare', 'replay', 'full', 'group']);
 
 async function act(action, extra = {}) {
   try {
@@ -300,7 +301,9 @@ function kindLabel(r) {
   const round = c
     ? ` · ${!c.group ? t('races.seed', { seed: c.seed }) : c.round === 0 ? t('races.round0_short', { of: c.of }) : t('races.round_short', { round: c.round, of: c.of, seed: c.seed })}`
     : '';
-  return `${t(`kind.${r.kind}`)}${r.docker ? ` ${t('kind.docker')}` : ''}${r.who ? ` · ${r.who}` : ''}${looks}${round}`;
+  // A suite of a group of suites (`replay --tag`): the tag, and its place.
+  const group = r.group ? ` · ${quote(r.group.tag)} ${r.group.index}/${r.group.of}` : '';
+  return `${t(`kind.${r.kind}`)}${r.docker ? ` ${t('kind.docker')}` : ''}${r.who ? ` · ${r.who}` : ''}${looks}${round}${group}`;
 }
 
 function defaultSuite() {
@@ -507,15 +510,51 @@ $('lang').addEventListener('keydown', (e) => {
   e.preventDefault();
 });
 
+/** The tag the picker shows the suites of (tags.mjs), or null for all of them. */
+const pickerTag = () => (S.picker.tag ? ((S.state?.tags ?? []).find((x) => x.name === S.picker.tag) ?? null) : null);
+
 function pickerItems() {
   const q = S.picker.query.trim().toLowerCase();
+  const tag = pickerTag();
   const all = (S.state?.suites ?? []).filter(
-    (s) => (!q || `${s.title} ${s.name} ${s.summary}`.toLowerCase().includes(q)) && (s.setup || !S.picker.hideNoSetup),
+    (s) => (!q || `${s.title} ${s.name} ${s.summary}`.toLowerCase().includes(q)) && (s.setup || !S.picker.hideNoSetup) && (!tag || tag.suites.includes(s.name)),
   );
   return STANDING_ORDER.flatMap((st) => all.filter((s) => standing(s) === st));
 }
 
+// A TAG'S GROUP, in the picker (tags.mjs, `replay --tag`): a chip per tag
+// shows only its suites, and plays them all, one after another, each from
+// fresh data; the first that fails stops the rest unless the box says not.
+function renderPickerTags() {
+  const tags = S.state?.tags ?? [];
+  if (S.picker.tag && !pickerTag()) S.picker.tag = null;
+  $('pickerTags').hidden = !tags.length;
+  $('pickerTags').innerHTML = tags.length
+    ? [
+        `<button type="button" class="tag-pick${S.picker.tag ? '' : ' on'}" data-tag="">${esc(t('group.all'))}</button>`,
+        ...tags.map(
+          (x) =>
+            `<button type="button" class="tag-pick${x.name === S.picker.tag ? ' on' : ''}" data-tag="${esc(x.name)}"${x.about ? ` data-tip="${esc(x.about)}"` : ''}>${esc(x.name)}<span class="n">${x.suites.length}</span></button>`,
+        ),
+      ].join('')
+    : '';
+  const tag = pickerTag();
+  $('pickerPlay').hidden = !tag;
+  if (!tag) return;
+  const playable = tag.suites.filter((n) => {
+    const s = suiteOf(n);
+    return s && s.recorded && s.setup && s.status !== 'stale';
+  }).length;
+  $('pickerPlayAbout').textContent = tag.about;
+  $('pickerPlayAbout').hidden = !tag.about;
+  withIcon($('groupPlay'), 'play', tn('group.play', playable, { tag: tag.name }));
+  $('groupPlay').disabled = Boolean(S.state?.task) || Boolean(busyElsewhere()) || !S.state?.stack?.up || !playable;
+  const skipped = tag.suites.length - playable;
+  $('groupPlay').dataset.tip = skipped ? `${t('group.play_tip')} ${tn('group.skip_tip', skipped)}` : t('group.play_tip');
+}
+
 function renderPicker() {
+  renderPickerTags();
   const items = pickerItems();
   S.picker.active = Math.max(0, Math.min(items.length - 1, S.picker.active));
   let html = '';
@@ -590,6 +629,27 @@ function closePicker() {
 }
 
 $('pickerBtn').onclick = () => (S.picker.open ? closePicker() : openPicker());
+S.picker.tag = localStorageGet('pickerTag') || null;
+$('pickerTags').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-tag]');
+  if (!b) return;
+  S.picker.tag = b.dataset.tag || null;
+  localStorageSet('pickerTag', S.picker.tag ?? '');
+  S.picker.active = 0;
+  renderPicker();
+});
+$('groupStopFirst').checked = localStorageGet('groupStopFirst') !== '0';
+$('groupStopFirst').onchange = () => localStorageSet('groupStopFirst', $('groupStopFirst').checked ? '1' : '0');
+$('groupPlay').onclick = async () => {
+  const tag = pickerTag();
+  if (!tag) return;
+  closePicker();
+  if (!(await playersAgree('reset'))) return;
+  // Launched here: the page goes with each suite as it begins, while no
+  // inspector or note is open (renderFollow).
+  S.chase = true;
+  void act('group', { tag: tag.name, keepGoing: !$('groupStopFirst').checked, chaos: false });
+};
 S.picker.hideNoSetup = localStorageGet('hideNoSetup') === '1';
 $('pickerHide').checked = S.picker.hideNoSetup;
 $('pickerHide').onchange = () => {
@@ -1160,6 +1220,7 @@ function renderStatus() {
   $('progressBar').dataset.st = broke || r?.status === 'failed' ? 'failed' : ['stopped', 'interrupted'].includes(r?.status) ? r.status : 'passed';
   tickElapsed();
   renderRaces();
+  renderGroupStrip();
   renderPlays();
   renderChanges();
 }
@@ -1889,6 +1950,21 @@ function runReport(notesMd = '') {
     if (!races.unstable.length && !races.always.length && !races.outside.length) lines.push('No race: every step passed in every round. More rounds look further.', '');
   }
 
+  // A GROUP OF SUITES (`replay --tag`): which suite of it this run is, and
+  // what every suite did, each with its run.
+  const g = r.group;
+  if (g) {
+    const said = { passed: 'green', failed: 'red', skipped: 'passed over', 'not-run': 'not played' };
+    const why = { missing: 'no such suite', unrecorded: 'not recorded', stale: 'its recording is stale', nosetup: 'no setup' };
+    lines.push('## The group of suites', '', `This run is suite ${g.index} of ${g.of} of the tag «${g.tag}», each played as a full run.`, '');
+    if (g.found) {
+      lines.push('| Suite | Result | Run |', '|---|---|---|');
+      for (const x of g.found.results) lines.push(`| ${x.suite} | ${said[x.status]}${x.why ? `: ${why[x.why]}` : ''} | ${x.run ? `\`${OUT}/cockpit/${x.run}\`` : ''} |`);
+      lines.push('');
+      if (g.found.stopped) lines.push(`Stopped at «${g.found.stopped}», the first that failed: the rest were not played. Fix it, then play the group again: \`${S.state?.cli ?? 'npx qa-cockpit'} replay --tag ${g.tag}\`.`, '');
+    } else lines.push('The group was still playing when this report was made.', '');
+  }
+
   // WHAT CHANGED FROM AN EARLIER RUN (changes.mjs), when it was compared.
   const ch = r.changes;
   if (ch) {
@@ -2214,6 +2290,60 @@ function renderChaosPicks() {
 
 /** «T1/3 · Bob: sees it arrive». */
 const raceStep = (x) => `${testShort(x.test)}/${x.step}`;
+
+// A GROUP OF SUITES (`replay --tag`, cli.mjs): each of its runs says which
+// suite of the group it is and, once the group is over, what every suite
+// did, each one a click away (a suite of another name: the page goes to it).
+const whyWord = (why) => (why === 'missing' ? t('group.why_missing') : t(`status.${why}`).toLocaleLowerCase(locale()));
+
+function renderGroupStrip() {
+  const box = $('groupStrip');
+  const g = S.run?.group;
+  if (!g) {
+    box.hidden = true;
+    box.dataset.html = '';
+    box.innerHTML = '';
+    return;
+  }
+  const f = g.found;
+  let body = `<div class="found"><span class="verdict faint">${esc(t('group.playing'))}</span></div>`;
+  if (f) {
+    // A run no longer kept (the history keeps its newest) is said, not linked.
+    const kept = new Set((S.state?.runs ?? []).map((x) => x.id));
+    const chips = f.results
+      .map((r) => {
+        const what = r.status === 'skipped' ? t('group.skipped', { why: whyWord(r.why) }) : r.status === 'not-run' ? t('group.not_run') : t(`run.${r.status}`);
+        const open = r.run && kept.has(r.run);
+        return `<button class="gs" type="button" data-st="${esc(r.status)}" data-run="${esc(r.run ?? '')}" data-suite="${esc(r.suite)}"${r.run === S.run.id ? ' aria-current="true"' : ''}${open ? '' : ' disabled'} data-tip="${esc(`${suiteOf(r.suite)?.title ?? r.suite}: ${what}`)}"><span class="rdot"></span>${esc(r.suite)}</button>`;
+      })
+      .join('');
+    const red = f.results.filter((r) => r.status === 'failed').length;
+    const verdict = f.stopped ? t('group.stopped', { suite: suiteOf(f.stopped)?.title ?? f.stopped }) : red ? tn('group.red', red) : t('group.all_green');
+    body = `<div class="found"><span class="suites">${chips}</span><span class="verdict">${esc(verdict)}</span></div>`;
+  }
+  const html = `<div class="head">${icon('listChecks', 'sm')}<span class="what">${esc(t('group.head', { tag: g.tag, index: g.index, of: g.of }))}</span></div>${body}`;
+  box.hidden = false;
+  if (box.dataset.html === html) return;
+  box.dataset.html = html;
+  box.innerHTML = html;
+}
+
+/** A run of any suite: the page goes to its suite, at that run. */
+async function openRunOf(suite, id) {
+  if (!suiteOf(suite)) return;
+  S.follow = null;
+  S.suite = suite;
+  localStorageSet('suite', suite);
+  S.viewRunId = id === runsOf(suite)[0]?.id ? null : id;
+  if (S.ins) closeInspector();
+  await viewRun(id);
+}
+
+$('groupStrip').addEventListener('click', (e) => {
+  const b = e.target.closest('.gs[data-run]');
+  if (!b || b.disabled || !b.dataset.run || b.dataset.run === S.run?.id) return;
+  void openRunOf(b.dataset.suite, b.dataset.run);
+});
 
 function renderRaces() {
   const box = $('races');
@@ -3489,7 +3619,10 @@ function connect() {
   es.addEventListener('task', async (e) => {
     S.state.task = JSON.parse(e.data);
     void waveFavicon(Boolean(S.state.task));
-    if (!S.state.task) S.acting.clear();
+    if (!S.state.task) {
+      S.acting.clear();
+      S.chase = false;
+    }
     await refreshState();
   });
   es.addEventListener('run', async (e) => {
@@ -3505,7 +3638,10 @@ function connect() {
       // A new run of another suite, or of this one while an older run is on
       // screen, is followed while nobody is using the page; else it only
       // lights the «is running» pill.
-      if (r.status === 'running' && idle() && suiteOf(r.suite) && (r.suite !== S.suite || S.viewRunId !== null)) {
+      // A group launched from this page is followed too, unless an
+      // inspector or a note is open.
+      const chasing = S.chase && !S.ins && !S.note;
+      if (r.status === 'running' && (idle() || chasing) && suiteOf(r.suite) && (r.suite !== S.suite || S.viewRunId !== null)) {
         const from = S.follow && S.follow.suite === S.suite ? S.follow.from : S.suite;
         const who = S.state.task?.who ?? r.who ?? null;
         await pickSuite(r.suite, { followed: r.suite === from ? null : { from, suite: r.suite, who } });

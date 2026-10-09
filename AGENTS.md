@@ -33,6 +33,7 @@ without a person beside it.
 | `src/compose.mjs`, `src/process.mjs` | the two stacks a project can use |
 | `src/lock.mjs` | one run at a time, and who holds the stack |
 | `src/stackdata.mjs` | what the stack's data is now: the setup of which suite, or spent by a replay |
+| `src/tags.mjs` | the suites' tags (`<suites>/tags.json`): groups of suites that `replay --tag` plays one after another (cli.mjs, replayGroup; the server's group/next and group/end) |
 | `src/detach.mjs`, `src/desktop.mjs` | `cockpit --detach`: the cockpit started for a person, on their desktop, outliving whoever asked |
 | `src/notes.mjs` | the notes pinned on a run's photos, and their Markdown |
 | `src/play.mjs`, `src/open-browser.mjs` | «Play as»: the window a person plays in, followed for a report (their actions in the page; the window's frames, requests and errors in its process), and the report as a run of kind «play» (the cockpit writes it) |

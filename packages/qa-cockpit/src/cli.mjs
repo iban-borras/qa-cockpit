@@ -519,7 +519,9 @@ export async function runCli(rawConfig, argv) {
    * it follows, each next one is a run of its own; the end, what they found.
    * The lines this process wrote go first, each to its own round's log.
    */
-  async function chaosToCockpit(what, body) {
+  const chaosToCockpit = (what, body) => toCockpit(`chaos/${what}`, body);
+
+  async function toCockpit(route, body) {
     const run = cockpitRun();
     if (!run) return;
     if (report) await flushReport();
@@ -529,7 +531,7 @@ export async function runCli(rawConfig, argv) {
     // finds it so (ECONNRESET). The second goes on a new one.
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
-        const r = await fetch(`${process.env.COCKPIT_URL}/api/chaos/${what}`, {
+        const r = await fetch(`${process.env.COCKPIT_URL}/api/${route}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ run, ...body }),
@@ -543,6 +545,98 @@ export async function runCli(rawConfig, argv) {
         // are no worse for it.
       }
     }
+  }
+
+  // ── a group of suites (`replay --tag`, tags.mjs) ──
+
+  /** This CLI again, on the same config, through this process's own streams (the cockpit's log among them). Its code. */
+  function again(cmdArgs) {
+    const entry = fileURLToPath(new URL('../bin/qa-cockpit.mjs', import.meta.url));
+    return new Promise((resolve) => {
+      const child = spawn(process.execPath, [entry, ...cmdArgs], {
+        cwd: P.project,
+        env: { ...process.env, QA_COCKPIT_CONFIG: config.file },
+        stdio: ['inherit', 'pipe', 'pipe'],
+        windowsHide: true,
+      });
+      child.stdout.on('data', (d) => process.stdout.write(d));
+      child.stderr.on('data', (d) => process.stderr.write(d));
+      child.on('error', () => resolve(1));
+      child.on('close', (c) => resolve(c ?? 1));
+    });
+  }
+
+  /**
+   * `replay --tag <tag>`: the tag's suites, in its order, each from fresh
+   * data as a full run is (a reset, its setup, its recording) with the looks
+   * asked for. Each is this CLI again, the stack's lock handed down
+   * (QA_LOCK), so each has its own run in the cockpit, its looks' summary
+   * and its comparison, as it would alone. The first suite that fails stops
+   * the rest, to look at what broke, unless --keep-going (how far a problem
+   * reaches). A suite that cannot play (no recording, a stale one, no
+   * setup) is passed over, and said.
+   */
+  async function replayGroup(tag, args) {
+    const { readTags } = await import('./tags.mjs');
+    const usage = `Usage: ${CLI} replay --tag <tag> [--keep-going] [--a11y] [--languages [es,fr]] [--realtime] [--changes] [--network] [--in-docker]`;
+    if (!tag || tag.startsWith('--')) fail(usage);
+    if (args.some((a) => a.startsWith('--chaos'))) fail(`--chaos looks for races in one suite: ${CLI} replay <suite> --chaos.`);
+    const keepGoing = args.includes('--keep-going');
+    const looks = [...args.filter((a) => a !== '--keep-going'), ...(IN_DOCKER ? ['--in-docker'] : [])];
+    const all = new Map(listSuites(config).map((s) => [s.name, s]));
+    const { tags, problems } = readTags(config, new Set(all.keys()));
+    const group = tags.find((x) => x.name === tag);
+    if (!group) fail(`No tag «${tag}»${problems.length ? ` (${problems[0]})` : ''}: ${CLI} tags lists them.`);
+    const plan = group.suites.map((name) => {
+      const s = all.get(name);
+      const why = !s ? 'missing' : !s.recorded ? 'unrecorded' : s.status === 'stale' ? 'stale' : !s.setup ? 'nosetup' : null;
+      return { suite: name, why };
+    });
+    const said = { missing: 'no such suite', unrecorded: 'not recorded', stale: 'its recording is stale', nosetup: 'no setup' };
+    const playing = plan.filter((p) => !p.why);
+    if (!playing.length) fail(`No suite of «${tag}» can play: ${plan.map((p) => `${p.suite} (${said[p.why]})`).join(', ') || 'it has none'}.`);
+    guard();
+    await takeStack('full', playing[0].suite, ['replay', '--tag', tag, ...args].join(' '));
+    const stamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15);
+    const id = `${tag}-${stamp}`;
+    const startedAt = new Date().toISOString();
+    const count = playing.length < plan.length ? `${playing.length} of its ${plan.length} suites` : plan.length === 1 ? 'its one suite' : `its ${plan.length} suites, one after another`;
+    console.log(`The group «${tag}»: ${count}, ${plan.length === 1 ? 'from' : 'each from'} fresh data${keepGoing || plan.length === 1 ? '' : '; the first that fails stops the rest'}.`);
+    const results = [];
+    let previous = null;
+    let stopped = null;
+    for (const [i, p] of plan.entries()) {
+      if (p.why) {
+        results.push({ suite: p.suite, status: 'skipped', why: p.why });
+        console.log(`\n── ${i + 1}/${plan.length} · ${p.suite}: passed over (${said[p.why]})`);
+        continue;
+      }
+      if (stopped) {
+        results.push({ suite: p.suite, status: 'not-run' });
+        continue;
+      }
+      console.log(`\n── ${i + 1}/${plan.length} · ${p.suite}`);
+      await toCockpit('group/next', { previous, suite: p.suite, group: { id, tag, index: i + 1, of: plan.length } });
+      let code = 0;
+      for (const cmd of [config.stack.reset ? ['reset'] : null, ['setup', p.suite, ...(IN_DOCKER ? ['--in-docker'] : [])], ['replay', p.suite, ...looks]].filter(Boolean)) {
+        code = await again(cmd);
+        if (code) break;
+      }
+      previous = code ? 'failed' : 'passed';
+      results.push({ suite: p.suite, status: previous, run: cockpitRun() });
+      if (code && !keepGoing) stopped = p.suite;
+    }
+    const failed = results.filter((r) => r.status === 'failed');
+    console.log(`\nThe group «${tag}»: ${results.filter((r) => r.status === 'passed').length} green, ${failed.length} red, of ${plan.length}.`);
+    for (const r of results) {
+      const what = { passed: 'green', failed: 'red', skipped: `passed over: ${said[r.why]}`, 'not-run': 'not played' }[r.status];
+      console.log(`  ${r.suite.padEnd(Math.max(...results.map((x) => x.suite.length)))}  ${what}`);
+    }
+    if (stopped) console.log(`Stopped at «${stopped}», the first that failed: look at it, and play the group again once it is fixed (--keep-going plays every one).`);
+    fs.mkdirSync(path.join(P.out, 'groups'), { recursive: true });
+    fs.writeFileSync(path.join(P.out, 'groups', `${id}.json`), `${JSON.stringify({ tag, id, startedAt, endedAt: new Date().toISOString(), keepGoing, stopped, results }, null, 2)}\n`);
+    await toCockpit('group/end', { status: previous, found: { tag, keepGoing, stopped, results } });
+    if (failed.length) process.exitCode = 1;
   }
 
   /** «T1/3 · Bob: sees it arrive», as the summaries name a step. */
@@ -798,8 +892,11 @@ export async function runCli(rawConfig, argv) {
     // is younger than config.sessions.freshFor. `--network`: each person's
     // requests kept too, as HARs without their secrets (network/).
     async replay() {
+      // A group of suites, by its tag (tags.mjs): each played as a full run.
+      const tagAt = rest.indexOf('--tag');
+      if (tagAt !== -1) return replayGroup(rest[tagAt + 1], rest.filter((_, i) => i !== tagAt && i !== tagAt + 1));
       const suite = rest[0];
-      if (!suite) fail(`Usage: ${CLI} replay <suite> [--network [--bodies]] [--a11y] [--languages [es,fr]] [--realtime] [--changes [run]] [--chaos [N] | --chaos-seed <n>] [--in-docker] [playwright args]`);
+      if (!suite) fail(`Usage: ${CLI} replay <suite> [--network [--bodies]] [--a11y] [--languages [es,fr]] [--realtime] [--changes [run]] [--chaos [N] | --chaos-seed <n>] [--in-docker] [playwright args]\n       ${CLI} replay --tag <tag> [--keep-going] [looks]`);
       const file = recordingOf(config, suite);
       if (!file) fail(`No recording for the suite "${suite}" in ${P.recordings}`);
       const network = rest.includes('--network');
@@ -1637,6 +1734,9 @@ export async function runCli(rawConfig, argv) {
                    --changes [run]: then compared with the newest green run before it, made the
                    same way (or the one named), with the cockpit: what changed on its photos,
                    in its requests, in its page's errors
+  replay --tag <tag>   the tag's suites (tags.json) one after another, each as a full run (reset,
+                   setup, replay) with the looks asked for; the first that fails stops the rest
+                   (--keep-going: every one)
   changes [run]    a run compared with an earlier green one (--against <run>, --json)
   languages check [person]   that change of language, tried on one screen and back
   network [run]    what a replay --network found, step by step: calls one after another,
