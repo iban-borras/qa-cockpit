@@ -4,7 +4,7 @@
 // and the cockpit's page all edit:
 //
 //   {
-//     "smoke": { "about": "The paths that must never break", "suites": ["login", "chat"] },
+//     "smoke": { "about": "Paths that must never break", "suites": ["login", "chat"] },
 //     "messaging": { "suites": ["chat", "rooms"] }
 //   }
 //

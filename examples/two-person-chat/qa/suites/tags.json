@@ -1,6 +1,6 @@
 {
   "smoke": {
-    "about": "The paths that must never break: a message that arrives live, the empty one refused, who is here",
+    "about": "Chat essentials, end to end",
     "suites": [
       "chat"
     ]

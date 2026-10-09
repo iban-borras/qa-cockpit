@@ -520,7 +520,7 @@ changed would make its recording look stale):
 
 ```json
 {
-  "smoke": { "about": "The paths that must never break: a few minutes", "suites": ["login", "chat"] },
+  "smoke": { "about": "Paths that must never break", "suites": ["login", "chat"] },
   "checkout": { "about": "Paying, refunds and invoices", "suites": ["cart", "pay", "refund"] }
 }
 ```
@@ -532,7 +532,7 @@ file by hand, or:
 npx qa-cockpit tags                         # every tag, its suites, the suites in none, what is wrong
 npx qa-cockpit tags add smoke login chat     # suites into a tag (made when new), at its end
 npx qa-cockpit tags remove smoke chat        # off it
-npx qa-cockpit tags about smoke "The paths that must never break"
+npx qa-cockpit tags about smoke "Paths that must never break"
 npx qa-cockpit replay --tag smoke            # its suites, each from fresh data (reset, setup, replay)
 npx qa-cockpit replay --tag smoke --keep-going --changes   # every one, compared with its last green run
 ```
@@ -551,12 +551,14 @@ off.
 
 **When a person asks for a tag strategy**, read every suite (`suites`, and
 each one's first paragraph and tests), then propose a few tags, named by
-what they are for, each with its `about`: a short `smoke` of the paths
-that must never break (fast, run often); one per piece of the app, for
-after touching it; perhaps one per kind of person (a host, a guest);
-`release` for every suite that is ready. Order a tag's suites cheapest and
-most telling first. Say what you propose and why before writing it, unless
-the person asked you to write it straight away; then `tags` to check it.
+what they are for: a short `smoke` of the paths that must never break
+(fast, run often); one per piece of the app, for after touching it;
+perhaps one per kind of person (a host, a guest); `release` for every
+suite that is ready. A tag's `about` is a headline, five words at most
+(«Paths that must never break»): the suites say the rest. Order a tag's
+suites cheapest and most telling first. Say what you propose and why
+before writing it, unless the person asked you to write it straight away;
+then `tags` to check it.
 
 ## Changes from an earlier run (when a person asks, or after a change)
 
