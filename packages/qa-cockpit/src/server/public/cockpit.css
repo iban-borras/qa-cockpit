@@ -171,13 +171,13 @@ select option { background: var(--panel-2); color: var(--text); }
 .split .run-more > summary { width: 28px; border-top-left-radius: 0; border-bottom-left-radius: 0; border-left-color: rgba(255, 255, 255, 0.3); }
 .split.alone .run-more > summary { width: 32px; border-radius: var(--radius); border-left-color: var(--line-2); }
 .split .run-more .menu { width: 320px; }
-.run-item { display: flex; gap: 10px; width: 100%; padding: 8px; border: 0; border-radius: 6px; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
-.run-item:hover, .run-item:focus-visible { background: var(--panel-3); }
-.run-item:disabled { opacity: 0.45; cursor: not-allowed; }
-.run-item > svg.i { margin-top: 1px; color: var(--muted); }
-.run-item b { display: block; font-weight: 550; font-size: 13px; }
-.run-item b + span { display: block; font-size: 12px; color: var(--muted); }
-.run-item.danger:hover b, .run-item.danger:hover > svg.i { color: var(--err); }
+.run-way { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 8px; border: 0; border-radius: 6px; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.run-way:hover, .run-way:focus-visible { background: var(--panel-3); }
+.run-way:disabled { opacity: 0.45; cursor: not-allowed; }
+.run-way > svg.i { margin-top: 2px; color: var(--muted); }
+.run-way b { display: block; font-weight: 550; font-size: 13px; }
+.run-way b + span { display: block; font-size: 12px; color: var(--muted); }
+.run-way.danger:hover b, .run-way.danger:hover > svg.i { color: var(--err); }
 .opt { display: flex; gap: 10px; padding: 8px; border-radius: 6px; cursor: pointer; }
 .opt:hover { background: var(--panel-3); }
 .opt input { margin-top: 3px; accent-color: var(--accent); }

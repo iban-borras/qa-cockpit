@@ -829,7 +829,7 @@ function updateButtons() {
   const menu = otherRuns(s, plan)
     .map((a) => {
       const r = RUNS[a];
-      return `<button type="button" class="run-item${a === 'reset' ? ' danger' : ''}" role="menuitem" data-run="${a}"${off ? ' disabled' : ''}>${icon(r.icon)}<span><b>${esc(t(r.label))}</b><span>${esc(t(r.tip))}</span></span></button>`;
+      return `<button type="button" class="run-way${a === 'reset' ? ' danger' : ''}" role="menuitem" data-way="${a}"${off ? ' disabled' : ''}>${icon(r.icon)}<span><b>${esc(t(r.label))}</b><span>${esc(t(r.tip))}</span></span></button>`;
     })
     .join('');
   // Drawn again only when it changes: an open menu keeps its focus.
@@ -3538,10 +3538,10 @@ $('btnRun').onclick = () => {
   if (S.plan) void startRun(S.plan.action);
 };
 $('runMenu').addEventListener('click', (e) => {
-  const item = e.target.closest('[data-run]');
+  const item = e.target.closest('[data-way]');
   if (!item || item.disabled) return;
   $('runMore').open = false;
-  void startRun(item.dataset.run);
+  void startRun(item.dataset.way);
 });
 
 // A REPLAY NEEDS ITS SUITE'S SETUP just before it (stackdata.mjs). When the
