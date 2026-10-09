@@ -2276,7 +2276,10 @@ function changeLine(f) {
 /** A run as the strip names it: when, and what kind. */
 const runName = (id) => {
   const x = (S.state?.runs ?? []).find((y) => y.id === id);
-  return x ? `${when(x.startedAt)} · ${kindLabel(x)}` : id;
+  if (x) return `${when(x.startedAt)} · ${kindLabel(x)}`;
+  // A run the cockpit no longer keeps: its time, from its id (local time).
+  const m = /^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/.exec(id ?? '');
+  return m ? when(new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]).toISOString()) : id;
 };
 
 function renderChanges() {
