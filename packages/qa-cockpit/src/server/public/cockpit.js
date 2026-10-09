@@ -191,6 +191,7 @@ const S = {
   picker: { open: false, active: 0, query: '', hideNoSetup: false },
   runPick: { open: false, active: 0 },
   cmpPick: { open: false, active: 0 },
+  follow: null, // { from, suite, who }: a run followed by itself (renderFollow)
 };
 
 async function api(path, opts) {
@@ -308,8 +309,11 @@ function defaultSuite() {
 }
 
 /** Pick a suite: the page now shows it, at its newest run if it has one. */
-async function pickSuite(name) {
+async function pickSuite(name, { followed = null } = {}) {
   if (!suiteOf(name)) return;
+  // Picked by a hand, the page no longer follows anything; followed, it
+  // keeps where it came from.
+  S.follow = followed;
   S.suite = name;
   localStorageSet('suite', name);
   S.viewRunId = null;
@@ -1069,6 +1073,7 @@ function renderStatus() {
   const pill = $('elsewhere');
   pill.hidden = !other;
   if (other) withIcon(pill, 'radio', `${t('elsewhere', { suite: other.title })} · ${t('elsewhere.go')}`);
+  renderFollow();
 
   const now = $('nowText');
   now.classList.remove('err');
@@ -3433,9 +3438,14 @@ function connect() {
     if (listed !== -1) S.state.runs[listed] = { ...S.state.runs[listed], ...r, tally: undefined };
     if (isNew) {
       S.state.runs = (await api('/api/state')).runs;
-      // A new run of the suite on screen is followed; one of another suite
-      // only lights the «is running» pill.
-      if (S.viewRunId === null && r.suite === S.suite) {
+      // A new run of another suite, or of this one while an older run is on
+      // screen, is followed while nobody is using the page; else it only
+      // lights the «is running» pill.
+      if (r.status === 'running' && idle() && suiteOf(r.suite) && (r.suite !== S.suite || S.viewRunId !== null)) {
+        const from = S.follow && S.follow.suite === S.suite ? S.follow.from : S.suite;
+        const who = S.state.task?.who ?? r.who ?? null;
+        await pickSuite(r.suite, { followed: r.suite === from ? null : { from, suite: r.suite, who } });
+      } else if (S.viewRunId === null && r.suite === S.suite) {
         S.run = r;
         S.frames = [];
         S.notes = [];
@@ -3712,6 +3722,34 @@ function staleWhy(suite) {
 }
 $('btnStop').onclick = () => act('stop');
 $('elsewhere').onclick = () => S.state?.task?.suite && pickSuite(S.state.task.suite);
+
+// A RUN THAT BEGINS ELSEWHERE (an agent's from a terminal, a group's next
+// suite) is followed by itself while nobody is using the page: a minute
+// without a hand on it, and nothing open over it (an inspector, a note, a
+// menu, a dialog). Followed, the page says so and offers the way back.
+const IDLE_MS = 60_000;
+let lastHand = 0;
+for (const type of ['pointerdown', 'pointermove', 'keydown', 'wheel']) {
+  addEventListener(type, () => (lastHand = Date.now()), { capture: true, passive: true });
+}
+function idle() {
+  const open = S.ins || S.note || S.picker.open || S.runPick.open || S.cmpPick.open || document.querySelector('dialog[open], details[open]');
+  return !open && (document.hidden || Date.now() - lastHand >= IDLE_MS);
+}
+
+/** The pill of a run followed by itself: what it shows, who ran it, and the way back. */
+function renderFollow() {
+  const f = S.follow;
+  const pill = $('followBack');
+  const from = f && f.suite === S.suite && f.from !== S.suite ? suiteOf(f.from) : null;
+  pill.hidden = !from;
+  if (!from) return;
+  const now = suiteOf(f.suite)?.title ?? f.suite;
+  // «terminal»: a shell with no agent known above it (lock.mjs, whoAmI), nobody to name.
+  const who = f.who && f.who !== 'terminal' ? f.who : null;
+  withIcon(pill, 'radio', `${who ? t('follow.now', { suite: now, who }) : t('follow.now_bare', { suite: now })} · ${t('follow.back', { suite: from.title })}`);
+}
+$('followBack').onclick = () => S.follow && pickSuite(S.follow.from);
 
 function toggleMarks() {
   $('optMarks').checked = !$('optMarks').checked;

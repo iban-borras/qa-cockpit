@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.10.0 (unreleased)
+
+- A run that begins elsewhere (an agent's, from a terminal) is followed by
+  the page while nobody is using it: a minute without a hand on it, or the
+  page out of sight, and nothing open over it (an inspector, a note, a
+  menu, a dialog). A pill says whose run it follows and takes the page
+  back to the suite it was on. A person using the page sees the «is
+  running» pill, as before.
+
 ## 0.9.0 (2026-10-09)
 
 - The cockpit in fourteen languages: to Catalan, English and Spanish come
