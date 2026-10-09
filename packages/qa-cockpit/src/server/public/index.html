@@ -97,6 +97,12 @@
     <div class="suite-side">
       <div id="suiteTests" class="suite-tests"></div>
       <div class="suite-who"><span class="faint" data-i18n="suite.who"></span><span id="suiteCast" class="suite-cast"></span></div>
+      <div class="suite-groups">
+        <span class="faint" data-i18n="tags.label"></span>
+        <span id="suiteTagList" class="tag-list"></span>
+        <button class="tag-add" id="tagAdd" type="button"></button>
+        <span class="tag-new" id="tagNew" hidden><input id="tagInput" list="tagOptions" autocomplete="off" spellcheck="false" data-i18n-placeholder="tags.placeholder" data-i18n-aria="tags.add_tip"><datalist id="tagOptions"></datalist></span>
+      </div>
       <div id="suiteLast" class="faint"></div>
       <div id="suiteRun" class="faint"></div>
     </div>

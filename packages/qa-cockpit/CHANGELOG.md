@@ -2,6 +2,13 @@
 
 ## 0.10.0 (unreleased)
 
+- Tags: groups of suites, in one file beside them, `<suites>/tags.json`,
+  each with what it is for and its suites in the order they play. Out of the
+  suites' documents, so a tag never makes a recording look stale. The
+  suite's panel puts its tags on and takes them off (a chip each, and «+
+  tag» with the ones there are); the suite picker shows them; an agent edits
+  the file, or runs `qa-cockpit tags` (every tag and what is wrong in the
+  file), `tags add <tag> <suite>...`, `tags remove` and `tags about`.
 - A run that begins elsewhere (an agent's, from a terminal) is followed by
   the page while nobody is using it: a minute without a hand on it, or the
   page out of sight, and nothing open over it (an inspector, a note, a

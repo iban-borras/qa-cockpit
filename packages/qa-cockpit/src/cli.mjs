@@ -1320,6 +1320,59 @@ export async function runCli(rawConfig, argv) {
       for (const s of all) console.log(`${s.status.padEnd(10)} ${s.name}  ${s.tests} tests · ${s.cast.join(', ') || 'no cast'}`);
     },
 
+    // The suites' tags (tags.mjs): groups of suites played one after
+    // another (`replay --tag`). With no words, every tag, its suites, the
+    // suites with none, and what is wrong in the file; `add`, `remove` and
+    // `about` change it.
+    async tags() {
+      const { changeTags, readTags, tagsFileOf } = await import('./tags.mjs');
+      const usage = [
+        `Usage: ${CLI} tags                          every tag, its suites, and what is wrong`,
+        `       ${CLI} tags add <tag> <suite>...      the suites in the tag (made when new), at its end`,
+        `       ${CLI} tags remove <tag> <suite>...   the suites off it`,
+        `       ${CLI} tags about <tag> <words...>    what the tag is for`,
+      ].join('\n');
+      const known = new Set(listSuites(config).map((s) => s.name));
+      const [sub, name, ...more] = rest;
+      if (sub === 'add' || sub === 'remove') {
+        if (!name || !more.length) fail(usage);
+        const strange = sub === 'add' ? more.filter((s) => !known.has(s)) : [];
+        if (strange.length) fail(`No suite ${strange.map((s) => `«${s}»`).join(', ')} in ${shown(config, P.suites)}.`);
+        try {
+          return console.log(changeTags(config, name, sub === 'add' ? { add: more } : { remove: more }));
+        } catch (e) {
+          fail(e instanceof Error ? e.message : String(e));
+        }
+      }
+      if (sub === 'about') {
+        if (!name || !more.length) fail(usage);
+        try {
+          return console.log(changeTags(config, name, { about: more.join(' ') }));
+        } catch (e) {
+          fail(e instanceof Error ? e.message : String(e));
+        }
+      }
+      if (sub) fail(usage);
+      const { tags, problems } = readTags(config, known);
+      if (!tags.length && !problems.length) {
+        console.log(`No tags yet. They live in ${shown(config, tagsFileOf(config))}: ${CLI} tags add smoke <suite>...`);
+        return;
+      }
+      console.log(`Tags, in ${shown(config, tagsFileOf(config))}:`);
+      const width = Math.max(...tags.map((x) => x.name.length), 4);
+      for (const x of tags) {
+        console.log(`  ${x.name.padEnd(width)}  ${x.suites.join(', ') || '(no suites)'}`);
+        if (x.about) console.log(`  ${' '.repeat(width)}  ${x.about}`);
+      }
+      const untagged = [...known].filter((s) => !tags.some((x) => x.suites.includes(s)));
+      if (untagged.length) console.log(`Suites in no tag: ${untagged.join(', ')}`);
+      if (problems.length) {
+        console.log('What is wrong in it:');
+        for (const p of problems) console.log(`  ${p}`);
+        process.exitCode = 1;
+      }
+    },
+
     // The notes pinned on a run's photos in the cockpit (notes.mjs), as
     // Markdown for the agent that acts on them: the newest run with notes,
     // or the one named. `--list`: every run that has some.
@@ -1560,6 +1613,7 @@ export async function runCli(rawConfig, argv) {
   status           where it answers, saved sessions
   reset            fresh data; saved sessions cleared
   suites           every suite and what it needs next
+  tags [add|remove|about <tag> ...]   groups of suites, in <suites>/tags.json
   setup <suite>    cast and initial state of a suite, sessions saved
   sessions         fresh saved sessions for everybody with an account
   smoke            the app loads and the API answers

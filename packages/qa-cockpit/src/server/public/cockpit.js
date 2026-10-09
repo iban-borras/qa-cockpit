@@ -59,6 +59,7 @@ const ICONS = {
   // Changes from an earlier run: two things compared.
   compare: '<circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><path d="M11 18H8a2 2 0 0 1-2-2V9"/>',
   // A report from «Play as»: a flag on what went wrong.
+  plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
   flag: '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/>',
 };
 const icon = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
@@ -335,6 +336,7 @@ function renderSuitePanel() {
   $('suiteCast').innerHTML = s.cast
     .map((p) => `<span class="avatar" title="${esc(cap(p))}">${esc(p[0])}</span>`)
     .join('');
+  renderSuiteTags(s);
   $('suiteLast').textContent = s.lastPass ? t('suite.last_pass', { date: s.lastPass.date, result: s.lastPass.result }) : t('suite.no_pass');
   const last = runsOf(s.name)[0];
   $('suiteRun').textContent = last ? t('suite.last_run', { when: when(last.startedAt), status: t(`run.${last.status}`).toLowerCase() }) : '';
@@ -384,6 +386,60 @@ function renderTodo(s) {
   $('suiteTodoPrompt').textContent = t(prompt, { suite: s.name });
   if (!$('suiteTodoCopy').dataset.copied) withIcon($('suiteTodoCopy'), 'copy', t('todo.copy'));
 }
+
+// A SUITE'S TAGS (tags.mjs): the groups of suites it plays in, put on and
+// taken off here; tags.json, the same file an agent edits, or `tags`.
+const TAG_NAME = /^[a-z0-9][a-z0-9-]{0,31}$/;
+function renderSuiteTags(s) {
+  $('suiteTagList').innerHTML = (s.tags ?? [])
+    .map((tag) => {
+      const off = esc(t('tags.remove', { tag }));
+      return `<span class="tag-chip">${esc(tag)}<button type="button" class="x" data-untag="${esc(tag)}" aria-label="${off}" data-tip="${off}">${icon('x', 'sm')}</button></span>`;
+    })
+    .join('');
+  $('tagOptions').innerHTML = (S.state.tags ?? [])
+    .filter((x) => !(s.tags ?? []).includes(x.name))
+    .map((x) => `<option value="${esc(x.name)}">${esc(x.about)}</option>`)
+    .join('');
+  withIcon($('tagAdd'), 'plus', t('tags.add'));
+  $('tagAdd').dataset.tip = t('tags.add_tip');
+}
+
+async function changeTag(change, tag) {
+  await api('/api/tags', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ suite: S.suite, tag, change }),
+  }).catch((e) => banner(e.message, 'err'));
+}
+
+function closeTagNew() {
+  $('tagNew').hidden = true;
+  $('tagAdd').hidden = false;
+}
+$('suiteTagList').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-untag]');
+  if (b) void changeTag('remove', b.dataset.untag);
+});
+$('tagAdd').onclick = () => {
+  $('tagAdd').hidden = true;
+  $('tagNew').hidden = false;
+  $('tagInput').value = '';
+  $('tagInput').focus();
+};
+$('tagInput').onkeydown = (e) => {
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    return closeTagNew();
+  }
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const tag = $('tagInput').value.trim().toLowerCase().replace(/\s+/g, '-');
+  if (!TAG_NAME.test(tag)) return banner(t('tags.bad'), 'warn');
+  closeTagNew();
+  void changeTag('add', tag);
+};
+$('tagInput').onblur = () => closeTagNew();
 
 $('suiteTodoCopy').onclick = async () => {
   const btn = $('suiteTodoCopy');
@@ -484,6 +540,7 @@ function renderPicker() {
       <span class="tags">${tagsOf(s, { running: true })}</span>
       <span class="d">${esc(s.summary)}</span>
       <span class="m">${esc(meta)}</span>
+      ${s.tags?.length ? `<span class="g">${s.tags.map((g) => `<span class="tag-chip sm">${esc(g)}</span>`).join('')}</span>` : ''}
     </div>`;
   });
   $('pickerList').innerHTML = html || `<p class="picker-empty">${esc(t('picker.empty'))}</p>`;
@@ -3405,6 +3462,13 @@ function connect() {
     if (!S.suite || !suiteOf(S.suite)) S.suite = defaultSuite();
     const id = S.viewRunId ?? runsOf(S.suite)[0]?.id ?? null;
     await viewRun(id);
+  });
+  // Tags changed (tags.mjs), here or by an agent through the cockpit.
+  es.addEventListener('tags', (e) => {
+    const x = JSON.parse(e.data);
+    Object.assign(S.state, { suites: x.suites, tags: x.tags, tagsProblems: x.tagsProblems });
+    renderSuitePanel();
+    if (S.picker.open) renderPicker();
   });
   es.addEventListener('stack', (e) => {
     S.state.stack = JSON.parse(e.data);

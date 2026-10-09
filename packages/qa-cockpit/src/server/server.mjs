@@ -33,6 +33,7 @@ import { desktopOf } from '../desktop.mjs';
 import { playRun } from '../play.mjs';
 import { candidatesOf, readChanges } from '../changes.mjs';
 import { playwrightCoreDir } from '../deps.mjs';
+import { changeTags, readTags, tagsOfSuite } from '../tags.mjs';
 
 const PACKAGE_JSON = new URL('../../package.json', import.meta.url);
 const VERSION = JSON.parse(fs.readFileSync(PACKAGE_JSON, 'utf8')).version;
@@ -1363,6 +1364,16 @@ function watchLock() {
   broadcast('lock', JSON.parse(now));
 }
 
+/**
+ * The suites, each with its tags, and the tags (tags.mjs): read again for
+ * each state, so a change an agent made to tags.json shows on the next.
+ */
+function suitesAndTags() {
+  const suites = listSuites(CFG);
+  const { tags, problems } = readTags(CFG, new Set(suites.map((x) => x.name)));
+  return { suites: suites.map((x) => ({ ...x, tags: tagsOfSuite(tags, x.name) })), tags, tagsProblems: problems };
+}
+
 function state() {
   const sessions = fs.existsSync(CFG.paths.state)
     ? fs.readdirSync(CFG.paths.state).filter((f) => f.endsWith('.json')).map((f) => f.replace(/\.json$/, ''))
@@ -1404,7 +1415,7 @@ function state() {
     stack,
     desktopWarning,
     lock: lockInfo(),
-    suites: listSuites(CFG),
+    ...suitesAndTags(),
     sessions,
     cast: CFG.cast.map((p) => ({ id: p.id, name: p.name, email: p.email, badge: p.badge, device: usualDevice(p.id) })),
     task: taskInfo(),
@@ -1676,6 +1687,20 @@ async function handle(req, res) {
   if (req.method === 'POST' && p === '/api/report-event') {
     onReport(await readJson(req));
     return send(res, 200, { ok: true });
+  }
+  // A suite put in a tag or taken off it, from the suite's panel.
+  if (req.method === 'POST' && p === '/api/tags') {
+    const body = await readJson(req);
+    const suite = listSuites(CFG).find((x) => x.name === body?.suite)?.name;
+    if (!suite || typeof body?.tag !== 'string' || !['add', 'remove'].includes(body?.change)) return send(res, 400, { ok: false, error: 'tag' });
+    try {
+      const said = changeTags(CFG, body.tag, body.change === 'add' ? { add: [suite] } : { remove: [suite] });
+      log(`[cockpit] tags: ${said}`);
+      broadcast('tags', suitesAndTags());
+      return send(res, 200, { ok: true });
+    } catch (e) {
+      return send(res, 400, { ok: false, error: e instanceof Error ? e.message : String(e) });
+    }
   }
   if (req.method === 'POST' && p === '/api/action') {
     try {
