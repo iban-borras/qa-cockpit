@@ -894,7 +894,11 @@ export async function runCli(rawConfig, argv) {
       // Red or green, what it reached is compared, then it ends with its code.
       const code = await playwright(['test', testFileArg(file), ...pwArgs], { exit: false });
       await lookForChanges(cockpitRun(), changesFlag.value);
-      process.exit(code);
+      // Its code as the end, with the loop left to drain: a process.exit()
+      // while the comparison's browser and sockets are still closing aborts
+      // Node on Windows (libuv's UV_HANDLE_CLOSING assertion), and the
+      // cockpit read a green run as red.
+      process.exitCode = code;
     },
 
     // What a person reported from «Play as» in the cockpit (play.mjs): their

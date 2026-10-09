@@ -19,6 +19,10 @@
   a language does not have yet is said in English, and
   `scripts/i18n-check.mjs` lists what each one is missing, and any
   placeholder lost on the way.
+- A replay with `--changes` no longer ends red after a green run on
+  Windows: Node aborted on its way out (libuv's `UV_HANDLE_CLOSING`
+  assertion) when the CLI exited while the comparison's browser and
+  sockets were still closing.
 - `languages.ready({ page, person })`, optional in the config: before each
   step's look in other languages, whether its screen can be changed now. It
   may wait (for a «Saving…» to turn «Saved»), or return or throw why not (a
