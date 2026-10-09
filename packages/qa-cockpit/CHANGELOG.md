@@ -2,6 +2,11 @@
 
 ## 0.10.0 (unreleased)
 
+- A run can be deleted by hand, from the run picker: a trash on the run
+  under the pointer (or the Delete key), a word first on what goes with it
+  (its photos, traces and notes, for good), never the run going now. A run
+  with notes was kept forever, past `keepRuns`: a record of a moment, it
+  goes when nobody needs it.
 - `replay --tag <tag>`: a tag's suites one after another, each as a full
   run (reset, setup, replay) with the looks asked for (`--changes`, `--a11y`,
   `--languages`...), a run of its own in the cockpit. The first that fails
@@ -12,6 +17,10 @@
   tag's suites, numbered in the order they play, and plays its group, «Stop at the first failure» on unless
   taken off, and the page goes with each suite as it begins. The skill
   tells an agent how to propose a tag strategy for all the suites.
+- A page older than the cockpit that answers it (the cockpit restarted on
+  a newer version while the page stayed open) asks to be reloaded, rather
+  than to restart a cockpit already restarted; the «restart the cockpit»
+  banner goes once the cockpit runs what is installed.
 - `--in-docker` says, before the container starts, when the lockfile takes
   a dependency from a file or a folder outside the repository (a package
   tried from a tarball elsewhere on the disk): the container sees only the

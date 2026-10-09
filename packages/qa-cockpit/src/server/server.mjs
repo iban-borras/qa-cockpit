@@ -292,11 +292,16 @@ function loadRun(id) {
   return { ...meta, dir, frames, closed: true };
 }
 
+// Runs deleted by hand: on Windows a folder deleted while something still
+// holds one of its files (an indexer, an antivirus) lingers a few seconds,
+// and the list would bring it back.
+const deletedRuns = new Set();
+
 function listRuns() {
   if (!fs.existsSync(COCKPIT_DIR)) return [];
   return fs
     .readdirSync(COCKPIT_DIR, { withFileTypes: true })
-    .filter((e) => e.isDirectory() && fs.existsSync(path.join(COCKPIT_DIR, e.name, 'run.json')))
+    .filter((e) => e.isDirectory() && !deletedRuns.has(e.name) && fs.existsSync(path.join(COCKPIT_DIR, e.name, 'run.json')))
     .map((e) => e.name)
     .sort()
     .reverse();
@@ -1674,6 +1679,21 @@ async function handle(req, res) {
     const dir = inside(COCKPIT_DIR, decodeURIComponent(p.slice('/api/runs/'.length, -'/log'.length)));
     if (!dir || !fs.existsSync(path.join(dir, 'run.json'))) return send(res, 404, { error: 'No such run' });
     return send(res, 200, readRunLog(dir).slice(-LOG_LINES));
+  }
+  // A run deleted by hand, from the run picker: its photos, traces and
+  // notes with it, a record of a moment nobody needs any more. Never the
+  // one going now.
+  if (req.method === 'DELETE' && p.startsWith('/api/runs/')) {
+    const id = decodeURIComponent(p.slice('/api/runs/'.length));
+    const dir = RUN_ID.test(id) ? inside(COCKPIT_DIR, id) : null;
+    if (!dir || dir === COCKPIT_DIR || !fs.existsSync(path.join(dir, 'run.json'))) return send(res, 404, { ok: false, error: 'No such run' });
+    if (run && run.id === id && !run.closed) return send(res, 400, { ok: false, code: 'run_going', params: {}, error: 'run_going' });
+    deletedRuns.add(id);
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 3 });
+    if (run && run.id === id) run = null;
+    log(`[cockpit] the run ${id} deleted, by hand`);
+    broadcast('deleted', { id });
+    return send(res, 200, { ok: true });
   }
   if (req.method === 'GET' && p.startsWith('/api/runs/')) {
     const id = decodeURIComponent(p.slice('/api/runs/'.length));

@@ -206,6 +206,9 @@ async function api(path, opts) {
   return body;
 }
 
+// The cockpit's version this page's code came with (the first hello).
+let pageVersion = null;
+
 const RUN_ACTIONS = new Set(['reset', 'setup', 'prepare', 'replay', 'full', 'group']);
 
 async function act(action, extra = {}) {
@@ -929,7 +932,12 @@ function renderHeader() {
   updateButtons();
   if (st.desktopWarning) banner(desktopText(st.desktopWarning), 'warn');
   // Older than the package installed now (server.mjs): it starts no run.
-  if (st.outdated) banner(t('err.cockpit_outdated', st.outdated), 'err');
+  // Not so any more (restarted): the banner goes. A page older than the
+  // cockpit that answers it: reloaded, it is the cockpit's.
+  if (S.pageOld) banner(t('err.page_outdated', { running: S.pageOld }), 'warn');
+  else if (st.outdated) banner(t('err.cockpit_outdated', st.outdated), 'err');
+  else if (renderHeader.outdated && !st.desktopWarning) banner(null);
+  renderHeader.outdated = Boolean(st.outdated || S.pageOld);
   $('optHeaded').disabled = Boolean(st.desktopWarning);
 }
 
@@ -1293,7 +1301,7 @@ function runTests(x) {
  * run to compare with, where a run's own changes (from yet another run) are
  * left out: they would read as this comparison's.
  */
-function runOption(x, { active, selected, prefix, ownChanges = true }) {
+function runOption(x, { active, selected, prefix, ownChanges = true, deletable = false }) {
   const st = runStatus(x);
   const pins = x.id === S.run?.id ? S.notes.filter(kept).length : (x.notes ?? 0);
   const moved = ownChanges && x.changes ? x.changes.changed + x.changes.new + x.changes.gone : 0;
@@ -1303,13 +1311,14 @@ function runOption(x, { active, selected, prefix, ownChanges = true }) {
       <span class="k"><b>${esc(runWhen(x))}</b> · ${esc(kindLabel(x))}</span>
       <span class="chip ${STATUS_CHIP[st] ?? ''}">${st === 'running' ? '<span class="dot"></span>' : ''}${esc(t(`run.${st}`))}</span>
       ${meta ? `<span class="m">${meta}</span>` : ''}
+      ${deletable && st !== 'running' ? `<button type="button" class="rdel" data-del="${esc(x.id)}" aria-label="${esc(t('run.delete'))}" data-tip="${esc(t('run.delete'))}">${icon('trash', 'sm')}</button>` : ''}
     </div>`;
 }
 
 function renderRunPop({ scroll = false } = {}) {
   const runs = runsOf(S.suite);
   S.runPick.active = Math.max(0, Math.min(runs.length - 1, S.runPick.active));
-  $('runPop').innerHTML = runs.map((x, i) => runOption(x, { active: i === S.runPick.active, selected: x.id === S.run?.id, prefix: 'run-opt' })).join('');
+  $('runPop').innerHTML = runs.map((x, i) => runOption(x, { active: i === S.runPick.active, selected: x.id === S.run?.id, prefix: 'run-opt', deletable: true })).join('');
   const active = runs[S.runPick.active];
   $('runPop').setAttribute('aria-activedescendant', active ? `run-opt-${active.id}` : '');
   if (scroll) $('runPop').querySelector('.run-item.active')?.scrollIntoView({ block: 'nearest' });
@@ -1356,7 +1365,10 @@ $('runPop').onkeydown = (e) => {
   else if (e.key === 'ArrowUp') S.runPick.active = Math.max(0, S.runPick.active - 1);
   else if (e.key === 'Home') S.runPick.active = 0;
   else if (e.key === 'End') S.runPick.active = runs.length - 1;
-  else if (e.key === 'Enter' || e.key === ' ') {
+  else if (e.key === 'Delete') {
+    e.preventDefault();
+    return void deleteRun(runs[S.runPick.active]?.id);
+  } else if (e.key === 'Enter' || e.key === ' ') {
     e.preventDefault();
     return void pickRun(runs[S.runPick.active]?.id);
   } else if (e.key === 'Escape') {
@@ -1368,9 +1380,22 @@ $('runPop').onkeydown = (e) => {
   renderRunPop({ scroll: true });
 };
 $('runPop').addEventListener('click', (e) => {
+  const del = e.target.closest('[data-del]');
+  if (del) return void deleteRun(del.dataset.del);
   const item = e.target.closest('[data-run]');
   if (item) void pickRun(item.dataset.run);
 });
+
+// A RUN DELETED BY HAND (server.mjs): a record of a moment nobody needs any
+// more, its photos, traces and notes with it; never the one going now. The
+// page on it goes to the suite's newest (the «deleted» event).
+async function deleteRun(id) {
+  const x = runsOf(S.suite).find((y) => y.id === id);
+  if (!x || runStatus(x) === 'running') return;
+  closeRunPick();
+  if (!(await ask(t('run.delete_q', { run: runName(id) }), t('run.delete_yes')))) return $('runBtn').focus();
+  await api(`/api/runs/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch((e) => banner(e.message, 'err'));
+}
 
 function tickElapsed() {
   const r = S.run;
@@ -3610,6 +3635,11 @@ function connect() {
   es.addEventListener('hello', async (e) => {
     serverBack();
     S.state = JSON.parse(e.data);
+    // This page's code is the cockpit's that served it: one restarted on a
+    // newer version since is answered by an older page, which asks to be
+    // reloaded (CritKeep's said to restart a cockpit already restarted).
+    pageVersion ??= S.state.version;
+    S.pageOld = S.state.version && S.state.version !== pageVersion ? S.state.version : null;
     // The project's own words and language (the person's choice wins).
     setGlobals({ cli: S.state.cli, skill: S.state.paths?.skill });
     preferLang(S.state.language);
@@ -3617,6 +3647,20 @@ function connect() {
     if (!S.suite || !suiteOf(S.suite)) S.suite = defaultSuite();
     const id = S.viewRunId ?? runsOf(S.suite)[0]?.id ?? null;
     await viewRun(id);
+  });
+  // A run deleted by hand, here or in another window of the cockpit.
+  es.addEventListener('deleted', async (e) => {
+    const { id } = JSON.parse(e.data);
+    S.state.runs = (S.state.runs ?? []).filter((x) => x.id !== id);
+    if (S.state.run?.id === id) S.state.run = null;
+    if (S.run?.id === id) {
+      if (S.ins) closeInspector();
+      S.viewRunId = null;
+      await viewRun(runsOf(S.suite)[0]?.id ?? null);
+    }
+    renderStatus();
+    renderSuitePanel();
+    if (S.runPick.open) renderRunPop();
   });
   // Tags changed (tags.mjs), here or by an agent through the cockpit.
   es.addEventListener('tags', (e) => {
