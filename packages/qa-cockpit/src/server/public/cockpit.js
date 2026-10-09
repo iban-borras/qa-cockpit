@@ -12,7 +12,7 @@
 //     browser LIVE while the run goes (an MJPEG stream the server relays);
 //   - the TRACE of a test, Playwright's own viewer, for every click.
 
-import { LANGS, applyI18n, getLang, locale, preferLang, setGlobals, setLang, t } from './i18n.js';
+import { LANGS, applyI18n, endonym, getLang, langLabel, listOf, locale, preferLang, quote, setGlobals, setLang, t, tn } from './i18n.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -318,7 +318,7 @@ function renderSuitePanel() {
   $('suiteSummary').textContent = s.summary;
   $('suiteWhy').textContent = t(`status.${s.status}_why`);
   renderTodo(s);
-  $('suiteTests').textContent = t('suite.tests', { n: s.tests });
+  $('suiteTests').textContent = tn('suite.tests', s.tests);
   $('suiteCast').innerHTML = s.cast
     .map((p) => `<span class="avatar" title="${esc(cap(p))}">${esc(p[0])}</span>`)
     .join('');
@@ -374,8 +374,8 @@ function renderTodo(s) {
     .map(([, key]) => t(key));
   $('suiteTodoOff').hidden = off.length === 0;
   $('suiteTodoOff').textContent = off.length
-    ? t(off.length === 1 ? 'todo.off_one' : 'todo.off_other', {
-        buttons: new Intl.ListFormat(locale(), { type: 'conjunction' }).format(off),
+    ? tn('todo.off', off.length, {
+        buttons: listOf(off),
       })
     : '';
 
@@ -398,18 +398,19 @@ $('suiteTodoCopy').onclick = async () => {
 
 // ---------------------------------------------------------------- language
 
-// Each language by its own name, and under it the name in the one in use.
-const ENDONYM = { ca: 'Català', es: 'Castellano', en: 'English' };
+// Each language by its own name, and under it the name in the one in use;
+// its badge, the language without the country (PT for pt-BR).
+const badgeOf = (l) => l.split('-')[0].toUpperCase();
 
 function renderLang() {
   const cur = getLang();
   const btn = $('langBtn');
-  btn.innerHTML = `${icon('languages')}<span class="code">${cur.toUpperCase()}</span>${icon('down', 'sm')}`;
-  btn.setAttribute('aria-label', `${t('lang.label')}: ${ENDONYM[cur]}`);
+  btn.innerHTML = `${icon('languages')}<span class="code">${badgeOf(cur)}</span>${icon('down', 'sm')}`;
+  btn.setAttribute('aria-label', `${t('lang.label')}: ${endonym(cur)}`);
   $('langMenu').innerHTML = LANGS.map(
     (l) => `<button type="button" class="lang-item" data-lang="${l}" lang="${l}" aria-current="${l === cur}">
-      <span class="badge">${l.toUpperCase()}</span>
-      <span><b>${esc(ENDONYM[l])}</b>${l === cur ? '' : `<span class="sub" lang="${cur}">${esc(t(`lang.${l}`))}</span>`}</span>
+      <span class="badge">${badgeOf(l)}</span>
+      <span><b>${esc(endonym(l))}</b>${l === cur ? '' : `<span class="sub" lang="${cur}">${esc(langLabel(l))}</span>`}</span>
       ${l === cur ? icon('check', 'tick') : '<span></span>'}
     </button>`,
   ).join('');
@@ -471,8 +472,8 @@ function renderPicker() {
     }
     const last = runsOf(s.name)[0];
     const meta = [
-      t('suite.tests', { n: s.tests }),
-      s.cast.map(cap).join(', '),
+      tn('suite.tests', s.tests),
+      listOf(s.cast.map(cap)),
       last ? t('suite.last_run', { when: when(last.startedAt), status: t(`run.${last.status}`).toLowerCase() }) : null,
     ]
       .filter(Boolean)
@@ -823,7 +824,7 @@ const TIPS = {
     return `<div class="tip-head"><span class="dot"></span>${esc(t('busy.chip', { who: b.who }))}</div>
       <dl class="tip-rows">
         <dt>${esc(t('busy.doing'))}</dt><dd><code>${esc(b.command)}</code></dd>
-        <dt>${esc(t('busy.since'))}</dt><dd>${esc(hhmm(b.since))} · ${esc(t('busy.ago', { n: mins }))}</dd>
+        <dt>${esc(t('busy.since'))}</dt><dd>${esc(hhmm(b.since))} · ${esc(tn('busy.ago', mins))}</dd>
       </dl>
       <div class="tip-foot">${esc(t('busy.one'))}</div>`;
   },
@@ -1009,7 +1010,7 @@ function renderStatus() {
     const failed = Object.entries(r.tests ?? {}).find(([, x]) => x.status === 'failed' || x.status === 'timedOut');
     now.textContent = failed
       ? t('now.failed', { test: failed[0] })
-      : t('now.done', { label: kindLabel(r), status: txt.toLowerCase(), n: r.frameCount ?? S.frames.length });
+      : tn('now.done', r.frameCount ?? S.frames.length, { label: kindLabel(r), status: txt.toLowerCase() });
     if (failed) now.classList.add('err');
   } else if (suiteOf(S.suite)) now.textContent = t('now.never');
   else now.textContent = t('now.idle');
@@ -1066,7 +1067,7 @@ function runTests(x) {
   if (runStatus(x) === 'running') return esc(t('runs.done', { done: tally.done ?? 0, n }));
   const where = tally.failedAt ? ` · <span class="bad">${esc(t('runs.failed_at', { test: tally.failedAt.split(' · ')[0] }))}</span>` : '';
   // Of every test it ran: a setup's too, in a full run («5 of 3» was its last command's count).
-  return esc(t('runs.pass', { ok: tally.passed, n: Math.max(n, tally.count ?? 0) })) + where;
+  return esc(tn('runs.pass', Math.max(n, tally.count ?? 0), { ok: tally.passed })) + where;
 }
 
 function renderRunPop({ scroll = false } = {}) {
@@ -1077,7 +1078,7 @@ function renderRunPop({ scroll = false } = {}) {
       const st = runStatus(x);
       const pins = x.id === S.run?.id ? S.notes.filter(kept).length : (x.notes ?? 0);
       const moved = x.changes ? x.changes.changed + x.changes.new + x.changes.gone : 0;
-      const meta = [runDuration(x), runTests(x), esc(noteCount(pins)), moved ? `<span class="chg">${esc(t('changes.n_short', { n: moved }))}</span>` : ''].filter(Boolean).join(' · ');
+      const meta = [runDuration(x), runTests(x), esc(noteCount(pins)), moved ? `<span class="chg">${esc(tn('changes.n_short', moved))}</span>` : ''].filter(Boolean).join(' · ');
       return `<div class="run-item${i === S.runPick.active ? ' active' : ''}" role="option" id="run-opt-${esc(x.id)}" data-run="${esc(x.id)}" data-st="${esc(st)}" aria-selected="${x.id === S.run?.id}">
       <span class="rdot"></span>
       <span class="k"><b>${esc(when(x.startedAt))}</b> · ${esc(kindLabel(x))}</span>
@@ -1470,7 +1471,7 @@ function renderInspector(first = false) {
     list.forEach((a, j) => {
       if (a.of !== x.seq) return;
       const m = a.marks?.[0];
-      const what = (a.marks ?? []).map((k) => `${verbOf(k)} «${k.label}»`).join(' · ');
+      const what = (a.marks ?? []).map((k) => `${verbOf(k)} ${quote(k.label)}`).join(' · ');
       html += `<button class="action${a === shown ? ' sel' : ''}" data-i="${j}"><span class="n ${m?.kind === 'type' || m?.kind === 'key' ? 'type' : ''}">${esc(actionNo(a))}</span><span class="sx">${esc(what)}</span>${pinBadge(pinsOf(a))}<span class="at">${esc(sinceStep(a, m))}</span></button>`;
     });
   });
@@ -1525,7 +1526,7 @@ function renderInspector(first = false) {
     // dev server in the QA stack, not something production pays.
     const slowest = [...(f.requests ?? [])].filter((q) => q.kind !== 'page' && Number.isFinite(q.ms)).sort((a, b) => b.ms - a.ms)[0];
     const reqs = f.requests?.length
-      ? t('ins.requests', { n: f.requests.length, req: slowest ? `${slowest.method} ${slowest.path.split('?')[0]} ${slowest.ms} ms` : '' })
+      ? tn('ins.requests', f.requests.length, { req: slowest ? `${slowest.method} ${slowest.path.split('?')[0]} ${slowest.ms} ms` : '' })
       : null;
     // Which language the photo is in, when not the suite's own; or why this
     // step has none of its other languages.
@@ -1570,7 +1571,7 @@ function renderInspector(first = false) {
 
   // Transport
   const n = list.length;
-  $('pCount').textContent = ins.live ? t('ins.photos', { n }) : `${n ? ins.idx + 1 : 0} / ${n}`;
+  $('pCount').textContent = ins.live ? tn('ins.photos', n) : `${n ? ins.idx + 1 : 0} / ${n}`;
   $('pFirst').disabled = $('pPrev').disabled = !n || (!ins.live && ins.idx <= 0);
   $('pNext').disabled = $('pLast').disabled = !n || ins.live || ins.idx >= n - 1;
   withIcon($('pPlay'), ins.timer ? 'pause' : 'play');
@@ -1580,7 +1581,7 @@ function renderInspector(first = false) {
   // second button for the same thing was one too many.
   const pl = $('pLive');
   pl.hidden = ins.live || !isRunning();
-  const fresh = ins.fresh === 1 ? t('ins.fresh_one') : ins.fresh > 1 ? t('ins.fresh_many', { n: ins.fresh }) : '';
+  const fresh = ins.fresh ? tn('ins.fresh', ins.fresh) : '';
   withIcon(pl, 'radio', `${fresh}${t('table.live')}`);
 
   // Header actions
@@ -1995,7 +1996,7 @@ function renderLangPicks() {
   const box = $('optLangsList');
   if (!l) return (box.hidden = true);
   const chosen = chosenLangs();
-  $('optLangsHint').textContent = t('opts.languages_hint', { list: chosen.map(langName).join(', ') || '—' });
+  $('optLangsHint').textContent = t('opts.languages_hint', { list: listOf(chosen.map(langName)) || '—' });
   // Every language of the app: the suite's own first, always there (its
   // recording finds the buttons by their words), and the others to choose.
   box.hidden = !$('optLangs').checked;
@@ -2119,12 +2120,12 @@ function renderRaces() {
       ...f.outside.map((o) => `<li class="always"><b>${esc(t('races.outside', { round: o.round }))}</b>${o.tests.map((x) => `<span>${esc(x.test)}</span>`).join('')}${again(o.seed)}</li>`),
     ];
     const verdict = f.unstable.length
-      ? t(f.unstable.length === 1 ? 'races.found_one' : 'races.found_many', { n: f.unstable.length })
+      ? tn('races.found', f.unstable.length)
       : f.rounds.some((r) => r.status === 'failed') || (f.stopped !== null && f.stopped !== undefined)
         ? t('races.none_but')
         : changedRounds.size
-          ? t('races.none_changed', { n: changedRounds.size })
-          : t('races.none', { n: f.rounds.length });
+          ? tn('races.none_changed', changedRounds.size)
+          : tn('races.none', f.rounds.length);
     found = `<div class="found"><span class="rounds">${chips}</span><span class="verdict">${esc(verdict)}</span></div>${rows.length ? `<ul>${rows.join('')}</ul>` : ''}`;
   } else if (c.group) found = `<div class="found"><span class="verdict faint">${esc(t('races.searching'))}</span></div>`;
   const html = `<div class="head">${icon('dice', 'sm')}<span class="what">${esc(head)}</span>${people}</div>${found}`;
@@ -2152,8 +2153,8 @@ function renderPlays() {
   const people = list
     .map((p) => {
       const bits =
-        esc(t(p.acts === 1 ? 'play.acts_one' : 'play.acts_many', { n: p.acts })) +
-        (p.errors ? ` · <span class="bad">${esc(t(p.errors === 1 ? 'play.errors_one' : 'play.errors_many', { n: p.errors }))}</span>` : '');
+        esc(tn('play.acts', p.acts)) +
+        (p.errors ? ` · <span class="bad">${esc(tn('play.errors', p.errors))}</span>` : '');
       const thumb = p.latest ? `<img src="/out/cockpit/play/${encodeURIComponent(p.session)}/latest.jpg?t=${p.latest}" alt="">` : '';
       return `<span class="pl${p.open ? ' open' : ''}">${thumb}<b>${esc(t(p.open ? 'play.open' : 'play.closed', { name: cap(p.actor) }))}</b><span>${bits}</span></span>`;
     })
@@ -2205,7 +2206,7 @@ function changeLine(f) {
     if (!p) return null;
     const boxes = p.regions.filter((r) => !r.gone).length;
     const out = p.regions.some((r) => r.gone);
-    const said = [boxes && t(boxes === 1 ? 'changes.photo_one' : 'changes.photo_many', { n: boxes }), out && t('changes.taken_out')].filter(Boolean).join(', ');
+    const said = [boxes && tn('changes.photo', boxes), out && t('changes.taken_out')].filter(Boolean).join(', ');
     return `${said}${p.moved ? ` (${t('changes.moved', { px: Math.abs(p.moved) })})` : ''}`;
   };
   if (ch.action) {
@@ -2222,7 +2223,7 @@ function changeLine(f) {
     for (const x of r?.status ?? []) bits.push(t('changes.req_status', { what: x.what, was: x.was, now: x.now }));
     for (const x of r?.count ?? []) bits.push(t('changes.req_count', { what: x.what, was: x.was, now: x.now }));
     for (const x of ch.errors ?? []) bits.push(t('changes.error_new', { what: x }));
-    if (ch.actionsGone) bits.push(t('changes.actions_gone', { n: ch.actionsGone }));
+    if (ch.actionsGone) bits.push(tn('changes.actions_gone', ch.actionsGone));
   }
   const said = bits.filter(Boolean);
   return said.length ? `${icon('compare', 'sm')} ${esc(t('changes.from'))}: ${said.map(esc).join(' · ')}` : '';
@@ -2250,9 +2251,9 @@ function renderChanges() {
   const n = c ? c.summary.changed + c.summary.new + c.summary.gone + c.tests.onlyNow.length + c.tests.onlyThen.length : 0;
   const counts = c
     ? [
-        c.summary.changed && t(c.summary.changed === 1 ? 'changes.n_changed_one' : 'changes.n_changed_many', { n: c.summary.changed }),
-        c.summary.new && t('changes.n_new', { n: c.summary.new }),
-        c.summary.gone && t('changes.n_gone', { n: c.summary.gone }),
+        c.summary.changed && tn('changes.n_changed', c.summary.changed),
+        c.summary.new && tn('changes.n_new', c.summary.new),
+        c.summary.gone && tn('changes.n_gone', c.summary.gone),
       ]
         .filter(Boolean)
         .join(' · ') || (n ? '' : t('changes.nothing'))
@@ -2370,8 +2371,8 @@ const allFindings = (f) => (f && !isAction(f) ? [...(f.findings ?? []), ...(f.la
 const roleWord = (role) => (t(`role.${role}`) === `role.${role}` ? role : t(`role.${role}`));
 const findText = (x) =>
   x.kind === 'lang'
-    ? `${t(`find.lang.${x.rule}`)}${x.text ? ` «${x.text}»` : ''}`
-    : `${cap(t(`find.a11y.${x.rule}`, { role: roleWord(x.role) }))}${x.name ? ` «${x.name}»` : ''}`;
+    ? `${t(`find.lang.${x.rule}`)}${x.text ? ` ${quote(x.text)}` : ''}`
+    : `${cap(t(`find.a11y.${x.rule}`, { role: roleWord(x.role) }))}${x.name ? ` ${quote(x.name)}` : ''}`;
 // A step's badges: its accessibility problems, and what does not fit its languages.
 function findBadges(f) {
   const all = allFindings(f);
@@ -2394,7 +2395,7 @@ function findsList(f) {
 }
 
 function marksList(f) {
-  const item = (m, i) => `<span class="n ${m.kind}">${esc(markNo(m, i))}</span>${esc(verbOf(m))} «${esc(m.label)}»`;
+  const item = (m, i) => `<span class="n ${m.kind}">${esc(markNo(m, i))}</span>${esc(verbOf(m))} ${esc(quote(m.label))}`;
   // How long after the step's start each action came: the gaps between
   // them are where a slow screen shows.
   const at = (m) => {
@@ -2408,7 +2409,7 @@ function marksList(f) {
       (a.marks ?? []).map((m) => ({ n: m.n ?? 0, html: `<button class="mk" data-seq="${a.seq}" title="${esc(t('mark.photo'))}">${item(m, 0)}</button>${at(m)}` })),
     ),
     ...drawn.map((m, i) => ({ n: m.n ?? 0, html: `${item(m, i)}${at(m)}` })),
-    ...elsewhere.map((m) => ({ n: m.n ?? 0, html: `${esc(verbOf(m))} «${esc(m.label)}» ${esc(t('mark.elsewhere', { path: pathOf(m.url) }))}${at(m)}` })),
+    ...elsewhere.map((m) => ({ n: m.n ?? 0, html: `${esc(verbOf(m))} ${esc(quote(m.label))} ${esc(t('mark.elsewhere', { path: pathOf(m.url) }))}${at(m)}` })),
   ];
   return parts
     .sort((a, b) => a.n - b.n)
@@ -2634,7 +2635,7 @@ const openNote = () => (S.note ? (S.notes.find((n) => n.id === S.note) ?? null) 
 const insFrame = () => (S.ins && !S.ins.live ? (insFrames()[S.ins.idx] ?? null) : null);
 const runPath = (...parts) => `/api/runs/${[S.run.id, ...parts].map((p) => encodeURIComponent(String(p))).join('/')}`;
 const clampNum = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-const noteCount = (n) => (n ? t(n === 1 ? 'note.count_one' : 'note.count_many', { n }) : '');
+const noteCount = (n) => (n ? tn('note.count', n) : '');
 // A tack's tooltip: enough of the note to know what it is about without
 // opening it, whole when short; longer, cut at a word and «…».
 const TIP_CHARS = 50;
@@ -3486,7 +3487,7 @@ renderLang();
 async function playersAgree(action) {
   const cast = action === 'reset' ? null : (suiteOf(S.suite)?.cast ?? []);
   const names = (S.state?.plays ?? []).filter((p) => p.open && (!cast || cast.includes(p.actor))).map((p) => cap(p.actor));
-  return !names.length || ask(t('play.busy_run', { names: names.join(', ') }), t('play.run_anyway'));
+  return !names.length || ask(t('play.busy_run', { names: listOf(names) }), t('play.run_anyway'));
 }
 
 $('btnReset').onclick = async () => {

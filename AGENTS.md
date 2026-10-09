@@ -8,7 +8,7 @@ not this file.
 Read [`CONTRIBUTING.md`](CONTRIBUTING.md) first. Its rules hold for you too,
 and they are not repeated here: plain modules and no dependencies, the
 package never imports `@playwright/test`, nothing about one app, a cockpit
-on the loopback only, English, three languages on the page, comments that
+on the loopback only, English, the page in many languages, comments that
 say why, two READMEs. This file adds what an agent needs to work here
 without a person beside it.
 
@@ -39,7 +39,7 @@ without a person beside it.
 | `src/network/` | `replay --network` and `network`: each person's HAR in a run (`capture.mjs`), its secrets taken out before it reaches the project (`sanitize.mjs`), and what it shows, step by step (`report.mjs`) |
 | `src/video/` | `video`: the capture in a run (`capture.mjs`), the plan of a video (`plan.mjs`), its drawing on a Chromium stage and its encoding (`render.mjs`; the design is `stage.html`), its sound (`audio.mjs`), its script (`script.mjs`), the system's voice (`voices.mjs`) |
 | `src/server/server.mjs` | the cockpit's server: the runs, the API, the files it serves |
-| `src/server/public/` | the cockpit's page: `cockpit.js`, `cockpit.css`, `i18n.js` |
+| `src/server/public/` | the cockpit's page: `cockpit.js`, `cockpit.css`, `i18n.js` (how a sentence is looked up) and `i18n/` (a file per language) |
 | `src/docker/` | `--in-docker`: Playwright in the official image |
 | `templates/` | what `init` writes, and the agents' skill |
 
@@ -101,7 +101,12 @@ from npm instead of the one in this checkout.
   the table in both READMEs; the skill if agents need it.
 - **A command:** its help in `src/cli.mjs`, «Commands» in both READMEs and
   in `templates/SKILL.md`.
-- **A sentence on the page:** in `i18n.js`, in Catalan, Spanish and English.
+- **A sentence on the page:** in `i18n/`, in Catalan, Spanish and English;
+  the other languages say it in English meanwhile. One that counts is
+  `key_one`/`key_other`, said with `tn(key, n)`. Before a release, the other
+  languages catch up: `node scripts/i18n-check.mjs` (from `packages/qa-cockpit`)
+  lists what each one is missing, and [`docs/translating.md`](docs/translating.md)
+  says how agents fill it.
 - **The example stays green.** A change to its suite is a new recording, or
   a `stamp` when only the words changed.
 - **The CHANGELOG:** an entry under the version in progress,

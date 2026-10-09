@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.9.0 (unreleased)
+
+- The cockpit in fourteen languages: to Catalan, English and Spanish come
+  Chinese (simplified), French, German, Hindi, Italian, Japanese, Polish,
+  Portuguese (Brazil), Russian, Turkish and Ukrainian. The menu lists them
+  by code, each by its own name and by its name in the one in use, and
+  scrolls when the window is short. On the first visit the page speaks the
+  first of the browser's languages it has (pt-PT finds pt-BR); a language
+  picked in the menu stays.
+- A sentence that counts takes its language's plural form (1, 2–4 and 5 or
+  more in Russian, Ukrainian and Polish; 0 like 1 in French, Portuguese and
+  Hindi), from the browser's own rules: every count on the page, photos,
+  tests, requests, rounds and notes among them. A label the page quotes
+  (what a click pressed, what an accessibility problem names) takes the
+  language's own quotation marks, and a list of names its own «and».
+- Each language is a file of its own (`src/server/public/i18n/`). A sentence
+  a language does not have yet is said in English, and
+  `scripts/i18n-check.mjs` lists what each one is missing, and any
+  placeholder lost on the way.
+
 ## 0.8.0 (2026-10-09)
 
 - `replay --a11y`: each step's screen is looked at for accessibility as its

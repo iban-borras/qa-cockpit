@@ -62,7 +62,9 @@ to agents.
     to an agent, with a copy of the photo showing each tack;
   - Playwright's trace viewer;
   - a Markdown report of the whole run, written for a model to read;
-  - English, Catalan and Spanish.
+  - in fourteen languages: Catalan, Chinese (simplified), English, French,
+    German, Hindi, Italian, Japanese, Polish, Portuguese (Brazil), Russian,
+    Spanish, Turkish and Ukrainian; the browser's, until you pick another.
 - **One run at a time.** A lock names who holds the stack («Claude runs
   replay chat since 10:42»). Runs launched from any terminal are followed
   live as if the cockpit had started them.

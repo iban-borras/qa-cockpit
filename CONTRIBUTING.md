@@ -49,8 +49,11 @@ every pull request, and checks that `npm pack` ships what it must and that
   and serves only its own files and the runs'. It can reset a database and
   start processes: keep it that way.
 - **English** in code, comments and docs. The cockpit's words live in
-  `src/server/public/i18n.js` (English, Catalan, Spanish); a new sentence
-  goes in all three.
+  `src/server/public/i18n/`, a file per language. A new sentence goes in
+  English, Catalan and Spanish; the other languages say it in English until
+  it is translated (`node packages/qa-cockpit/scripts/i18n-check.mjs` lists
+  what each one is missing, and [`docs/translating.md`](docs/translating.md)
+  says how agents fill it).
 - **Comments say why**, not what: the reason a line is there, the incident
   that taught it, the thing that would break without it.
 
