@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.8.0 (unreleased)
+## 0.8.0 (2026-10-09)
 
 - `replay --a11y`: each step's screen is looked at for accessibility as its
   photo is taken, in Chromium's own accessibility tree, as a screen reader
@@ -52,9 +52,10 @@
   badge on the step and a line under its photo; at the end, a list in the
   terminal, and each hand-off in the run report. An option of the run in
   the cockpit.
-- `replay --chaos [N]`: races between people. The recording plays in N
-  rounds (3 unless said), each from fresh data (reset, then the suite's
-  setup), each person slowed in their own way by the round's seed: every
+- `replay --chaos [N]`: races between people. The recording plays in
+  round 0, as it is, then in N rounds (3 unless said), each from fresh
+  data (reset, then the suite's setup), each person slowed in their own
+  way by the round's seed: every
   request of theirs waits longer for its answer (Chromium's network
   conditions), what is pushed to their page reaches the app later and in
   order (WebSocket messages, server-sent events), their page runs slower
@@ -73,28 +74,10 @@
   round a way to its run and each failed one a button to play it again.
   The cockpit's history (`cockpit.keepRuns`) counts a search as one run,
   all its rounds together, so its failed round is not the first to go.
-- The example chat lost a message sent while a person's live stream was
-  still opening, their history already loaded: the race finder's first
-  search found it, with Bob 800 ms behind. It opens the stream first now,
-  loads the history once the stream is open, and puts each message in its
-  place by its id, so everybody sees the server's order.
-- The run's options are as tall as the window lets them, scrolled inside
-  when they are more (each look added one), and the rounds of a search are
-  a select under its option (3 unless chosen).
-- A run started from the page is followed, even when an older run was on
-  screen: whoever starts one is there to watch it.
-- Tooltips wait for a hand that stays, a second, and the next one a moment:
-  a pointer crossing the page showed one after another.
-- A step's languages are labelled «Languages:» before their tabs, which
-  lost the tooltip that showed between them; the run's option lists every
-  language of the app, the suite's own first, always on (its recording
-  finds the buttons by their words).
-- A run says the looks it took, in the run picker, the line under it and
-  the run report: «Full run · languages ca, es · real time». A look at the
-  other languages is no second run, and nothing showed it had been taken.
-- The run picker counts every test a run ran: a full run (reset, setup and
-  the recording) said «5 of 3 tests pass», its setup's tests passed against
-  its recording's count.
+  If round 0, with nobody slowed, fails, the suite fails with no slowness
+  and the search stops there. With the cockpit, each round is compared
+  with round 0: a round that passed and still changed is a near miss,
+  said in the terminal and marked in orange in the strip.
 - `replay --changes [run]`: changes from an earlier run. When the run
   ends, each step is compared with the same step of the newest green run
   before it made the same way, or of the run named, aligned by test, step
@@ -110,13 +93,8 @@
   section. `qa-cockpit changes [run]` says it in the terminal (`--against`,
   `--json`), kept in the run (`changes.json`). What changes by itself is
   left out with selectors (`changes.mask` in the config).
-- Every step of a run notes its page's errors (console errors, what it
+  Every step of a run notes its page's errors (console errors, what it
   threw), in the inspector and the run report.
-- A search for races plays round 0 first, as it is, nobody slowed: if it
-  fails, the suite fails with no slowness and the search stops there. With
-  the cockpit, each round is compared with round 0: a round that passed
-  and still changed is a near miss, said in the terminal and marked in
-  orange in the strip.
 - Reports from «Play as». The window a person plays in is followed as a
   run is: each of their actions (a click, a field typed in, Enter or
   Escape, an option picked) with the window just before it, from a
@@ -142,6 +120,28 @@
   the window. The button says why, and `open <person>` refuses the same.
   Somebody the run does not play may still open a window, after the word
   of warning the cockpit already gave.
+- The example chat lost a message sent while a person's live stream was
+  still opening, their history already loaded: the race finder's first
+  search found it, with Bob 800 ms behind. It opens the stream first now,
+  loads the history once the stream is open, and puts each message in its
+  place by its id, so everybody sees the server's order.
+- The run's options are as tall as the window lets them, scrolled inside
+  when they are more (each look added one), and the rounds of a search are
+  a select under its option (3 unless chosen).
+- A run started from the page is followed, even when an older run was on
+  screen: whoever starts one is there to watch it.
+- Tooltips wait for a hand that stays, a second, and the next one a moment:
+  a pointer crossing the page showed one after another.
+- A step's languages are labelled «Languages:» before their tabs, which
+  lost the tooltip that showed between them; the run's option lists every
+  language of the app, the suite's own first, always on (its recording
+  finds the buttons by their words).
+- A run says the looks it took, in the run picker, the line under it and
+  the run report: «Full run · languages ca, es · real time». A look at the
+  other languages is no second run, and nothing showed it had been taken.
+- The run picker counts every test a run ran: a full run (reset, setup and
+  the recording) said «5 of 3 tests pass», its setup's tests passed against
+  its recording's count.
 
 ## 0.7.4 (2026-10-07)
 
