@@ -480,6 +480,24 @@ function renderPicker() {
   $('pickerList').querySelector('.picker-item.active')?.scrollIntoView({ block: 'nearest' });
 }
 
+/**
+ * A panel opened under its button, moved to the left as far as it must to
+ * end inside the window: the suite picker sits near the right edge since
+ * the run has one button.
+ */
+function keepInView(pop) {
+  pop.style.left = '';
+  if (pop.hidden) return;
+  const r = pop.getBoundingClientRect();
+  const over = r.right - (document.documentElement.clientWidth - 12);
+  const shift = Math.max(0, Math.min(over, r.left - 12));
+  if (shift > 0) pop.style.left = `${-Math.ceil(shift)}px`;
+}
+addEventListener('resize', () => {
+  if (S.picker.open) keepInView($('pickerPop'));
+  if (S.runPick.open) keepInView($('runPop'));
+});
+
 function openPicker() {
   S.picker.open = true;
   S.picker.query = '';
@@ -488,6 +506,7 @@ function openPicker() {
   S.picker.active = Math.max(0, items.findIndex((s) => s.name === S.suite));
   $('pickerPop').hidden = false;
   $('pickerBtn').setAttribute('aria-expanded', 'true');
+  keepInView($('pickerPop'));
   renderPicker();
   // The list has the keys, not the box: nothing lit up nor blinking on
   // opening. Typing goes to the box.
@@ -1143,6 +1162,7 @@ function openRunPick() {
   S.runPick.active = Math.max(0, runs.findIndex((x) => x.id === S.run?.id));
   $('runPop').hidden = false;
   $('runBtn').setAttribute('aria-expanded', 'true');
+  keepInView($('runPop'));
   renderRunPop({ scroll: true });
   $('runPop').focus();
 }
