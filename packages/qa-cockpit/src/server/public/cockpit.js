@@ -69,8 +69,16 @@ function esc(s) {
 }
 const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 const hhmmss = (iso) => (iso ? new Date(iso).toLocaleTimeString(locale(), { hour12: false }) : '');
-const when = (iso) =>
-  iso ? new Date(iso).toLocaleString(locale(), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : '';
+const when = (iso, second = false) =>
+  iso
+    ? new Date(iso).toLocaleString(locale(), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', ...(second ? { second: '2-digit' } : {}), hour12: false })
+    : '';
+/** When a run started, to the second if another of its suite started in the same minute: two runs never read the same. */
+const runWhen = (x) => {
+  const label = when(x.startedAt);
+  const twin = (S.state?.runs ?? []).some((y) => y.id !== x.id && (y.suite ?? null) === (x.suite ?? null) && when(y.startedAt) === label);
+  return twin ? when(x.startedAt, true) : label;
+};
 const pathOf = (url) => {
   try {
     const u = new URL(url);
@@ -1101,7 +1109,7 @@ function renderStatus() {
 // colour, when and whose, how long it took, how far its tests got and
 // where it broke. Keys as in a listbox: arrows, Home/End, Enter, Escape.
 
-const runHead = (x) => `${when(x.startedAt)} · ${kindLabel(x)}`;
+const runHead = (x) => `${runWhen(x)} · ${kindLabel(x)}`;
 // The run on screen has the freshest status; the list's copy may lag.
 const runStatus = (x) => (x && S.run && x.id === S.run.id ? S.run.status : x?.status);
 
@@ -1132,15 +1140,19 @@ function runTests(x) {
   return esc(tn('runs.pass', Math.max(n, tally.count ?? 0), { ok: tally.passed })) + where;
 }
 
-/** A run as an option of a list of runs: the run picker's, and the one of the run to compare with. */
-function runOption(x, { active, selected, prefix }) {
+/**
+ * A run as an option of a list of runs: the run picker's, and the one of the
+ * run to compare with, where a run's own changes (from yet another run) are
+ * left out: they would read as this comparison's.
+ */
+function runOption(x, { active, selected, prefix, ownChanges = true }) {
   const st = runStatus(x);
   const pins = x.id === S.run?.id ? S.notes.filter(kept).length : (x.notes ?? 0);
-  const moved = x.changes ? x.changes.changed + x.changes.new + x.changes.gone : 0;
+  const moved = ownChanges && x.changes ? x.changes.changed + x.changes.new + x.changes.gone : 0;
   const meta = [runDuration(x), runTests(x), esc(noteCount(pins)), moved ? `<span class="chg">${esc(tn('changes.n_short', moved))}</span>` : ''].filter(Boolean).join(' · ');
   return `<div class="run-item${active ? ' active' : ''}" role="option" id="${prefix}-${esc(x.id)}" data-run="${esc(x.id)}" data-st="${esc(st)}" aria-selected="${selected}">
       <span class="rdot"></span>
-      <span class="k"><b>${esc(when(x.startedAt))}</b> · ${esc(kindLabel(x))}</span>
+      <span class="k"><b>${esc(runWhen(x))}</b> · ${esc(kindLabel(x))}</span>
       <span class="chip ${STATUS_CHIP[st] ?? ''}">${st === 'running' ? '<span class="dot"></span>' : ''}${esc(t(`run.${st}`))}</span>
       ${meta ? `<span class="m">${meta}</span>` : ''}
     </div>`;
@@ -2296,7 +2308,7 @@ function changeLine(f) {
 /** A run as the strip names it: when, and what kind. */
 const runName = (id) => {
   const x = (S.state?.runs ?? []).find((y) => y.id === id);
-  if (x) return `${when(x.startedAt)} · ${kindLabel(x)}`;
+  if (x) return `${runWhen(x)} · ${kindLabel(x)}`;
   // A run the cockpit no longer keeps: its time, from its id (local time).
   const m = /^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/.exec(id ?? '');
   return m ? when(new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]).toISOString()) : id;
@@ -2347,7 +2359,7 @@ function renderChanges() {
   $('cmpBtn').disabled = comparing;
   const against = c ? (runsOf(S.suite).find((x) => x.id === c.against) ?? cands.find((x) => x.id === c.against)) : null;
   $('cmpFace').innerHTML = against
-    ? `<span class="picker-name">${esc(when(against.startedAt))} · ${esc(kindLabel(against))}</span>`
+    ? `<span class="picker-name">${esc(runWhen(against))} · ${esc(kindLabel(against))}</span>`
     : `<span class="picker-name faint">${esc(t('changes.pick'))}</span>`;
   if (S.cmpPick.open) renderCmpPop();
 }
@@ -2371,7 +2383,7 @@ function renderCmpPop({ scroll = false } = {}) {
   const runs = cmpRuns();
   S.cmpPick.active = Math.max(0, Math.min(runs.length - 1, S.cmpPick.active));
   const now = S.run?.changes?.against;
-  $('cmpPop').innerHTML = runs.map((x, i) => runOption(x, { active: i === S.cmpPick.active, selected: x.id === now, prefix: 'cmp-opt' })).join('');
+  $('cmpPop').innerHTML = runs.map((x, i) => runOption(x, { active: i === S.cmpPick.active, selected: x.id === now, prefix: 'cmp-opt', ownChanges: false })).join('');
   const active = runs[S.cmpPick.active];
   $('cmpPop').setAttribute('aria-activedescendant', active ? `cmp-opt-${active.id}` : '');
   if (scroll) $('cmpPop').querySelector('.run-item.active')?.scrollIntoView({ block: 'nearest' });
