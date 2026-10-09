@@ -1395,11 +1395,15 @@ export async function runCli(rawConfig, argv) {
       if (!suite) fail(`Usage: ${CLI} stamp <suite>`);
       const file = recordingOf(config, suite);
       if (!file) fail(`No recording for the suite "${suite}": ${newRecordingPath(config, suite)}`);
-      const lines = fs.readFileSync(file, 'utf8').split('\n');
+      // In the file's own line endings: a header written with LF in a CRLF
+      // recording left it mixed (CritKeep's la-prova.spec.ts).
+      const text = fs.readFileSync(file, 'utf8');
+      const eol = text.includes('\r\n') ? '\r\n' : '\n';
+      const lines = text.split(/\r?\n/);
       const header = suiteHeader(config, suite);
       if (/^\/\/ suite: /.test(lines[0])) lines[0] = header;
       else lines.unshift(header);
-      fs.writeFileSync(file, lines.join('\n'));
+      fs.writeFileSync(file, lines.join(eol));
       console.log(header);
     },
 

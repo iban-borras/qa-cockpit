@@ -519,6 +519,9 @@ function pickerItems() {
   const all = (S.state?.suites ?? []).filter(
     (s) => (!q || `${s.title} ${s.name} ${s.summary}`.toLowerCase().includes(q)) && (s.setup || !S.picker.hideNoSetup) && (!tag || tag.suites.includes(s.name)),
   );
+  // A tag's suites in the order its group plays them (tags.json); the rest
+  // by where they stand.
+  if (tag) return all.sort((a, b) => tag.suites.indexOf(a.name) - tag.suites.indexOf(b.name));
   return STANDING_ORDER.flatMap((st) => all.filter((s) => standing(s) === st));
 }
 
@@ -559,8 +562,12 @@ function renderPicker() {
   S.picker.active = Math.max(0, Math.min(items.length - 1, S.picker.active));
   let html = '';
   let group = null;
+  // A tag chosen: its suites under one heading, numbered in the order its
+  // group plays them; one that cannot play says so by its own tag.
+  const tag = pickerTag();
+  if (tag && items.length) html += `<div class="picker-group">${esc(t('group.order'))} <span class="count">${items.length}</span></div>`;
   items.forEach((s, i) => {
-    if (standing(s) !== group) {
+    if (!tag && standing(s) !== group) {
       group = standing(s);
       const n = items.filter((x) => standing(x) === group).length;
       html += `<div class="picker-group">${esc(t(`picker.${group}`))} <span class="count">${n}</span></div>`;
@@ -575,7 +582,7 @@ function renderPicker() {
       .join(' · ');
     html += `<div class="picker-item ${standing(s)}${i === S.picker.active ? ' active' : ''}" role="option" id="opt-${esc(s.name)}" data-name="${esc(s.name)}" aria-selected="${s.name === S.suite}">
       <span class="sdot ${standing(s)}"></span>
-      <span><span class="t">${esc(s.title)}</span> <span class="slug">${esc(s.name)}</span></span>
+      <span>${tag ? `<span class="ord">${tag.suites.indexOf(s.name) + 1}</span>` : ''}<span class="t">${esc(s.title)}</span> <span class="slug">${esc(s.name)}</span></span>
       <span class="tags">${tagsOf(s, { running: true })}</span>
       <span class="d">${esc(s.summary)}</span>
       <span class="m">${esc(meta)}</span>
@@ -895,10 +902,19 @@ function renderHeader() {
   void waveFavicon(Boolean(st.task));
   waveLogo(Boolean(st.task));
   const chip = $('stackChip');
-  chip.className = `chip ${st.stack.up ? 'ok' : 'err'}`;
-  chip.innerHTML = `<span class="dot"></span>${esc(t(st.stack.up ? 'stack.up' : 'stack.down', { p: st.project }))}`;
+  // Down while a run holds it: the run's own reset, for a moment, not an
+  // alarm (CritKeep read «stopped» in red in the middle of a full run).
+  const resetting = !st.stack.up && Boolean(st.task || st.lock);
+  chip.className = `chip ${st.stack.up ? 'ok' : resetting ? 'warn' : 'err'}`;
+  chip.innerHTML = `<span class="dot"></span>${esc(t(st.stack.up ? 'stack.up' : resetting ? 'stack.restarting' : 'stack.down', { p: st.project }))}`;
   const { front, back } = st.stack;
-  $('stackSub').textContent = !front ? t('stack.sub_down') : back && back !== front ? t('stack.sub', { front, back }) : t('stack.sub_app', { front });
+  $('stackSub').textContent = resetting
+    ? t('stack.sub_restarting')
+    : !front
+      ? t('stack.sub_down')
+      : back && back !== front
+        ? t('stack.sub', { front, back })
+        : t('stack.sub_app', { front });
   // The stack taken from outside the cockpit (a terminal's run, lib/lock.mjs):
   // who, and in the tooltip what and since when. The cockpit's own task has
   // its own pill.

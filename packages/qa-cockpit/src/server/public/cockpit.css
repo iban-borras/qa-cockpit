@@ -738,6 +738,7 @@ dialog.ask p { margin: 0 0 16px; font-size: 14px; line-height: 1.5; }
 .tag-add svg.i { width: 12px; height: 12px; }
 .tag-new input { height: 24px; width: 150px; padding: 0 9px; border-radius: 999px; border: 1px solid var(--accent); background: var(--panel); color: var(--text); font: inherit; font-size: 12px; }
 .picker-item .g { grid-column: 2 / 4; display: flex; flex-wrap: wrap; gap: 4px; }
+.picker-item .ord { display: inline-grid; place-items: center; min-width: 18px; height: 18px; margin-right: 6px; padding: 0 4px; border-radius: 5px; background: rgba(99, 102, 241, 0.18); color: #c7d2fe; font: 600 11px/1 var(--mono); vertical-align: 1px; }
 .suite-cast .avatar { width: 24px; height: 24px; font-size: 11px; }
 .never { margin: 0 2px 12px; font-size: 13px; }
 @media (max-width: 900px) { .suite { grid-template-columns: 1fr; } }

@@ -9,9 +9,14 @@
   far a problem reaches. A suite that cannot play is passed over, and said;
   the end lists each one, and the cockpit shows it under each of the
   group's runs, a click from each. In the cockpit, the suite picker shows a
-  tag's suites and plays its group, «Stop at the first failure» on unless
+  tag's suites, numbered in the order they play, and plays its group, «Stop at the first failure» on unless
   taken off, and the page goes with each suite as it begins. The skill
   tells an agent how to propose a tag strategy for all the suites.
+- `stamp` writes its header in the recording's own line endings: on a
+  CRLF recording it wrote it with LF, and left the file mixed.
+- The stack's badge says «restarting», in amber, while the run going now
+  resets it, rather than «stopped» in red: a full run's reset read as an
+  alarm.
 - Tags: groups of suites, in one file beside them, `<suites>/tags.json`,
   each with what it is for and its suites in the order they play. Out of the
   suites' documents, so a tag never makes a recording look stale. The
