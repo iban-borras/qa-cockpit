@@ -685,13 +685,19 @@ $('pickerList').addEventListener('click', (e) => {
   const item = e.target.closest('[data-name]');
   if (item) void pickSuite(item.dataset.name);
 });
+// A click outside a menu closes it. Where the click was is the path it took
+// as it happened: a menu that draws itself again on that very click (a
+// tag chosen in the suite picker) has taken the clicked element out by
+// the time the click gets here, and `closest` would find it outside.
 document.addEventListener('click', (e) => {
-  if (!e.target.closest('#picker')) closePicker();
-  if (!e.target.closest('#runPicker')) closeRunPick();
-  if (!e.target.closest('#cmpPicker')) closeCmpPick();
-  if (!e.target.closest('#opts')) $('opts').open = false;
-  if (!e.target.closest('#runMore')) $('runMore').open = false;
-  if (!e.target.closest('#lang')) $('lang').open = false;
+  const path = e.composedPath();
+  const outside = (id) => !path.some((el) => el.id === id);
+  if (outside('picker')) closePicker();
+  if (outside('runPicker')) closeRunPick();
+  if (outside('cmpPicker')) closeCmpPick();
+  if (outside('opts')) $('opts').open = false;
+  if (outside('runMore')) $('runMore').open = false;
+  if (outside('lang')) $('lang').open = false;
 });
 
 // ---------------------------------------------------------------- runs and moments
