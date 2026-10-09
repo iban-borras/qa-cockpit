@@ -31,11 +31,13 @@
           <div class="picker-list" id="pickerList" role="listbox" tabindex="-1" data-i18n-aria="suite.label"></div>
         </div>
       </div>
-      <button id="btnReset" class="btn danger-ghost"></button>
-      <span class="sep" aria-hidden="true"></span>
-      <button id="btnSetup" class="btn"></button>
-      <button id="btnReplay" class="btn"></button>
-      <button id="btnFull" class="btn primary"></button>
+      <div class="split" id="runGroup">
+        <button id="btnRun" class="btn primary"></button>
+        <details class="opts run-more" id="runMore">
+          <summary class="btn primary icon" id="runMoreBtn" data-i18n-aria="btn.more"></summary>
+          <div class="menu run-menu" id="runMenu" role="menu"></div>
+        </details>
+      </div>
       <button id="btnStop" class="btn primary" hidden></button>
       <details class="opts" id="opts">
         <summary class="btn icon" data-i18n-aria="opts.title" data-i18n-title="opts.title"></summary>
@@ -86,7 +88,6 @@
           <details class="todo-more" id="suiteTodoMore">
             <summary id="suiteTodoMoreSum"></summary>
             <ul id="suiteTodoList"></ul>
-            <p id="suiteTodoOff"></p>
             <p id="suiteTodoAsk"></p>
             <div class="todo-ask"><code id="suiteTodoPrompt"></code><button class="btn" id="suiteTodoCopy" type="button"></button></div>
           </details>

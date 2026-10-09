@@ -194,7 +194,7 @@ async function api(path, opts) {
   return body;
 }
 
-const RUN_ACTIONS = new Set(['reset', 'setup', 'replay', 'full']);
+const RUN_ACTIONS = new Set(['reset', 'setup', 'prepare', 'replay', 'full']);
 
 async function act(action, extra = {}) {
   try {
@@ -351,7 +351,7 @@ function renderTodo(s) {
   $('suiteTodoIcon').innerHTML = icon(hand ? 'hand' : 'info', 'lg');
   $('suiteTodoTitle').textContent = t(hand ? 'todo.hand_title' : 'todo.title');
   $('suiteTodoLead').hidden = !hand;
-  $('suiteTodoLead').textContent = hand ? t('todo.hand_lead') : '';
+  $('suiteTodoLead').textContent = hand ? t('todo.hand_lead', { button: t(RUNS[runPlan(s)?.action ?? 'prepare'].label) }) : '';
   $('suiteTodoMoreSum').textContent = t('todo.more');
   if (renderTodo.shown !== s.name) {
     renderTodo.shown = s.name;
@@ -365,19 +365,6 @@ function renderTodo(s) {
   if (!s.setup) lacks.push(withFile('todo.no_setup', `${S.state.paths.setups}/${s.name}${S.state.setupExt}`));
   $('suiteTodoList').innerHTML = lacks.map((l) => `<li>${l}</li>`).join('');
 
-  const off = [
-    [!s.setup, 'btn.setup'],
-    [!s.recorded, 'btn.replay'],
-    [!s.recorded || !s.setup, 'btn.full'],
-  ]
-    .filter(([dead]) => dead)
-    .map(([, key]) => t(key));
-  $('suiteTodoOff').hidden = off.length === 0;
-  $('suiteTodoOff').textContent = off.length
-    ? tn('todo.off', off.length, {
-        buttons: listOf(off),
-      })
-    : '';
 
   const prompt = s.status === 'stale' ? 'todo.prompt_stale' : s.recorded ? 'todo.prompt_setup' : 'todo.prompt_record';
   $('suiteTodoAsk').textContent = t('todo.ask');
@@ -553,6 +540,7 @@ document.addEventListener('click', (e) => {
   if (!e.target.closest('#picker')) closePicker();
   if (!e.target.closest('#runPicker')) closeRunPick();
   if (!e.target.closest('#opts')) $('opts').open = false;
+  if (!e.target.closest('#runMore')) $('runMore').open = false;
   if (!e.target.closest('#lang')) $('lang').open = false;
 });
 
@@ -774,32 +762,85 @@ function renderHeader() {
 const busyElsewhere = () => (S.state?.lock && !S.state.lock.mine ? S.state.lock : null);
 const hhmm = (iso) => new Date(iso).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' });
 
+// THE RUN BUTTON does what the suite needs now, and says so in its words: a
+// replay when the stack's data is as the suite's setup left it, the whole
+// run (reset, setup, replay) when it is not, a reset and setup when the
+// suite is only played by hand. Every other way is under its arrow, only
+// those the suite can take; none when only an agent can help (no setup:
+// the suite's panel says what to ask). What the data is: stackdata.mjs.
+const RUNS = {
+  full: { icon: 'play', label: 'btn.full', tip: 'btn.full_title' },
+  replay: { icon: 'rotate', label: 'btn.replay', tip: 'btn.replay_title' },
+  prepare: { icon: 'listChecks', label: 'btn.prepare', tip: 'btn.prepare_title' },
+  setup: { icon: 'listChecks', label: 'btn.setup', tip: 'btn.setup_title' },
+  reset: { icon: 'database', label: 'btn.reset', tip: 'btn.reset_title' },
+};
+
+/** The main button's run for the suite now: { action, why? }, or null when it has no setup. */
+function runPlan(s) {
+  if (!s?.setup) return null;
+  const d = S.state?.data;
+  // Played by hand: the suite's setup on fresh data; right after a reset,
+  // the setup alone.
+  if (!s.recorded) return { action: d?.state === 'reset' ? 'setup' : 'prepare' };
+  // A search for races starts each round from fresh data by itself.
+  if ($('optChaos').checked) return { action: 'full' };
+  if (d?.state === 'setup' && d.suite === s.name) return { action: 'replay' };
+  // Spent, played by hand, another suite's, or nothing known: from the start.
+  return { action: 'full', why: staleWhy(s.name) ?? t('data.unknown') };
+}
+
+/**
+ * The other runs the suite can take, under the arrow: a recording only with
+ * the setup that makes its data, a setup alone only right after a reset.
+ */
+function otherRuns(s, plan) {
+  const both = Boolean(s?.recorded && s.setup);
+  const reset = S.state?.data?.state === 'reset';
+  return [both && 'full', both && 'replay', s?.setup && 'prepare', s?.setup && reset && 'setup', 'reset'].filter((a) => a && a !== plan?.action);
+}
+
 function updateButtons() {
   const st = S.state;
   if (!st) return;
   const s = suiteOf(S.suite);
   const other = busyElsewhere();
-  const busy = Boolean(st.task) || Boolean(other);
-  $('btnReset').disabled = busy || !st.stack.up;
-  $('btnSetup').disabled = busy || !st.stack.up || !s?.setup;
-  $('btnReplay').disabled = busy || !st.stack.up || !s?.recorded;
-  $('btnFull').disabled = busy || !st.stack.up || !s?.recorded || !s?.setup;
-  $('btnFull').hidden = Boolean(st.task);
+  const off = Boolean(st.task) || Boolean(other) || !st.stack.up;
+  const plan = runPlan(s);
+  S.plan = plan;
+  const run = $('btnRun');
+  run.hidden = Boolean(st.task) || !plan;
+  $('runMore').hidden = Boolean(st.task);
+  if (st.task) $('runMore').open = false;
   // A terminal's run is followed, not owned: it stops in its terminal.
   $('btnStop').hidden = !st.task || Boolean(st.task.external);
-  // One primary: the whole run when there is a recording, the setup when
-  // the suite is only played by hand.
-  $('btnFull').classList.toggle('primary', Boolean(s?.recorded && s?.setup));
-  $('btnSetup').classList.toggle('primary', Boolean(s?.setup && !s?.recorded));
-  $('btnReset').dataset.tip = t('btn.reset_title');
-  $('btnSetup').dataset.tip = t(s?.setup ? 'btn.setup_title' : 'btn.setup_none');
-  $('btnReplay').dataset.tip = t(s?.recorded ? 'btn.replay_title' : 'btn.replay_none');
-  // A button that cannot be pressed says why: the suite's own status.
-  $('btnFull').dataset.tip = s && s.status !== 'ready' ? t(`status.${s.status}_why`) : t('btn.full_title');
-  // Or that somebody else has the stack: one run at a time, and who.
-  for (const id of ['btnReset', 'btnSetup', 'btnReplay', 'btnFull']) {
-    if (other) $(id).dataset.tipKind = 'busy';
-    else delete $(id).dataset.tipKind;
+  run.disabled = off;
+  // The arrow joined to the main button, or on its own when there is none.
+  $('runGroup').classList.toggle('alone', !plan);
+  $('runMoreBtn').classList.toggle('primary', Boolean(plan));
+  if (plan) {
+    const r = RUNS[plan.action];
+    withIcon(run, r.icon, t(r.label));
+    run.dataset.tip = !st.stack.up
+      ? t('stack.sub_down')
+      : [plan.why ? t('run.first', { why: plan.why }) : t(r.tip), s.status === 'stale' && t('status.stale_why')].filter(Boolean).join(' ');
+  }
+  $('runMoreBtn').dataset.tip = t('btn.more');
+  const menu = otherRuns(s, plan)
+    .map((a) => {
+      const r = RUNS[a];
+      return `<button type="button" class="run-item${a === 'reset' ? ' danger' : ''}" role="menuitem" data-run="${a}"${off ? ' disabled' : ''}>${icon(r.icon)}<span><b>${esc(t(r.label))}</b><span>${esc(t(r.tip))}</span></span></button>`;
+    })
+    .join('');
+  // Drawn again only when it changes: an open menu keeps its focus.
+  if (updateButtons.menu !== menu) {
+    updateButtons.menu = menu;
+    $('runMenu').innerHTML = menu;
+  }
+  // Somebody else has the stack: one run at a time, and who.
+  for (const el of [run, $('runMoreBtn')]) {
+    if (other) el.dataset.tipKind = 'busy';
+    else delete el.dataset.tipKind;
   }
   refreshTip();
 }
@@ -3362,11 +3403,9 @@ function localStorageSet(k, v) {
 
 /** Every label that carries an icon, in the current language. */
 function labelButtons() {
-  withIcon($('btnReset'), 'database', t('btn.reset'));
-  withIcon($('btnSetup'), 'listChecks', t('btn.setup'));
-  withIcon($('btnReplay'), 'rotate', t('btn.replay'));
-  withIcon($('btnFull'), 'play', t('btn.full'));
   withIcon($('btnStop'), 'stop', t('btn.stop'));
+  $('runMoreBtn').innerHTML = icon('down', 'sm');
+  updateButtons();
   withIcon($('insCopy'), 'copy', t('ins.copy'));
   withIcon($('logToggle'), 'chevron', t('log.toggle'));
   withIcon($('logDownload'), 'download', t('log.download'));
@@ -3454,8 +3493,8 @@ function fitMenu(details) {
   if (!details.open || !menu) return;
   menu.style.maxHeight = `${Math.max(160, Math.floor(innerHeight - menu.getBoundingClientRect().top - 12))}px`;
 }
-for (const id of ['opts', 'lang']) $(id).addEventListener('toggle', () => fitMenu($(id)));
-addEventListener('resize', () => ['opts', 'lang'].forEach((id) => fitMenu($(id))));
+for (const id of ['opts', 'lang', 'runMore']) $(id).addEventListener('toggle', () => fitMenu($(id)));
+addEventListener('resize', () => ['opts', 'lang', 'runMore'].forEach((id) => fitMenu($(id))));
 $('pickerChev').innerHTML = icon('down', 'sm');
 for (const [id, name] of [
   ['tFirst', 'first'],
@@ -3490,16 +3529,25 @@ async function playersAgree(action) {
   return !names.length || ask(t('play.busy_run', { names: listOf(names) }), t('play.run_anyway'));
 }
 
-$('btnReset').onclick = async () => {
-  if (await playersAgree('reset')) void act('reset');
+/** A run of the suite, the main button's or one under its arrow. */
+async function startRun(action) {
+  if (action === 'replay') return replayAsked();
+  if (await playersAgree(action)) void act(action);
+}
+$('btnRun').onclick = () => {
+  if (S.plan) void startRun(S.plan.action);
 };
-$('btnSetup').onclick = async () => {
-  if (await playersAgree('setup')) void act('setup');
-};
+$('runMenu').addEventListener('click', (e) => {
+  const item = e.target.closest('[data-run]');
+  if (!item || item.disabled) return;
+  $('runMore').open = false;
+  void startRun(item.dataset.run);
+});
+
 // A REPLAY NEEDS ITS SUITE'S SETUP just before it (stackdata.mjs). When the
 // stack's data is something else, the page asks, and a Full run (reset,
 // setup, recording) is the answer Enter takes.
-$('btnReplay').onclick = async () => {
+async function replayAsked() {
   // What the data is now: somebody may have played by hand since.
   await refreshState().catch(() => {});
   if (!(await playersAgree('replay'))) return;
@@ -3520,7 +3568,7 @@ $('btnReplay').onclick = async () => {
     if (pick !== 'replay') return;
   }
   void act('replay');
-};
+}
 
 /** Why a replay of the suite would not find its setup's data, in words; null
  *  when it would, or when nothing is known. The rules of stackdata.mjs's
@@ -3531,9 +3579,6 @@ function staleWhy(suite) {
   const code = d.state === 'spent' || d.state === 'played' ? d.state : d.state === 'setup' ? 'other_setup' : d.state === 'setting-up' ? 'setup_unfinished' : 'reset';
   return t(`data.${code}`, { suite: suiteOf(d.suite)?.title ?? d.suite ?? '', who: cap(d.who ?? ''), when: when(d.at) });
 }
-$('btnFull').onclick = async () => {
-  if (await playersAgree('full')) void act('full');
-};
 $('btnStop').onclick = () => act('stop');
 $('elsewhere').onclick = () => S.state?.task?.suite && pickSuite(S.state.task.suite);
 

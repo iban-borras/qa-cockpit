@@ -1476,6 +1476,12 @@ async function onAction(body) {
     const s = pick();
     if (!s.setup) throw new Refusal('no_setup', { suite: s.name });
     started = startTask({ kind: 'setup', suite: s.name, docker: Boolean(docker) }, [['setup', s.name, ...inDocker]]);
+  } else if (action === 'prepare') {
+    // Fresh data and the suite's setup on it, nothing replayed: a suite to
+    // play by hand.
+    const s = pick();
+    if (!s.setup) throw new Refusal('no_setup', { suite: s.name });
+    started = startTask({ kind: 'setup', suite: s.name, docker: Boolean(docker) }, [['reset'], ['setup', s.name, ...inDocker]]);
   } else if (action === 'replay') {
     const s = pick();
     if (!s.recorded) throw new Refusal('no_recording', { suite: s.name });

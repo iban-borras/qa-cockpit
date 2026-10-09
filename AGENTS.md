@@ -77,7 +77,7 @@ from npm instead of the one in this checkout.
 - **The example's cockpit** runs on port 3160:
   `npx --no-install qa-cockpit cockpit --no-open` from
   `examples/two-person-chat/qa`, with the app `up` and one run to look at
-  (`setup chat`, then «Full run» on the page, or `replay chat`).
+  (`setup chat`, then the run button on the page, or `replay chat`).
 - **Look at it at a desktop size.** A narrow browser pane squeezes the
   inspector until it tells you nothing. Drive a Chromium of your own at
   1440×900 with the example's Playwright (`createRequire` from

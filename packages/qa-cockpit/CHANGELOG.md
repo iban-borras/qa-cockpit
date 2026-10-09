@@ -19,6 +19,15 @@
   a language does not have yet is said in English, and
   `scripts/i18n-check.mjs` lists what each one is missing, and any
   placeholder lost on the way.
+- One run button, which does what the suite needs now and says it: a
+  replay when the stack's data is as the suite's setup left it; the full
+  run (reset, setup, replay) when it is not, with the reason in its
+  tooltip (a replay spent it, somebody played by hand, another suite's
+  setup, or nothing known); a reset and setup («Reset + Setup») for a suite
+  played by hand. Its arrow holds the other runs, only those the suite can
+  take: a replay only with a setup, a setup alone only right after a reset.
+  A suite with no setup has no run button, and its panel says what to ask
+  an agent. The four buttons, some always dead, are gone.
 - A replay with `--changes` no longer ends red after a green run on
   Windows: Node aborted on its way out (libuv's `UV_HANDLE_CLOSING`
   assertion) when the CLI exited while the comparison's browser and

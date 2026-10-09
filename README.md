@@ -50,9 +50,11 @@ to agents.
   size of your own), every card of the cockpit saying which.
 - **Recordings** that replay them, carrying the suite's hash: a suite that
   changed is never replayed from a stale recording (`decide` says REPLAY,
-  GENERATE or ENV). And a replay that would not find its setup's data
-  (after another replay, a reset, another suite's setup) is asked about
-  first, with a full run as the answer.
+  GENERATE or ENV). And the cockpit's run button knows what the stack's
+  data is: a replay when it is as the suite's setup left it, the full run
+  (reset, setup, replay) when it is not (after another replay, a reset,
+  another suite's setup), a reset and setup for a suite played by hand.
+  The other runs are under its arrow, only those the suite can take.
 - **The cockpit**, on `localhost` only:
   - a card per person, and a timeline over every step of the run;
   - live screens while a step runs;
