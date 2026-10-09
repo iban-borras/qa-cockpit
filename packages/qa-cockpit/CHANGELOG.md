@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.9.0 (unreleased)
+## 0.9.0 (2026-10-09)
 
 - The cockpit in fourteen languages: to Catalan, English and Spanish come
   Chinese (simplified), French, German, Hindi, Italian, Japanese, Polish,
@@ -33,13 +33,6 @@
   inspector. The run to compare with is picked from a list like the run
   picker's, each run with its time, its tests and its status, by mouse or
   keyboard.
-- The photos of sessions saved again in a run (`Sessions`) are no longer a
-  change: they are the cockpit's own sign-in, in a run only when the saved
-  sessions were old.
-- A replay with `--changes` no longer ends red after a green run on
-  Windows: Node aborted on its way out (libuv's `UV_HANDLE_CLOSING`
-  assertion) when the CLI exited while the comparison's browser and
-  sockets were still closing.
 - `languages.ready({ page, person })`, optional in the config: before each
   step's look in other languages, whether its screen can be changed now. It
   may wait (for a «Saving…» to turn «Saved»), or return or throw why not (a
@@ -55,6 +48,21 @@
 - The end of a run lists the steps not looked at in other languages with
   their reason, the project's or the change's, no longer as «the control
   out of reach».
+- A replay with `--changes` no longer ends red after a green run on
+  Windows: Node aborted on its way out (libuv's `UV_HANDLE_CLOSING`
+  assertion) when the CLI exited while the comparison's browser and
+  sockets were still closing.
+- The photos of sessions saved again in a run (`Sessions`) are no longer a
+  change: they are the cockpit's own sign-in, in a run only when the saved
+  sessions were old.
+- The suite picker's list stays inside the window: with one run button the
+  picker sits near its right edge, and the list moves left as far as it
+  must.
+- Runs of a suite started in the same minute are named to the second, in
+  the run picker, the list of runs to compare with and the strip of
+  changes; a run the cockpit no longer keeps, by its time rather than its
+  id. In the list of runs to compare with, a run's own changes (from yet
+  another run) are left out.
 
 ## 0.8.0 (2026-10-09)
 
