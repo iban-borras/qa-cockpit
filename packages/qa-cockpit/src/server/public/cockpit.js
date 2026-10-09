@@ -559,7 +559,8 @@ function renderPickerTags() {
 function renderPicker() {
   renderPickerTags();
   const items = pickerItems();
-  S.picker.active = Math.max(0, Math.min(items.length - 1, S.picker.active));
+  // -1: no item lit (the suite on screen is not in the list), until a key moves.
+  S.picker.active = Math.max(-1, Math.min(items.length - 1, S.picker.active));
   let html = '';
   let group = null;
   // A tag chosen: its suites under one heading, numbered in the order its
@@ -586,7 +587,7 @@ function renderPicker() {
       <span class="tags">${tagsOf(s, { running: true })}</span>
       <span class="d">${esc(s.summary)}</span>
       <span class="m">${esc(meta)}</span>
-      ${s.tags?.length ? `<span class="g">${s.tags.map((g) => `<span class="tag-chip sm">${esc(g)}</span>`).join('')}</span>` : ''}
+      ${s.tags?.length ? `<span class="g">${s.tags.map((g) => `<span class="tag-mark">#${esc(g)}</span>`).join('')}</span>` : ''}
     </div>`;
   });
   $('pickerList').innerHTML = html || `<p class="picker-empty">${esc(t('picker.empty'))}</p>`;
@@ -618,7 +619,7 @@ function openPicker() {
   S.picker.query = '';
   $('pickerSearch').value = '';
   const items = pickerItems();
-  S.picker.active = Math.max(0, items.findIndex((s) => s.name === S.suite));
+  S.picker.active = items.findIndex((s) => s.name === S.suite);
   $('pickerPop').hidden = false;
   $('pickerBtn').setAttribute('aria-expanded', 'true');
   keepInView($('pickerPop'));
@@ -642,7 +643,9 @@ $('pickerTags').addEventListener('click', (e) => {
   if (!b) return;
   S.picker.tag = b.dataset.tag || null;
   localStorageSet('pickerTag', S.picker.tag ?? '');
-  S.picker.active = 0;
+  // The cursor on the suite on screen if the tag has it; else on none: the
+  // first one lit read as chosen, and stayed so.
+  S.picker.active = pickerItems().findIndex((x) => x.name === S.suite);
   renderPicker();
 });
 $('groupStopFirst').checked = localStorageGet('groupStopFirst') !== '0';
@@ -673,7 +676,7 @@ $('pickerSearch').oninput = (e) => {
 // The keys, in the box and in the list alike; the filter's box keeps its
 // own but Escape. A letter typed in the list goes to the box.
 $('pickerPop').onkeydown = (e) => {
-  if (e.target === $('pickerHide') && e.key !== 'Escape') return;
+  if ((e.target === $('pickerHide') || e.target.closest?.('#pickerTags, #pickerPlay')) && e.key !== 'Escape') return;
   const items = pickerItems();
   if (e.key === 'ArrowDown') S.picker.active = Math.min(items.length - 1, S.picker.active + 1);
   else if (e.key === 'ArrowUp') S.picker.active = Math.max(0, S.picker.active - 1);
