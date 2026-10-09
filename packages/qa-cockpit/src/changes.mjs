@@ -280,6 +280,9 @@ async function photoDiffInPage({ a, b, masksA, masksB, width, block, tolerance, 
 
 const dataUrl = (file) => `data:image/jpeg;base64,${fs.readFileSync(file).toString('base64')}`;
 
+// The test name of a saved session's photo (sessions.mjs, saveSessions).
+const SESSIONS_TEST = 'Sessions';
+
 /**
  * A run compared with another, written to its `changes.json` and returned.
  * `root` is the cockpit's runs (<out>/cockpit), `out` the paths its frames
@@ -287,8 +290,11 @@ const dataUrl = (file) => `data:image/jpeg;base64,${fs.readFileSync(file).toStri
  * @param {{ config: any, root: string, run: string, against: string, say?: (line: string) => void }} o
  */
 export async function compareRuns({ config, root, run, against, say = () => {} }) {
-  const now = readRunFiles(path.join(root, run));
-  const was = readRunFiles(path.join(root, against));
+  // The photos of the sessions saved again (sessions.mjs) are the cockpit's
+  // own sign-in, in a run only when the saved ones were old: never a change.
+  const recorded = ({ frames, ...rest }) => ({ ...rest, frames: frames.filter((f) => f.test !== SESSIONS_TEST) });
+  const now = recorded(readRunFiles(path.join(root, run)));
+  const was = recorded(readRunFiles(path.join(root, against)));
   const stepsOf = ({ frames }) => {
     const map = new Map();
     for (const f of frames) {

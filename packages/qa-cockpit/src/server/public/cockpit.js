@@ -182,6 +182,7 @@ const S = {
   dropped: null, // the note just pinned: its tack lands
   picker: { open: false, active: 0, query: '', hideNoSetup: false },
   runPick: { open: false, active: 0 },
+  cmpPick: { open: false, active: 0 },
 };
 
 async function api(path, opts) {
@@ -539,6 +540,7 @@ $('pickerList').addEventListener('click', (e) => {
 document.addEventListener('click', (e) => {
   if (!e.target.closest('#picker')) closePicker();
   if (!e.target.closest('#runPicker')) closeRunPick();
+  if (!e.target.closest('#cmpPicker')) closeCmpPick();
   if (!e.target.closest('#opts')) $('opts').open = false;
   if (!e.target.closest('#runMore')) $('runMore').open = false;
   if (!e.target.closest('#lang')) $('lang').open = false;
@@ -1111,23 +1113,24 @@ function runTests(x) {
   return esc(tn('runs.pass', Math.max(n, tally.count ?? 0), { ok: tally.passed })) + where;
 }
 
-function renderRunPop({ scroll = false } = {}) {
-  const runs = runsOf(S.suite);
-  S.runPick.active = Math.max(0, Math.min(runs.length - 1, S.runPick.active));
-  $('runPop').innerHTML = runs
-    .map((x, i) => {
-      const st = runStatus(x);
-      const pins = x.id === S.run?.id ? S.notes.filter(kept).length : (x.notes ?? 0);
-      const moved = x.changes ? x.changes.changed + x.changes.new + x.changes.gone : 0;
-      const meta = [runDuration(x), runTests(x), esc(noteCount(pins)), moved ? `<span class="chg">${esc(tn('changes.n_short', moved))}</span>` : ''].filter(Boolean).join(' · ');
-      return `<div class="run-item${i === S.runPick.active ? ' active' : ''}" role="option" id="run-opt-${esc(x.id)}" data-run="${esc(x.id)}" data-st="${esc(st)}" aria-selected="${x.id === S.run?.id}">
+/** A run as an option of a list of runs: the run picker's, and the one of the run to compare with. */
+function runOption(x, { active, selected, prefix }) {
+  const st = runStatus(x);
+  const pins = x.id === S.run?.id ? S.notes.filter(kept).length : (x.notes ?? 0);
+  const moved = x.changes ? x.changes.changed + x.changes.new + x.changes.gone : 0;
+  const meta = [runDuration(x), runTests(x), esc(noteCount(pins)), moved ? `<span class="chg">${esc(tn('changes.n_short', moved))}</span>` : ''].filter(Boolean).join(' · ');
+  return `<div class="run-item${active ? ' active' : ''}" role="option" id="${prefix}-${esc(x.id)}" data-run="${esc(x.id)}" data-st="${esc(st)}" aria-selected="${selected}">
       <span class="rdot"></span>
       <span class="k"><b>${esc(when(x.startedAt))}</b> · ${esc(kindLabel(x))}</span>
       <span class="chip ${STATUS_CHIP[st] ?? ''}">${st === 'running' ? '<span class="dot"></span>' : ''}${esc(t(`run.${st}`))}</span>
       ${meta ? `<span class="m">${meta}</span>` : ''}
     </div>`;
-    })
-    .join('');
+}
+
+function renderRunPop({ scroll = false } = {}) {
+  const runs = runsOf(S.suite);
+  S.runPick.active = Math.max(0, Math.min(runs.length - 1, S.runPick.active));
+  $('runPop').innerHTML = runs.map((x, i) => runOption(x, { active: i === S.runPick.active, selected: x.id === S.run?.id, prefix: 'run-opt' })).join('');
   const active = runs[S.runPick.active];
   $('runPop').setAttribute('aria-activedescendant', active ? `run-opt-${active.id}` : '');
   if (scroll) $('runPop').querySelector('.run-item.active')?.scrollIntoView({ block: 'nearest' });
@@ -2285,50 +2288,143 @@ function renderChanges() {
   const show = Boolean(c) || S.comparing === r?.id || (comparable && $('optChanges').checked && cands.length > 0);
   if (!show) {
     box.hidden = true;
-    box.dataset.html = '';
-    box.innerHTML = '';
+    closeCmpPick();
     return;
   }
-  const n = c ? c.summary.changed + c.summary.new + c.summary.gone + c.tests.onlyNow.length + c.tests.onlyThen.length : 0;
-  const counts = c
-    ? [
-        c.summary.changed && tn('changes.n_changed', c.summary.changed),
-        c.summary.new && tn('changes.n_new', c.summary.new),
-        c.summary.gone && tn('changes.n_gone', c.summary.gone),
-      ]
-        .filter(Boolean)
-        .join(' · ') || (n ? '' : t('changes.nothing'))
-    : '';
-  const options =
-    (c ? '' : `<option value="" selected>${esc(t('changes.pick'))}</option>`) +
-    cands.map((x) => `<option value="${esc(x.id)}"${x.id === c?.against ? ' selected' : ''}>${esc(`${when(x.startedAt)} · ${t(`kind.${x.kind ?? 'replay'}`)}`)}</option>`).join('');
-  const select = cands.length
-    ? `<span class="field"><label for="changesAgainst">${esc(t('changes.against'))}</label><select id="changesAgainst"${S.comparing === r.id ? ' disabled' : ''}>${options}</select></span>`
-    : '';
-  const head = c ? t('changes.head', { run: runName(c.against) }) : t('changes.none_yet');
-  const html =
-    `${icon('compare', 'sm')}<span class="what">${esc(head)}</span>` +
-    `${counts ? `<span class="${n ? 'chg' : 'same'}">${esc(counts)}</span>` : ''}` +
-    `${S.comparing === r.id ? `<span class="faint">${esc(t('changes.comparing'))}</span>` : ''}${select}`;
   box.hidden = false;
-  if (box.dataset.html === html) return;
-  box.dataset.html = html;
-  box.innerHTML = html;
+  const comparing = S.comparing === r?.id;
+  // What changed, as a tag: green when nothing did; orange when something
+  // did, and a click away from the first step that changed.
+  const n = c ? c.summary.changed + c.summary.new + c.summary.gone + c.tests.onlyNow.length + c.tests.onlyThen.length : 0;
+  const counts =
+    [
+      c?.summary.changed && tn('changes.n_changed', c.summary.changed),
+      c?.summary.new && tn('changes.n_new', c.summary.new),
+      c?.summary.gone && tn('changes.n_gone', c.summary.gone),
+    ]
+      .filter(Boolean)
+      .join(' · ') || tn('changes.n_short', n);
+  const first = firstChange();
+  const tag = !c
+    ? ''
+    : !n
+      ? `<span class="chip ok">${esc(t('changes.nothing'))}</span>`
+      : first
+        ? `<button class="chip chg-tag" id="chgGo" type="button" data-tip="${esc(t('changes.go'))}">${icon('eye', 'sm')}${esc(counts)}</button>`
+        : `<span class="chip chg-tag">${esc(counts)}</span>`;
+  const parts = { head: c ? t('changes.head', { run: runName(c.against) }) : t('changes.none_yet'), tag };
+  if (renderChanges.parts?.head !== parts.head) $('chgHead').textContent = parts.head;
+  if (renderChanges.parts?.tag !== parts.tag) $('chgCount').innerHTML = parts.tag;
+  renderChanges.parts = parts;
+  $('chgIcon').innerHTML ||= icon('compare', 'sm');
+  $('chgBusy').hidden = !comparing;
+  // The earlier run to compare with: the run picker's look, a list of the
+  // green runs made the same way.
+  $('cmpPicker').hidden = cands.length === 0;
+  $('cmpBtn').disabled = comparing;
+  const against = c ? (runsOf(S.suite).find((x) => x.id === c.against) ?? cands.find((x) => x.id === c.against)) : null;
+  $('cmpFace').innerHTML = against
+    ? `<span class="picker-name">${esc(when(against.startedAt))} · ${esc(kindLabel(against))}</span>`
+    : `<span class="picker-name faint">${esc(t('changes.pick'))}</span>`;
+  if (S.cmpPick.open) renderCmpPop();
 }
 
-$('changesStrip').addEventListener('change', async (e) => {
-  if (e.target.id !== 'changesAgainst' || !e.target.value || !S.run) return;
+/** The runs to compare with, as runs of the suite when the page has them (their tests, their time). */
+const cmpRuns = () => (S.run?.candidates ?? []).map((x) => runsOf(S.suite).find((y) => y.id === x.id) ?? x);
+
+/** The first step that changed and has a photo now, a new test's first one else: { actor, seq }, or null. */
+function firstChange() {
+  const c = S.run?.changes;
+  for (const s of c?.steps ?? []) {
+    if (s.kind === 'same' || s.seq === null || s.seq === undefined) continue;
+    const f = S.frames.find((x) => x.seq === s.seq);
+    if (f) return { actor: f.actor, seq: f.seq };
+  }
+  const f = S.frames.find((x) => !isAction(x) && c?.tests?.onlyNow.includes(x.test));
+  return f ? { actor: f.actor, seq: f.seq } : null;
+}
+
+function renderCmpPop({ scroll = false } = {}) {
+  const runs = cmpRuns();
+  S.cmpPick.active = Math.max(0, Math.min(runs.length - 1, S.cmpPick.active));
+  const now = S.run?.changes?.against;
+  $('cmpPop').innerHTML = runs.map((x, i) => runOption(x, { active: i === S.cmpPick.active, selected: x.id === now, prefix: 'cmp-opt' })).join('');
+  const active = runs[S.cmpPick.active];
+  $('cmpPop').setAttribute('aria-activedescendant', active ? `cmp-opt-${active.id}` : '');
+  if (scroll) $('cmpPop').querySelector('.run-item.active')?.scrollIntoView({ block: 'nearest' });
+}
+
+function openCmpPick() {
+  const runs = cmpRuns();
+  if (!runs.length || $('cmpBtn').disabled) return;
+  S.cmpPick.open = true;
+  S.cmpPick.active = Math.max(0, runs.findIndex((x) => x.id === S.run?.changes?.against));
+  $('cmpPop').hidden = false;
+  $('cmpBtn').setAttribute('aria-expanded', 'true');
+  renderCmpPop({ scroll: true });
+  $('cmpPop').focus();
+}
+
+function closeCmpPick(refocus = false) {
+  if (!S.cmpPick.open) return;
+  S.cmpPick.open = false;
+  $('cmpPop').hidden = true;
+  $('cmpBtn').setAttribute('aria-expanded', 'false');
+  if (refocus) $('cmpBtn').focus();
+}
+
+/** This run compared again, with the one picked (changes.mjs, through the cockpit). */
+async function pickCmp(id) {
+  closeCmpPick(true);
+  if (!id || !S.run || id === S.run.changes?.against) return;
   S.comparing = S.run.id;
   renderChanges();
   await api(`/api/runs/${encodeURIComponent(S.run.id)}/changes`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ against: e.target.value }),
+    body: JSON.stringify({ against: id }),
   }).catch((err) => {
     S.comparing = null;
     banner(err.message, 'err');
     renderChanges();
   });
+}
+
+$('cmpChev').innerHTML = icon('down', 'sm');
+$('cmpBtn').onclick = () => (S.cmpPick.open ? closeCmpPick() : openCmpPick());
+$('cmpBtn').onkeydown = (e) => {
+  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+  e.preventDefault();
+  openCmpPick();
+};
+$('cmpPop').onkeydown = (e) => {
+  const runs = cmpRuns();
+  if (e.key === 'ArrowDown') S.cmpPick.active = Math.min(runs.length - 1, S.cmpPick.active + 1);
+  else if (e.key === 'ArrowUp') S.cmpPick.active = Math.max(0, S.cmpPick.active - 1);
+  else if (e.key === 'Home') S.cmpPick.active = 0;
+  else if (e.key === 'End') S.cmpPick.active = runs.length - 1;
+  else if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    return void pickCmp(runs[S.cmpPick.active]?.id);
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    return closeCmpPick(true);
+  } else if (e.key === 'Tab') return closeCmpPick();
+  else return;
+  e.preventDefault();
+  renderCmpPop({ scroll: true });
+};
+$('cmpPop').addEventListener('click', (e) => {
+  const item = e.target.closest('[data-run]');
+  if (item) void pickCmp(item.dataset.run);
+});
+// The orange tag: the inspector at the first step that changed.
+$('changesStrip').addEventListener('click', (e) => {
+  if (!e.target.closest('#chgGo')) return;
+  const first = firstChange();
+  if (!first) return;
+  openInspector(first.actor);
+  insGo(insFrames().findIndex((f) => f.seq === first.seq));
 });
 
 $('plays').addEventListener('click', async (e) => {
@@ -3634,7 +3730,7 @@ $('tLast').onclick = () => {
 };
 $('tLive').onclick = $('tLast').onclick;
 document.addEventListener('keydown', (e) => {
-  if (dlg.open || S.picker.open || S.runPick.open || e.target.closest('input, select, textarea, button, summary')) return;
+  if (dlg.open || S.picker.open || S.runPick.open || S.cmpPick.open || e.target.closest('input, select, textarea, button, summary')) return;
   if (e.key === 'ArrowLeft') tableGo(S.table.idx - 1);
   else if (e.key === 'ArrowRight') tableGo(S.table.idx + 1);
 });

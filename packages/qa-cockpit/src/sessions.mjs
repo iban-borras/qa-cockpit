@@ -44,7 +44,8 @@ export async function saveSession(browser, rawConfig, id, override = {}) {
     await context.storageState({ path: path.join(config.paths.state, `${id}.json`) });
 
     // With the cockpit on, a photo of where the sign-in lands, once the
-    // project says its page has settled.
+    // project says its page has settled. Its test name keeps it out of the
+    // comparison of two runs (changes.mjs, SESSIONS_TEST).
     if (cockpit.enabled) {
       await config.raw.sessions?.settled?.({ page, person })?.catch?.(() => {});
       await cockpit.photo({ actor: id, page, device: deviceLabel(device), step: 'Session saved', status: 'passed', test: 'Sessions' });

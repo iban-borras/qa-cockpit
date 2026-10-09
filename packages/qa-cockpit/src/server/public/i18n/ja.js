@@ -151,6 +151,7 @@ export default {
   'changes.n_new_other': '新規 {n} 件',
   'changes.n_gone_other': '消えた {n} 件',
   'changes.nothing': '変更なし',
+  'changes.go': '最初に変わったステップを開く',
   'changes.against': '比較対象',
   'changes.pick': '実行を選択',
   'changes.comparing': '比較中…',

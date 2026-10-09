@@ -28,6 +28,14 @@
   take: a replay only with a setup, a setup alone only right after a reset.
   A suite with no setup has no run button, and its panel says what to ask
   an agent. The four buttons, some always dead, are gone.
+- The changes from an earlier run are a tag: green «No changes», or orange
+  with what changed, a click away from the first step that changed in the
+  inspector. The run to compare with is picked from a list like the run
+  picker's, each run with its time, its tests and its status, by mouse or
+  keyboard.
+- The photos of sessions saved again in a run (`Sessions`) are no longer a
+  change: they are the cockpit's own sign-in, in a run only when the saved
+  sessions were old.
 - A replay with `--changes` no longer ends red after a green run on
   Windows: Node aborted on its way out (libuv's `UV_HANDLE_CLOSING`
   assertion) when the CLI exited while the comparison's browser and

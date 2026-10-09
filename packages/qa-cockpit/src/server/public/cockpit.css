@@ -442,11 +442,17 @@ dialog#inspector::backdrop { background: rgba(4, 4, 6, 0.72); }
    and a thumbnail, and the line under the photo. */
 #optChanges { accent-color: #fb923c; }
 .changes { grid-column: 1 / -1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
-.changes svg.i { width: 15px; height: 15px; color: #fb923c; }
+#chgIcon svg.i { width: 15px; height: 15px; color: #fb923c; }
+#chgIcon { display: inline-flex; }
 .changes .what { color: #fdba74; font-weight: 600; }
-.changes .same { color: var(--ok); }
-.changes .field { height: 28px; margin-left: auto; font-size: 12px; }
-.changes .field select { height: 26px; color: var(--text); }
+/* What changed, as a tag: orange, and a button to the first step that changed. */
+.chip.chg-tag { background: rgba(251, 146, 60, 0.12); color: #fb923c; border-color: rgba(251, 146, 60, 0.4); font-family: inherit; }
+button.chip.chg-tag { cursor: pointer; }
+button.chip.chg-tag:hover { background: rgba(251, 146, 60, 0.22); border-color: rgba(251, 146, 60, 0.7); }
+.chip.chg-tag svg.i { width: 13px; height: 13px; }
+/* The run to compare with: the run picker, at the end of the line, its list opening to the left. */
+.cmp-picker { margin-left: auto; }
+.cmp-picker .picker-pop { left: auto; right: 0; }
 .chg { color: #fb923c; }
 .finds .find.change { border: 2px solid #fb923c; background: rgba(251, 146, 60, 0.14); }
 /* Something taken out: a line across where it was. */

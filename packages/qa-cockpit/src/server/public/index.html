@@ -126,7 +126,20 @@
     </div>
     <div class="races" id="races" hidden></div>
     <div class="plays" id="plays" hidden></div>
-    <div class="changes" id="changesStrip" hidden></div>
+    <div class="changes" id="changesStrip" hidden>
+      <span id="chgIcon"></span>
+      <span class="what" id="chgHead"></span>
+      <span id="chgCount"></span>
+      <span class="faint" id="chgBusy" data-i18n="changes.comparing" hidden></span>
+      <div class="run-picker cmp-picker" id="cmpPicker" hidden>
+        <button class="picker-btn run-btn" id="cmpBtn" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="cmpPop">
+          <span class="picker-label" data-i18n="changes.against"></span>
+          <span id="cmpFace" class="run-face"></span>
+          <span id="cmpChev" class="run-chev"></span>
+        </button>
+        <div class="picker-pop run-pop" id="cmpPop" role="listbox" tabindex="-1" data-i18n-aria="changes.against" hidden></div>
+      </div>
+    </div>
   </section>
 
   <section class="panel table" data-i18n-aria="table.title">
