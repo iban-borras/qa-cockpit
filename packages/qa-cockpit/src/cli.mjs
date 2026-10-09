@@ -595,6 +595,14 @@ export async function runCli(rawConfig, argv) {
     const said = { missing: 'no such suite', unrecorded: 'not recorded', stale: 'its recording is stale', nosetup: 'no setup' };
     const playing = plan.filter((p) => !p.why);
     if (!playing.length) fail(`No suite of «${tag}» can play: ${plan.map((p) => `${p.suite} (${said[p.why]})`).join(', ') || 'it has none'}.`);
+    // In the container, what would stop every suite is said once, first.
+    if (IN_DOCKER) {
+      try {
+        (await import('./docker/runner.mjs')).dockerReady(config);
+      } catch (e) {
+        fail(e instanceof Error ? e.message : String(e));
+      }
+    }
     guard();
     await takeStack('full', playing[0].suite, ['replay', '--tag', tag, ...args].join(' '));
     const stamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15);

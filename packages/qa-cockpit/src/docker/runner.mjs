@@ -54,6 +54,46 @@ export function runnerImage(config) {
   return `mcr.microsoft.com/playwright:v${version}-noble`;
 }
 
+/**
+ * The dependencies the lockfile takes from a file or a folder outside the
+ * repository: the container sees only the repository (/work), and its
+ * install fails on them, deep in npm's words. CritKeep met it trying a
+ * release candidate installed from a tarball elsewhere on the disk.
+ * @returns {{ name: string, from: string }[]}
+ */
+function outsideDeps(config, lockfile) {
+  const lock = JSON.parse(fs.readFileSync(lockfile, 'utf8'));
+  const root = path.resolve(config.paths.root);
+  const out = [];
+  for (const [key, e] of Object.entries(lock.packages ?? {})) {
+    if (!key.startsWith('node_modules/') || typeof e?.resolved !== 'string') continue;
+    const local = e.resolved.startsWith('file:') ? e.resolved.slice('file:'.length) : e.link ? e.resolved : null;
+    if (!local) continue;
+    const from = path.resolve(path.dirname(lockfile), local);
+    const rel = path.relative(root, from);
+    if (rel.startsWith('..') || path.isAbsolute(rel)) out.push({ name: key.slice(key.lastIndexOf('node_modules/') + 'node_modules/'.length), from });
+  }
+  return out;
+}
+
+/**
+ * Whether a run can go in the runner container, before one starts: a
+ * compose stack, an npm project with Playwright pinned, nothing installed
+ * from outside the repository. Throws why not.
+ */
+export function dockerReady(config) {
+  const compose = composeOf(config);
+  const image = runnerImage(config);
+  const outside = outsideDeps(config, packageManager(config).lockfile);
+  if (outside.length) {
+    throw new Error(
+      `--in-docker: the container sees only the repository, and ${outside.map((x) => `${x.name} comes from ${x.from}`).join('; ')}, outside it. ` +
+        'Install it from npm, or from a file inside the repository (npm i -D ./<file>.tgz), or run without --in-docker.',
+    );
+  }
+  return { compose, image };
+}
+
 // The label every runner container carries, so the cockpit can stop them.
 export const runnerLabel = (config) => `${composeOf(config).project}-runner`;
 
@@ -111,8 +151,7 @@ const posix = (p) => p.split(path.sep).join('/');
  * @returns {Promise<number>} the exit code
  */
 export async function runInDocker(config, playwrightArgs) {
-  const compose = composeOf(config);
-  const image = runnerImage(config);
+  const { compose, image } = dockerReady(config);
   ensureImage(image);
   const desktop = isDockerDesktop();
   const token = randomBytes(24).toString('hex');

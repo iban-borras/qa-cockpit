@@ -12,6 +12,11 @@
   tag's suites, numbered in the order they play, and plays its group, «Stop at the first failure» on unless
   taken off, and the page goes with each suite as it begins. The skill
   tells an agent how to propose a tag strategy for all the suites.
+- `--in-docker` says, before the container starts, when the lockfile takes
+  a dependency from a file or a folder outside the repository (a package
+  tried from a tarball elsewhere on the disk): the container sees only the
+  repository, and its npm install failed on it deep in npm's words. A group
+  says it once, before its first suite.
 - `stamp` writes its header in the recording's own line endings: on a
   CRLF recording it wrote it with LF, and left the file mixed.
 - The stack's badge says «restarting», in amber, while the run going now
