@@ -40,7 +40,7 @@ without a person beside it.
 | `src/network/` | `replay --network` and `network`: each person's HAR in a run (`capture.mjs`), its secrets taken out before it reaches the project (`sanitize.mjs`), and what it shows, step by step (`report.mjs`) |
 | `src/video/` | `video`: the capture in a run (`capture.mjs`), the plan of a video (`plan.mjs`), its drawing on a Chromium stage and its encoding (`render.mjs`; the design is `stage.html`), its sound (`audio.mjs`), its script (`script.mjs`), the system's voice (`voices.mjs`) |
 | `src/server/server.mjs` | the cockpit's server: the runs, the API, the files it serves |
-| `src/server/public/` | the cockpit's page: `cockpit.js`, `cockpit.css`, `i18n.js` (how a sentence is looked up) and `i18n/` (a file per language) |
+| `src/server/public/` | the cockpit's page: `cockpit.js`, `cockpit.css`, `i18n.js` (how a sentence is looked up), `i18n/` (a file per language) and `lang-names.js` (what the app's languages are called, the CLI's too) |
 | `src/docker/` | `--in-docker`: Playwright in the official image |
 | `templates/` | what `init` writes, and the agents' skill |
 

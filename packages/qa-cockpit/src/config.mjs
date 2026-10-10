@@ -199,12 +199,12 @@ export function resolveConfig(raw, file) {
 }
 
 /**
- * `languages`: { base?, others, priority?, switchTo({ page, lang, person }),
+ * `languages`: { base?, others, priority?, names?, switchTo({ page, lang, person }),
  * ready?({ page, person }) }.
  * The suites' own language is the browser's unless said; the others are the
  * app's other languages; `priority`, the ones looked at when a run names
  * none (every other one, unless said): an app of many languages, its new
- * ones.
+ * ones; `names`, what to call the ones a browser has no name for.
  */
 function languagesOf(l, locale) {
   if (l === undefined || l === null) return null;
@@ -224,7 +224,29 @@ function languagesOf(l, locale) {
   if (l.ready !== undefined && typeof l.ready !== 'function') {
     throw new Error('`languages.ready({ page, person })`: a function that waits for the screen to be ready to change, or returns why not.');
   }
-  return { base, others, priority, switchTo: l.switchTo, ready: l.ready ?? null };
+  return { base, others, priority, names: namesOf(l.names, [base, ...others]), switchTo: l.switchTo, ready: l.ready ?? null };
+}
+
+/**
+ * `languages.names`: { tlh: 'Klingon' }, a name for every interface; or one
+ * by the cockpit's language, English when the cockpit's is not there
+ * ({ tlh: { en: 'Klingon', ca: 'klingonià' } }). A language without one is
+ * named by the browser, or by its code (lang-names.js).
+ */
+function namesOf(names, codes) {
+  if (names === undefined || names === null) return {};
+  const shape = '{ tlh: "Klingon" }, or a name by the cockpit\'s language: { tlh: { en: "Klingon", ca: "klingonià" } }';
+  if (typeof names !== 'object' || Array.isArray(names)) throw new Error(`\`languages.names\` is ${shape}.`);
+  const fine = (x) => typeof x === 'string' && x.trim() !== '';
+  const out = {};
+  for (const [code, name] of Object.entries(names)) {
+    if (!codes.includes(code)) throw new Error(`\`languages.names\`: ${code} is not one of the app's languages (${codes.join(', ')}).`);
+    if (fine(name)) out[code] = name.trim();
+    else if (name && typeof name === 'object' && !Array.isArray(name) && Object.keys(name).length && Object.values(name).every(fine)) {
+      out[code] = Object.fromEntries(Object.entries(name).map(([k, v]) => [k, v.trim()]));
+    } else throw new Error(`\`languages.names.${code}\`: a name, or names by language; \`languages.names\` is ${shape}.`);
+  }
+  return out;
 }
 
 function dirOf(base) {

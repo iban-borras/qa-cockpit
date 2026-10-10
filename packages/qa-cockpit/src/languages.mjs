@@ -15,8 +15,31 @@
 // and the screen must come back word for word, or the look stops for the
 // rest of the run and says why.
 
+import { languageName } from './server/public/lang-names.js';
+
 // How long the project's change may take, each way.
 export const SWITCH_MS = 4_000;
+
+/** A language as the CLI says it: its name, the config's or Intl's, and its code («Klingon (tlh)»). */
+export function langSaid(config, code) {
+  const name = languageName(code, { names: config.languages?.names });
+  return name === code ? code : `${name} (${code})`;
+}
+
+/**
+ * In the page: the languages its browser has no name for, in English,
+ * which the cockpit shows by their code unless the config names them.
+ */
+export function nameless(codes) {
+  return codes.filter((code) => {
+    try {
+      const name = new Intl.DisplayNames(['en'], { type: 'language', fallback: 'none' }).of(code);
+      return !name || name.toLowerCase() === code.toLowerCase();
+    } catch {
+      return true;
+    }
+  });
+}
 
 /** In the page: its visible words, as a short print to tell two screens apart. */
 export function printOf() {

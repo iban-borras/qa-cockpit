@@ -1476,7 +1476,7 @@ function state() {
     cli: CFG.cli,
     language: CFG.cockpit.language,
     // The app's languages, when its config says how to change them (`--languages`).
-    languages: CFG.languages ? { base: CFG.languages.base, others: CFG.languages.others, priority: CFG.languages.priority } : null,
+    languages: CFG.languages ? { base: CFG.languages.base, others: CFG.languages.others, priority: CFG.languages.priority, names: CFG.languages.names } : null,
     // Paths as people and agents read them (relative to the repo), for the
     // report and the messages the page copies.
     paths: {

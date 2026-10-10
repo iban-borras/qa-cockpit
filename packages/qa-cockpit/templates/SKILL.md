@@ -147,6 +147,9 @@ everything says ok:
    languages: {
      others: ['ca', 'es', 'fr'],    // besides the suites' own, which is browser.locale's
      priority: ['es'],               // looked at when a run names none; all of them otherwise
+     // Optional: a name for each of them a browser cannot name (tlh, a house
+     // variant), or one by the cockpit's language: { en: 'Klingon', ca: 'klingonià' }.
+     // names: { tlh: 'Klingon' },
      async switchTo({ page, lang }) {
        await page.getByTestId('lang').selectOption(lang);
      },
@@ -163,7 +166,10 @@ everything says ok:
    `npx qa-cockpit languages check`: it changes one person's first screen
    to each language and back, and says whether the words change, whether
    the page loads again, and whether it comes back the same; look at its
-   photos. A change that reloads the page loses what is open on a screen
+   photos. It also lists the codes its browser has no name for: the
+   cockpit would show them bare, so give each a name in `names`, the
+   language's usual name in English (not what the app's control shows).
+   A change that reloads the page loses what is open on a screen
    (a dialog, a form half filled): say so when you report. When some
    screens cannot be changed at a step's end (a dialog open, a field with
    the cursor, a «Saving…» about to turn «Saved»), write `ready`: it is

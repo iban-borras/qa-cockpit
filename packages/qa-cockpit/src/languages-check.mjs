@@ -7,7 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { contextOptions, deviceFor } from './devices.mjs';
-import { compare, notReady, printOf, scanTexts, settle, switchTo } from './languages.mjs';
+import { compare, langSaid, nameless, notReady, printOf, scanTexts, settle, switchTo } from './languages.mjs';
 import { playwrightOf } from './playwright.mjs';
 
 const firstLine = (e) => String(e?.message ?? e).split('\n')[0].slice(0, 200);
@@ -19,7 +19,8 @@ const firstLine = (e) => String(e?.message ?? e).split('\n')[0].slice(0, 200);
  * @returns {Promise<boolean>} whether a run can rely on it
  */
 export async function checkLanguages(config, id, say) {
-  const { base, others } = config.languages;
+  const { base, others, names } = config.languages;
+  const said = (code) => langSaid(config, code);
   const person = config.cast.find((p) => p.id === id) ?? { id, name: id };
   const stamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15);
   const dir = path.join(config.paths.out, 'languages', `check-${stamp}`);
@@ -55,7 +56,7 @@ export async function checkLanguages(config, id, say) {
     say(`${person.name} on ${device.name}, at ${page.url()}`);
     const before = await page.evaluate(printOf);
     const baseScan = await page.evaluate(scanTexts);
-    say(`  ${base}, the suites' own: ${await shoot(base)}`);
+    say(`  ${said(base)}, the suites' own: ${await shoot(base)}`);
     const told = new Set();
     for (const lang of others) {
       const at = await page.evaluate(printOf);
@@ -65,14 +66,14 @@ export async function checkLanguages(config, id, say) {
         await switchTo(config, page, lang, person);
       } catch (e) {
         ok = false;
-        say(`  ${lang}: the change failed: ${firstLine(e)}`);
+        say(`  ${said(lang)}: the change failed: ${firstLine(e)}`);
         continue;
       }
       const changed = await settle(page, (p) => p !== at, 4_000);
       const file = await shoot(lang);
       const reloaded = loads > loadsBefore;
       say(
-        `  ${lang}: ${changed ? `its words changed, in ${Date.now() - t0} ms` : 'NO WORD CHANGED: does the change reach this screen?'}` +
+        `  ${said(lang)}: ${changed ? `its words changed, in ${Date.now() - t0} ms` : 'NO WORD CHANGED: does the change reach this screen?'}` +
           `${reloaded ? '; the page loaded again (in a run, what is open on a screen, a dialog or a form half filled, would be lost at each step)' : ''}: ${file}`,
       );
       if (!changed) ok = false;
@@ -81,15 +82,25 @@ export async function checkLanguages(config, id, say) {
         await switchTo(config, page, base, person);
       } catch (e) {
         ok = false;
-        say(`  back to ${base}: the change failed: ${firstLine(e)}`);
+        say(`  back to ${said(base)}: the change failed: ${firstLine(e)}`);
         break;
       }
       const same = await settle(page, (p) => p === before, 4_000);
-      say(`  back to ${base}: ${same ? 'the very same screen' : 'NOT THE SAME SCREEN: a run would stop looking at languages there'}`);
+      say(`  back to ${said(base)}: ${same ? 'the very same screen' : 'NOT THE SAME SCREEN: a run would stop looking at languages there'}`);
       if (!same) {
         ok = false;
         break;
       }
+    }
+    // The languages the browser cannot name, which the cockpit would show
+    // by their code: the config's `languages.names` names them.
+    const unnamed = (await page.evaluate(nameless, [base, ...others])).filter((code) => !names[code]);
+    if (unnamed.length) {
+      const one = unnamed.length === 1;
+      say(
+        `  The browser has no name for ${unnamed.join(', ')}: the cockpit shows ${one ? 'its code' : 'their codes'}. ` +
+          `\`languages.names\` in the config names ${one ? 'it' : 'them'} ({ ${unnamed[0]}: '…' }).`,
+      );
     }
     await context.close();
   } finally {

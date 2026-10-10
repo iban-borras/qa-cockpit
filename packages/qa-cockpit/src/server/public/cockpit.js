@@ -13,6 +13,7 @@
 //   - the TRACE of a test, Playwright's own viewer, for every click.
 
 import { LANGS, applyI18n, endonym, getLang, langLabel, listOf, locale, preferLang, quote, setGlobals, setLang, t, tn } from './i18n.js';
+import { languageName } from './lang-names.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -2134,9 +2135,9 @@ function runReport(notesMd = '') {
         // The same screen in the app's other languages, and what does not fit there.
         const unfit = (list) => list.map((x, i) => `${i + 1}. ${saidLang[x.rule]?.(x) ?? x.rule}${where(x)}`).join('; ');
         const ownKeys = (f.findings ?? []).filter((x) => x.kind === 'lang');
-        if (ownKeys.length) lines.push(`  - In ${S.state.languages?.base ?? 'its own language'}: ${unfit(ownKeys)}`);
+        if (ownKeys.length) lines.push(`  - In ${S.state.languages ? langSaid(S.state.languages.base) : 'its own language'}: ${unfit(ownKeys)}`);
         for (const l of f.langs ?? []) {
-          lines.push(`  - In ${l.lang}: \`${OUT}/${l.file}\`${l.changed ? '' : ' (no word changed)'}${l.findings?.length ? `; ${unfit(l.findings)}` : '; everything fits'}`);
+          lines.push(`  - In ${langSaid(l.lang)}: \`${OUT}/${l.file}\`${l.changed ? '' : ' (no word changed)'}${l.findings?.length ? `; ${unfit(l.findings)}` : '; everything fits'}`);
         }
         if (f.langsSkipped) lines.push(`  - No other language at this step: ${f.langsSkipped}`);
         // Another person's action reaching this screen (`--realtime`).
@@ -2238,12 +2239,12 @@ function marksOf(f) {
 // languages.mjs): a tab each over the photo. The language chosen stays while
 // the photos go by, on the steps that have it.
 const langOf = (f) => (S.ins?.lang && f && !isAction(f) ? (f.langs ?? []).find((l) => l.lang === S.ins.lang) ?? null : null);
-const langName = (code) => {
-  try {
-    return new Intl.DisplayNames([locale()], { type: 'language' }).of(code) ?? code;
-  } catch {
-    return code;
-  }
+// A language of the app by its name: the config's (`languages.names`), the
+// browser's, or its code. In the run report, the English one by its code.
+const langName = (code) => languageName(code, { names: S.state?.languages?.names, ui: getLang(), locale: locale() });
+const langSaid = (code) => {
+  const name = languageName(code, { names: S.state?.languages?.names });
+  return name === code ? code : `${name} (${code})`;
 };
 
 // THE LANGUAGES A RUN LOOKS AT (`--languages`): chosen under the run's option,
@@ -3638,12 +3639,20 @@ function connect() {
     // This page's code is the cockpit's that served it: one restarted on a
     // newer version since is answered by an older page, which asks to be
     // reloaded (CritKeep's said to restart a cockpit already restarted).
+    const first = pageVersion === null;
     pageVersion ??= S.state.version;
     S.pageOld = S.state.version && S.state.version !== pageVersion ? S.state.version : null;
+    if (S.pageOld) reloadWhenQuiet();
     // The project's own words and language (the person's choice wins).
     setGlobals({ cli: S.state.cli, skill: S.state.paths?.skill });
     preferLang(S.state.language);
     document.title = `${S.state.name} · QA Cockpit`;
+    // Reloaded by itself (reloadWhenQuiet): the suite and the run it showed.
+    const was = first ? takeReloaded() : null;
+    if (was && suiteOf(was.suite)) {
+      S.suite = was.suite;
+      if (was.run && (S.state.runs ?? []).some((r) => r.id === was.run)) S.viewRunId = was.run;
+    }
     if (!S.suite || !suiteOf(S.suite)) S.suite = defaultSuite();
     const id = S.viewRunId ?? runsOf(S.suite)[0]?.id ?? null;
     await viewRun(id);
@@ -4001,9 +4010,40 @@ let lastHand = 0;
 for (const type of ['pointerdown', 'pointermove', 'keydown', 'wheel']) {
   addEventListener(type, () => (lastHand = Date.now()), { capture: true, passive: true });
 }
-function idle() {
+function idle(ms = IDLE_MS) {
   const open = S.ins || S.note || S.picker.open || S.runPick.open || S.cmpPick.open || document.querySelector('dialog[open], details[open]');
-  return !open && (document.hidden || Date.now() - lastHand >= IDLE_MS);
+  return !open && (document.hidden || Date.now() - lastHand >= ms);
+}
+
+// A PAGE OLDER THAN THE COCKPIT THAT ANSWERS IT (restarted on a newer
+// version): its banner asks for a reload, and it reloads by itself as soon
+// as nobody is using it (a few seconds without a hand, nothing open), at the
+// same suite and run. A page from before this one keeps its banner until F5.
+const QUIET_MS = 10_000;
+const RELOADED = 'qa-cockpit-reloaded';
+function reloadWhenQuiet() {
+  if (reloadWhenQuiet.timer) return;
+  const now = () => {
+    if (!S.pageOld || !idle(QUIET_MS)) return;
+    clearInterval(reloadWhenQuiet.timer);
+    try {
+      sessionStorage.setItem(RELOADED, JSON.stringify({ suite: S.suite, run: S.viewRunId }));
+    } catch {
+      // Without it, the page comes back at the suite kept and its newest run.
+    }
+    location.reload();
+  };
+  reloadWhenQuiet.timer = setInterval(now, 2_000);
+  now();
+}
+function takeReloaded() {
+  try {
+    const was = JSON.parse(sessionStorage.getItem(RELOADED) ?? 'null');
+    sessionStorage.removeItem(RELOADED);
+    return was;
+  } catch {
+    return null;
+  }
 }
 
 /** The pill of a run followed by itself: what it shows, who ran it, and the way back. */

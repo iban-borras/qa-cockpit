@@ -84,6 +84,7 @@ export default defineConfig({
   // languages: {
   //   others: ['ca', 'es'],
   //   priority: ['es'],   // looked at when a run names none; all of them otherwise
+  //   names: { tlh: 'Klingon' },   // for a code no browser names
   //   async switchTo({ page, lang }) {
   //     await page.getByTestId('lang').selectOption(lang);
   //   },

@@ -14,13 +14,24 @@
   far a problem reaches. A suite that cannot play is passed over, and said;
   the end lists each one, and the cockpit shows it under each of the
   group's runs, a click from each. In the cockpit, the suite picker shows a
-  tag's suites, numbered in the order they play, and plays its group, «Stop at the first failure» on unless
-  taken off, and the page goes with each suite as it begins. The skill
-  tells an agent how to propose a tag strategy for all the suites.
+  tag's suites, numbered in the order they play, and plays its group,
+  «Stop at the first failure» on unless taken off, and the page goes with
+  each suite as it begins. The skill tells an agent how to propose a tag
+  strategy for all the suites.
 - A page older than the cockpit that answers it (the cockpit restarted on
-  a newer version while the page stayed open) asks to be reloaded, rather
-  than to restart a cockpit already restarted; the «restart the cockpit»
-  banner goes once the cockpit runs what is installed.
+  a newer version while the page stayed open) reloads by itself as soon as
+  nobody is using it, at the same suite and run; until then it asks to be
+  reloaded, rather than to restart a cockpit already restarted. The
+  «restart the cockpit» banner stayed after the restart until F5. A page
+  opened before this version still keeps it: after upgrading, reload the
+  open cockpit pages once.
+- `languages.names` in the config: what the cockpit calls a language no
+  browser names (tlh, a house variant), `{ tlh: 'Klingon' }` or a name by
+  the cockpit's language (`{ tlh: { en: 'Klingon', ca: 'klingonià' } }`).
+  The run's options, a step's photo in each language, the run report and
+  the CLI say the config's name, else the browser's, else the code; the
+  page showed the bare code. `languages check` lists the codes the browser
+  cannot name and the config does not.
 - `--in-docker` says, before the container starts, when the lockfile takes
   a dependency from a file or a folder outside the repository (a package
   tried from a tarball elsewhere on the disk): the container sees only the

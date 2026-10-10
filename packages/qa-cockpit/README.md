@@ -134,7 +134,7 @@ The config is the whole contract between your app and the cockpit:
 | `commands` | commands of your own, next to the built-in ones |
 | `report` | notes the run report should carry |
 | `video` | how demo videos look: the product's name, each person's role, a logo, the colours, the address on the cover, the subtitles' words, the music, the loudness, the ending; what a video's run keeps in memory and the pages it opens first to fill it; where ffmpeg is |
-| `languages` | the app's other languages (`others`), the ones looked at when a run names none (`priority`), how a person changes it to one (`switchTo({ page, lang })`, with the actions they take on its own control), and, optionally, whether a screen can be changed now (`ready({ page })`: it may wait, or return why not): for `replay --languages` |
+| `languages` | the app's other languages (`others`), the ones looked at when a run names none (`priority`), how a person changes it to one (`switchTo({ page, lang })`, with the actions they take on its own control), and, optionally, a name for the ones a browser cannot name (`names: { tlh: 'Klingon' }`) and whether a screen can be changed now (`ready({ page })`: it may wait, or return why not): for `replay --languages` |
 | `changes` | what changes on a screen by itself, as selectors (`mask`): left out when a run is compared with an earlier one (`replay --changes`) |
 | `network` | how many looks at the network of a suite stay (`keep`), to measure a change against; the names that look like a secret's and are none in this app (`notSecret`: a game's `session_id`) |
 

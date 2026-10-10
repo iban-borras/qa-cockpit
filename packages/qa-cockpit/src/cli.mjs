@@ -11,6 +11,7 @@ import { newRecordingPath, recordingOf, resolveConfig, setupOf, shown } from './
 import { depsStale, installDeps, packageManager, playwrightCli as playwrightCliOf } from './deps.mjs';
 import { acquireLock, breakLock, lockFileOf, readLock, StackBusy } from './lock.mjs';
 import { noteData, readData, staleFor, staleLine } from './stackdata.mjs';
+import { langSaid } from './languages.mjs';
 import { decide, listSuites, recordPass, suiteHeader } from './suites.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -437,9 +438,9 @@ export async function runCli(rawConfig, argv) {
           for (const x of s.findings ?? []) found.push(`  ${where(f)}  ${x.lang}: ${said[x.rule](x)}`);
         }
         if (f.langsSkipped) skipped.push(`  ${where(f)}  ${f.langsSkipped}`);
-        if (f.langsStopped) stopped ??= `  Stopped after ${where(f)}: ${f.langsStopped}. The rest of the run played in ${base} only.`;
+        if (f.langsStopped) stopped ??= `  Stopped after ${where(f)}: ${f.langsStopped}. The rest of the run played in ${langSaid(config, base)} only.`;
       }
-      console.log(`\nLanguages (${base}, and ${langs.join(', ')}): ${looked} screen${looked === 1 ? '' : 's'} looked at in another language.`);
+      console.log(`\nLanguages (${langSaid(config, base)}, and ${langs.map((code) => langSaid(config, code)).join(', ')}): ${looked} screen${looked === 1 ? '' : 's'} looked at in another language.`);
       if (found.length) {
         console.log(`  ${found.length} thing${found.length === 1 ? '' : 's'} that do not fit, each where it first showed (the cockpit shows each language's photo):`);
         for (const line of found) console.log(line);
