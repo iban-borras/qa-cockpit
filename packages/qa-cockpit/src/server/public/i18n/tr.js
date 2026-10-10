@@ -275,6 +275,7 @@ export default {
   'mark.elsewhere': '{path} sayfasında',
   'mark.photo': 'Bu eylemin fotoğrafı, hemen öncesinde',
   'ins.before': 'Hemen öncesi, eylem {n}',
+  'ins.step_end': 'Bitince',
   'ins.into_step': 'adım başladıktan {d} sonra',
   'copy.title': '`{suite}` suite’inde başarısız adım',
   'copy.run': 'Koşu',

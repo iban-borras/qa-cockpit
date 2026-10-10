@@ -275,6 +275,7 @@ export default {
   'mark.elsewhere': '{path} पर',
   'mark.photo': 'इस एक्शन की फ़ोटो, ठीक पहले की',
   'ins.before': 'एक्शन {n} से ठीक पहले',
+  'ins.step_end': 'अंत में',
   'ins.into_step': 'स्टेप शुरू होने के {d} बाद',
   'copy.title': 'Suite `{suite}` में फ़ेल स्टेप',
   'copy.run': 'रन',

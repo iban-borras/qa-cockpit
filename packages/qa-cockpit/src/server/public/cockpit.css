@@ -393,6 +393,10 @@ dialog#inspector::backdrop { background: rgba(4, 4, 6, 0.72); }
 .steps .action .at { flex: none; margin-left: auto; padding-left: 6px; font: 11px/1.6 var(--mono); color: var(--faint); }
 .steps .action .nt { margin: 1px 0 0 6px; }
 .st.passed { color: var(--ok); }
+/* «When done», last under the actions: the step's own photo, with its state. */
+.steps .action.end .n { display: inline-flex; align-items: center; justify-content: center; background: none; color: var(--ok); }
+.steps .action.end .n.failed { color: var(--err); }
+.steps .action.end .n.context { color: var(--faint); }
 .st.failed { color: var(--err); }
 .st.context { color: var(--faint); }
 .stage { display: flex; flex-direction: column; min-height: 0; min-width: 0; padding: 12px; gap: 10px; }

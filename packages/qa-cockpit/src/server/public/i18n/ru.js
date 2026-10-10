@@ -310,6 +310,7 @@ export default {
   'mark.elsewhere': 'на {path}',
   'mark.photo': 'Снимок этого действия, непосредственно перед ним',
   'ins.before': 'Непосредственно перед действием {n}',
+  'ins.step_end': 'В конце',
   'ins.into_step': 'через {d} после начала шага',
   'copy.title': 'Упавший шаг в suite `{suite}`',
   'copy.run': 'Прогон',

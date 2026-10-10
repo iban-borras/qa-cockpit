@@ -309,6 +309,7 @@ export default {
   'mark.elsewhere': 'na {path}',
   'mark.photo': 'Zdjęcie tej akcji, tuż przed nią',
   'ins.before': 'Tuż przed akcją {n}',
+  'ins.step_end': 'Na koniec',
   'ins.into_step': '{d} od początku kroku',
   'copy.title': 'Krok z błędem w suite `{suite}`',
   'copy.run': 'Przebieg',

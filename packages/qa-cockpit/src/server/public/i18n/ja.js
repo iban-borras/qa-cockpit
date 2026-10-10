@@ -259,6 +259,7 @@ export default {
   'mark.elsewhere': '{path} 上',
   'mark.photo': 'この操作の写真（直前のもの）',
   'ins.before': '操作 {n} の直前',
+  'ins.step_end': '終了時',
   'ins.into_step': 'ステップ開始から {d}',
   'copy.title': 'スイート `{suite}` で失敗したステップ',
   'copy.run': '実行',

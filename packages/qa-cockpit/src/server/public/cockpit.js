@@ -1697,8 +1697,10 @@ function renderInspector(first = false) {
   renderInsSub();
 
   // Steps, grouped by test; each test says when it is over, each step how
-  // long it took (a slow one in amber). Under the step on screen, its
-  // actions, each with the photo from just before it.
+  // long it took (a slow one in amber). The step on screen unfolds in the
+  // filmstrip's order, so the row lit moves down as time goes on: its
+  // actions, each with the photo from just before it, then «When done»,
+  // the step's own photo. Its name heads them and goes to the first.
   const shown = ins.live ? null : f;
   const open = shown ? (isAction(shown) ? shown.of : shown.seq) : null;
   // A step folded counts the notes on its actions' photos too.
@@ -1714,17 +1716,23 @@ function renderInspector(first = false) {
     }
     const st = x.status === 'failed' ? 'failed' : x.status === 'context' ? 'context' : 'passed';
     const ic = st === 'failed' ? 'alert' : st === 'context' ? 'dot' : 'check';
-    const sel = x === shown ? ' sel' : x.seq === open ? ' open' : '';
+    const first = list.findIndex((a) => a.of === x.seq);
+    const unfolded = x.seq === open && first !== -1;
+    const sel = x === shown && !unfolded ? ' sel' : x.seq === open ? ' open' : '';
     const dur = Number.isFinite(x.ms) ? `<span class="dur${x.ms >= SLOW_STEP_MS ? ' slow' : ''}">${esc(fmtDur(x.ms))}</span>` : '';
+    // What the step's own photo shows: on the step folded, on «When done» unfolded.
+    const marks = `${handOffBadge(x.realtime)}${findBadges(x)}${changeOf(x) ? '<i class="cdot" aria-hidden="true"></i>' : ''}`;
     const pins = pinsOf(x) + (x.seq === open ? 0 : (actionPins.get(x.seq) ?? 0));
-    html += `<button class="step${sel}" data-i="${i}"><span class="st ${st}">${icon(ic, 'sm')}</span><span class="sx">${esc(x.step)}</span>${handOffBadge(x.realtime)}${findBadges(x)}${changeOf(x) ? '<i class="cdot" aria-hidden="true"></i>' : ''}${pinBadge(pins)}${dur}</button>`;
-    if (x.seq !== open) return;
+    html += `<button class="step${sel}" data-i="${first === -1 ? i : first}"><span class="st ${st}">${icon(ic, 'sm')}</span><span class="sx">${esc(x.step)}</span>${unfolded ? '' : `${marks}${pinBadge(pins)}`}${dur}</button>`;
+    if (!unfolded) return;
     list.forEach((a, j) => {
       if (a.of !== x.seq) return;
       const m = a.marks?.[0];
       const what = (a.marks ?? []).map((k) => `${verbOf(k)} ${quote(k.label)}`).join(' · ');
       html += `<button class="action${a === shown ? ' sel' : ''}" data-i="${j}"><span class="n ${m?.kind === 'type' || m?.kind === 'key' ? 'type' : ''}">${esc(actionNo(a))}</span><span class="sx">${esc(what)}</span>${pinBadge(pinsOf(a))}<span class="at">${esc(sinceStep(a, m))}</span></button>`;
     });
+    const end = Number.isFinite(x.ms) ? `+${fmtDur(x.ms)}` : '';
+    html += `<button class="action end${x === shown ? ' sel' : ''}" data-i="${i}"><span class="n ${st}">${icon(ic, 'sm')}</span><span class="sx">${esc(t('ins.step_end'))}</span>${marks}${pinBadge(pinsOf(x))}<span class="at">${esc(end)}</span></button>`;
   });
   $('insSteps').innerHTML = html || `<p class="muted" style="margin:12px">${esc(t('ins.no_photos_long'))}</p>`;
   $('insSteps').querySelector('.action.sel, .step.sel')?.scrollIntoView({ block: 'nearest' });

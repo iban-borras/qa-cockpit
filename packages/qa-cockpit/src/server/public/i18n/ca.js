@@ -279,6 +279,7 @@ export default {
   'mark.elsewhere': 'a {path}',
   'mark.photo': "La foto d'esta acció, just abans",
   'ins.before': "Just abans de l'acció {n}",
+  'ins.step_end': 'En acabar',
   'ins.into_step': '{d} des que comença el pas',
   'copy.title': 'Pas fallat a la suite `{suite}`',
   'copy.run': 'Passada',

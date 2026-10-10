@@ -279,6 +279,7 @@ export default {
   'mark.elsewhere': 'on {path}',
   'mark.photo': "This action's photo, just before it",
   'ins.before': 'Just before action {n}',
+  'ins.step_end': 'When done',
   'ins.into_step': '{d} into the step',
   'copy.title': 'Failed step in suite `{suite}`',
   'copy.run': 'Run',

@@ -258,6 +258,7 @@ export default {
   'mark.elsewhere': '在 {path}',
   'mark.photo': '此操作的截图，即操作之前的窗口',
   'ins.before': '操作 {n} 之前',
+  'ins.step_end': '结束时',
   'ins.into_step': '步骤开始后 {d}',
   'copy.title': '在 Suite `{suite}` 中失败的步骤',
   'copy.run': '运行',

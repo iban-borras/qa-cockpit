@@ -37,6 +37,11 @@
   by its code, as the cockpit's own menu lists them, the suite's own
   first. The boxes in a row took a line each few languages, in the
   config's order.
+- The inspector's list reads in the filmstrip's order: a step's name heads
+  its actions and goes to the first, each action with the window just
+  before it, and last «When done», the step's own photo, at the step's
+  time. The row lit moves down as the photos go forward; the step's row
+  came first and showed its end, and its actions went back in time.
 - `--in-docker` says, before the container starts, when the lockfile takes
   a dependency from a file or a folder outside the repository (a package
   tried from a tarball elsewhere on the disk): the container sees only the

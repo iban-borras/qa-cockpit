@@ -276,6 +276,7 @@ export default {
   'mark.elsewhere': 'sur {path}',
   'mark.photo': 'Capture de cette action, juste avant elle',
   'ins.before': 'Juste avant l’action {n}',
+  'ins.step_end': 'À la fin',
   'ins.into_step': 'à {d} de l’étape',
   'copy.title': 'Étape échouée dans la suite `{suite}`',
   'copy.run': 'Exécution',
