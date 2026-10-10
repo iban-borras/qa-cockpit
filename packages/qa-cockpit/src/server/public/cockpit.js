@@ -193,6 +193,7 @@ const S = {
   picker: { open: false, active: 0, query: '', hideNoSetup: false },
   runPick: { open: false, active: 0 },
   cmpPick: { open: false, active: 0 },
+  langsOpen: false, // the languages under the run's option, unfolded
   follow: null, // { from, suite, who }: a run followed by itself (renderFollow)
   chase: false, // a group launched from this page: followed suite by suite
 };
@@ -2256,22 +2257,43 @@ function chosenLangs() {
   return kept === null ? l.priority : kept.split(',').filter((x) => l.others.includes(x));
 }
 
+// The languages to choose, folded into one field: the codes chosen, the
+// first three and how many more («DE EN ES + 2»); unfolded, every language
+// of the app by its code, as the cockpit's own menu lists them. The suite's
+// own first, always there (its recording finds the buttons by their words).
 function renderLangPicks() {
   const l = S.state?.languages;
   const box = $('optLangsList');
   if (!l) return (box.hidden = true);
-  const chosen = chosenLangs();
-  $('optLangsHint').textContent = t('opts.languages_hint', { list: listOf(chosen.map(langName)) || '—' });
-  // Every language of the app: the suite's own first, always there (its
-  // recording finds the buttons by their words), and the others to choose.
+  const others = [...l.others].sort();
+  const chosen = others.filter((code) => chosenLangs().includes(code));
+  const names = listOf(chosen.map(langName));
+  $('optLangsHint').textContent = t('opts.languages_hint', { list: names || '—' });
   box.hidden = !$('optLangs').checked;
+  const item = (code, base) =>
+    `<label class="ms-item${base ? ' base' : ''}"${base ? ` title="${esc(t('opts.languages_base', { name: langName(code) }))}"` : ''}>` +
+    `<input type="checkbox"${base ? ' checked disabled' : ` value="${esc(code)}"`}><code>${esc(code.toUpperCase())}</code><span>${esc(langName(code))}</span></label>`;
   const html =
-    `<label class="pick base" title="${esc(t('opts.languages_base', { name: langName(l.base) }))}"><input type="checkbox" checked disabled> ${esc(langName(l.base))}</label>` +
-    l.others.map((code) => `<label class="pick"><input type="checkbox" value="${esc(code)}"${chosen.includes(code) ? ' checked' : ''}> ${esc(langName(code))}</label>`).join('');
+    `<button type="button" class="ms-btn" id="optLangsBtn" aria-controls="optLangsPop"><span class="ms-codes"></span><span class="ms-more"></span>${icon('down', 'sm')}</button>` +
+    `<div class="ms-list" id="optLangsPop" role="group" aria-label="${esc(t('opts.languages'))}">${item(l.base, true)}${others.map((code) => item(code, false)).join('')}</div>`;
+  // Drawn once for these languages; a choice changes only what it shows,
+  // so the box just ticked keeps the focus.
   if (box.dataset.html !== html) {
     box.dataset.html = html;
     box.innerHTML = html;
   }
+  for (const input of box.querySelectorAll('input[value]')) input.checked = chosen.includes(input.value);
+  box.querySelector('.ms-codes').textContent = chosen.slice(0, 3).map((code) => code.toUpperCase()).join(' ') || '—';
+  box.querySelector('.ms-more').textContent = chosen.length > 3 ? `+ ${chosen.length - 3}` : '';
+  const btn = $('optLangsBtn');
+  btn.setAttribute('aria-expanded', String(S.langsOpen));
+  btn.setAttribute('aria-label', `${t('opts.languages')}: ${names || '—'}`);
+  btn.classList.toggle('open', S.langsOpen);
+  $('optLangsPop').hidden = !S.langsOpen;
+}
+function foldLangPicks(open = !S.langsOpen) {
+  S.langsOpen = open;
+  renderLangPicks();
 }
 
 // A HAND-OFF (`replay --realtime`, realtime.mjs): another person's action,
@@ -4078,6 +4100,20 @@ $('optChanges').addEventListener('change', () => renderChanges());
 $('optChaosN').addEventListener('change', () => localStorageSet('optChaosRounds', $('optChaosN').value));
 renderChaosPicks();
 $('optLangs').addEventListener('change', renderLangPicks);
+$('optLangsList').addEventListener('click', (e) => {
+  if (e.target.closest('#optLangsBtn')) foldLangPicks();
+});
+$('optLangsList').addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || !S.langsOpen) return;
+  e.preventDefault();
+  e.stopPropagation();
+  foldLangPicks(false);
+  $('optLangsBtn').focus();
+});
+// The options closed, the languages fold with them.
+$('opts').addEventListener('toggle', () => {
+  if (!$('opts').open && S.langsOpen) foldLangPicks(false);
+});
 $('optLangsList').addEventListener('change', () => {
   localStorageSet('optLangsList', [...$('optLangsList').querySelectorAll('input:checked:not(:disabled)')].map((i) => i.value).join(','));
   renderLangPicks();

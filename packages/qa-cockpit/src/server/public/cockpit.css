@@ -186,9 +186,22 @@ select option { background: var(--panel-2); color: var(--text); }
 #optLangs { accent-color: #e879f9; }
 /* The languages a run looks at, chosen under its option. */
 .opt-sub { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 0 8px 8px 34px; }
-.opt-sub .pick { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); cursor: pointer; }
-.opt-sub .pick input { accent-color: #e879f9; }
-.opt-sub .pick.base { cursor: default; opacity: 0.75; }
+/* One field, folded to the codes chosen; unfolded, a list by code
+   (cockpit.js, renderLangPicks). */
+#optLangsList { flex-direction: column; flex-wrap: nowrap; gap: 6px; }
+.ms-btn { display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; min-width: 150px; padding: 4px 8px 4px 10px; border: 1px solid var(--line-2); border-radius: 6px; background: var(--panel); color: var(--text); font: inherit; font-size: 12.5px; cursor: pointer; }
+.ms-btn:hover, .ms-btn.open { border-color: #e879f9; }
+.ms-codes { font-family: var(--mono); letter-spacing: 0.04em; }
+.ms-more { color: var(--muted); }
+.ms-btn svg.i { margin-left: auto; color: var(--muted); transition: transform 0.15s; }
+.ms-btn.open svg.i { transform: rotate(180deg); }
+.ms-list { display: flex; flex-direction: column; max-height: 300px; overflow-y: auto; overscroll-behavior: contain; padding: 4px; border: 1px solid var(--line-2); border-radius: 6px; background: var(--panel); }
+.ms-item { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 4px; font-size: 12.5px; color: var(--text); cursor: pointer; }
+.ms-item:hover { background: var(--panel-3); }
+.ms-item input { margin: 0; accent-color: #e879f9; }
+.ms-item code { min-width: 3.4em; font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+.ms-item.base { cursor: default; opacity: 0.7; }
+.ms-item.base:hover { background: none; }
 .opt b { display: block; font-weight: 550; font-size: 13px; }
 .opt span { display: block; font-size: 12px; color: var(--muted); }
 

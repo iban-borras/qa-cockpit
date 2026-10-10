@@ -32,6 +32,11 @@
   the CLI say the config's name, else the browser's, else the code; the
   page showed the bare code. `languages check` lists the codes the browser
   cannot name and the config does not.
+- The languages a run looks at are one field under its option, folded to
+  the codes chosen («CA DE ES + 2»); unfolded, every language of the app
+  by its code, as the cockpit's own menu lists them, the suite's own
+  first. The boxes in a row took a line each few languages, in the
+  config's order.
 - `--in-docker` says, before the container starts, when the lockfile takes
   a dependency from a file or a folder outside the repository (a package
   tried from a tarball elsewhere on the disk): the container sees only the
