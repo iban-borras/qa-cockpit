@@ -1,12 +1,14 @@
 # Changelog
 
-## 0.10.0 (unreleased)
+## 0.10.0 (2026-10-10)
 
-- A run can be deleted by hand, from the run picker: a trash on the run
-  under the pointer (or the Delete key), a word first on what goes with it
-  (its photos, traces and notes, for good), never the run going now. A run
-  with notes was kept forever, past `keepRuns`: a record of a moment, it
-  goes when nobody needs it.
+- Tags: groups of suites, in one file beside them, `<suites>/tags.json`,
+  each with what it is for and its suites in the order they play. Out of the
+  suites' documents, so a tag never makes a recording look stale. The
+  suite's panel puts its tags on and takes them off (a chip each, and «+
+  tag» with the ones there are); the suite picker shows them; an agent edits
+  the file, or runs `qa-cockpit tags` (every tag and what is wrong in the
+  file), `tags add <tag> <suite>...`, `tags remove` and `tags about`.
 - `replay --tag <tag>`: a tag's suites one after another, each as a full
   run (reset, setup, replay) with the looks asked for (`--changes`, `--a11y`,
   `--languages`...), a run of its own in the cockpit. The first that fails
@@ -18,13 +20,22 @@
   «Stop at the first failure» on unless taken off, and the page goes with
   each suite as it begins. The skill tells an agent how to propose a tag
   strategy for all the suites.
-- A page older than the cockpit that answers it (the cockpit restarted on
-  a newer version while the page stayed open) reloads by itself as soon as
-  nobody is using it, at the same suite and run; until then it asks to be
-  reloaded, rather than to restart a cockpit already restarted. The
-  «restart the cockpit» banner stayed after the restart until F5. A page
-  opened before this version still keeps it: after upgrading, reload the
-  open cockpit pages once.
+- A run that begins elsewhere (an agent's, from a terminal) is followed by
+  the page while nobody is using it: a minute without a hand on it, or the
+  page out of sight, and nothing open over it (an inspector, a note, a
+  menu, a dialog). A pill says whose run it follows and takes the page
+  back to the suite it was on. A person using the page sees the «is
+  running» pill, as before.
+- A run can be deleted by hand, from the run picker: a trash on the run
+  under the pointer (or the Delete key), a word first on what goes with it
+  (its photos, traces and notes, for good), never the run going now. A run
+  with notes was kept forever, past `keepRuns`: a record of a moment, it
+  goes when nobody needs it.
+- The inspector's list reads in the filmstrip's order: a step's name heads
+  its actions and goes to the first, each action with the window just
+  before it, and last «When done», the step's own photo, at the step's
+  time. The row lit moves down as the photos go forward; the step's row
+  came first and showed its end, and its actions went back in time.
 - `languages.names` in the config: what the cockpit calls a language no
   browser names (tlh, a house variant), `{ tlh: 'Klingon' }` or a name by
   the cockpit's language (`{ tlh: { en: 'Klingon', ca: 'klingonià' } }`).
@@ -37,34 +48,23 @@
   by its code, as the cockpit's own menu lists them, the suite's own
   first. The boxes in a row took a line each few languages, in the
   config's order.
-- The inspector's list reads in the filmstrip's order: a step's name heads
-  its actions and goes to the first, each action with the window just
-  before it, and last «When done», the step's own photo, at the step's
-  time. The row lit moves down as the photos go forward; the step's row
-  came first and showed its end, and its actions went back in time.
+- A page older than the cockpit that answers it (the cockpit restarted on
+  a newer version while the page stayed open) reloads by itself as soon as
+  nobody is using it, at the same suite and run; until then it asks to be
+  reloaded, rather than to restart a cockpit already restarted. The
+  «restart the cockpit» banner stayed after the restart until F5. A page
+  opened before this version still keeps it: after upgrading, reload the
+  open cockpit pages once.
 - `--in-docker` says, before the container starts, when the lockfile takes
   a dependency from a file or a folder outside the repository (a package
   tried from a tarball elsewhere on the disk): the container sees only the
   repository, and its npm install failed on it deep in npm's words. A group
   says it once, before its first suite.
-- `stamp` writes its header in the recording's own line endings: on a
-  CRLF recording it wrote it with LF, and left the file mixed.
 - The stack's badge says «restarting», in amber, while the run going now
   resets it, rather than «stopped» in red: a full run's reset read as an
   alarm.
-- Tags: groups of suites, in one file beside them, `<suites>/tags.json`,
-  each with what it is for and its suites in the order they play. Out of the
-  suites' documents, so a tag never makes a recording look stale. The
-  suite's panel puts its tags on and takes them off (a chip each, and «+
-  tag» with the ones there are); the suite picker shows them; an agent edits
-  the file, or runs `qa-cockpit tags` (every tag and what is wrong in the
-  file), `tags add <tag> <suite>...`, `tags remove` and `tags about`.
-- A run that begins elsewhere (an agent's, from a terminal) is followed by
-  the page while nobody is using it: a minute without a hand on it, or the
-  page out of sight, and nothing open over it (an inspector, a note, a
-  menu, a dialog). A pill says whose run it follows and takes the page
-  back to the suite it was on. A person using the page sees the «is
-  running» pill, as before.
+- `stamp` writes its header in the recording's own line endings: on a
+  CRLF recording it wrote it with LF, and left the file mixed.
 
 ## 0.9.0 (2026-10-09)
 
