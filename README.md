@@ -100,6 +100,7 @@ npx playwright install chromium
 npx qa-cockpit up              # starts the app
 npx qa-cockpit setup chat      # a fresh app, Alice and Bob signed in
 npx qa-cockpit replay chat     # the recording: three tests, Alice at a laptop, Bob on a phone
+npx qa-cockpit replay --tag smoke   # both suites, the chat and the chat in two languages
 npx qa-cockpit cockpit         # then press «Full run» and watch
 ```
 

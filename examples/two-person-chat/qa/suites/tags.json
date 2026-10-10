@@ -2,7 +2,8 @@
   "smoke": {
     "about": "Chat essentials, end to end",
     "suites": [
-      "chat"
+      "chat",
+      "two-languages"
     ]
   }
 }

@@ -68,3 +68,4 @@ the skill (`SKILL.md`): the director and the healer.
 | Suite | Piece | Tests | Last run |
 |-------|-------|-------|----------|
 | [chat](chat.md) | The chat: a message that arrives live, the empty message, and who is here | 3 | (none yet) |
+| [two-languages](two-languages.md) | The chat in English and Spanish at once: each one's words in their language, the messages as written | 2 | (none yet) |

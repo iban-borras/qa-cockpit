@@ -66,6 +66,13 @@ export default defineConfig({
     async switchTo({ page, lang }) {
       await page.getByTestId('lang').selectOption(lang);
     },
+    // A screen in another language on purpose (Bob reads the chat in
+    // Spanish in suites/two-languages.md) is left as it is: changed back to
+    // English, it would not be the screen the step left.
+    async ready({ page }) {
+      const lang = await page.evaluate(() => document.documentElement.lang);
+      if (lang !== 'en') return `the page is in ${lang} on purpose`;
+    },
   },
 
   // Its own port, so it never meets another project's cockpit.
