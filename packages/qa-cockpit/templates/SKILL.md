@@ -169,6 +169,10 @@ everything says ok:
    photos. It also lists the codes its browser has no name for: the
    cockpit would show them bare, so give each a name in `names`, the
    language's usual name in English (not what the app's control shows).
+   A plain string is used in every cockpit language, as written; when the
+   team reads the cockpit in a language that writes language names its
+   own way (lower case in Catalan, Spanish, French, Italian, Portuguese;
+   «Klingonisch» in German), give a map: `{ en: 'Klingon', ca: 'klingon' }`.
    A change that reloads the page loses what is open on a screen
    (a dialog, a form half filled): say so when you report. When some
    screens cannot be changed at a step's end (a dialog open, a field with
