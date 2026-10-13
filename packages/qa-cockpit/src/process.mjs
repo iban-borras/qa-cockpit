@@ -21,6 +21,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isAlive } from './lock.mjs';
 
+const LAUNCHER = fileURLToPath(new URL('./process-launcher.mjs', import.meta.url));
+
 /** Whether something answers on a URL's host and port. */
 function answers(url) {
   return new Promise((resolve) => {
@@ -128,16 +130,21 @@ export function processStack(opts) {
         }
       }
       fs.mkdirSync(dir, { recursive: true });
-      const log = fs.openSync(logFile, 'a');
-      const child = spawn(opts.command, opts.args ?? [], {
-        cwd,
-        env: { ...process.env, ...opts.env },
-        detached: true,
-        stdio: ['ignore', log, log],
-        windowsHide: true,
-        // `npm` and friends are scripts on Windows: they need a shell there.
-        shell: opts.shell ?? (process.platform === 'win32' && !/\.exe$/i.test(opts.command)),
-      });
+      const env = { ...process.env, ...opts.env };
+      // `npm` and friends are scripts on Windows: they need a shell there.
+      const shell = opts.shell ?? (process.platform === 'win32' && !/\.exe$/i.test(opts.command));
+      let child;
+      if (process.platform === 'win32') {
+        // Detached, it would have no console, and each console program under
+        // it (the shell, `python`, the stack's own API and Vite) would open a
+        // window and write there, not to the log: a launcher starts it with
+        // a console that has no window, and writes its output to the log.
+        const launch = JSON.stringify({ command: opts.command, args: opts.args ?? [], shell, log: logFile });
+        child = spawn(process.execPath, [LAUNCHER], { cwd, env: { ...env, QA_STACK_LAUNCH: launch }, detached: true, stdio: 'ignore', windowsHide: true });
+      } else {
+        const log = fs.openSync(logFile, 'a');
+        child = spawn(opts.command, opts.args ?? [], { cwd, env, detached: true, stdio: ['ignore', log, log], shell });
+      }
       child.unref();
       fs.writeFileSync(pidFile, String(child.pid));
       console.log(`Started ${name} (pid ${child.pid}); its output goes to ${logFile}`);

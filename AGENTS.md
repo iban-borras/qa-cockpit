@@ -30,7 +30,7 @@ without a person beside it.
 | `src/devices.mjs` | a person's device, from Playwright's profiles or the project's own sizes, and their own context options; the device a suite gives each person, for the sessions it signs in |
 | `src/deps.mjs` | the project's package manager: which one, whether `node_modules` match its lockfile, how to heal them |
 | `src/suites.mjs` | the Markdown suites: their cast, their hash, `decide` |
-| `src/compose.mjs`, `src/process.mjs` | the two stacks a project can use |
+| `src/compose.mjs`, `src/process.mjs` | the two stacks a project can use (`process-launcher.mjs`: on Windows, the one-process stack's parent, so it opens no window and its output reaches the log) |
 | `src/lock.mjs` | one run at a time, and who holds the stack |
 | `src/stackdata.mjs` | what the stack's data is now: the setup of which suite, or spent by a replay |
 | `src/tags.mjs` | the suites' tags (`<suites>/tags.json`): groups of suites that `replay --tag` plays one after another (cli.mjs, replayGroup; the server's group/next and group/end) |

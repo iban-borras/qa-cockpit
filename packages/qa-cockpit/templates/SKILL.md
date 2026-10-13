@@ -968,6 +968,15 @@ videos/                 <suite>.json: video scripts, and their narration's audio
 
 ## Gotchas
 
+- On Windows, a `processStack` starts with no window, and its output (its
+  own children's too: an API, Vite) goes to `.qa-cockpit/stack.log`. A
+  window that opens anyway, or a log that stays empty, comes from the
+  stack's own script: something it starts with a console of its own
+  (`start`, `CREATE_NEW_CONSOLE`), or a `pythonw` whose children inherit
+  no output (hand them `stdout=sys.stdout, stderr=sys.stderr`). Up to
+  0.10.0 the package did it itself: every console program under the stack
+  (`python`, then its API and Vite) opened a window and wrote there, and
+  the log stayed empty.
 - `up` refuses with «Something already answers on …»: another app has the
   stack's port, most often the developer's own server. The QA copy could
   not listen there, and the other app would answer its health check, so

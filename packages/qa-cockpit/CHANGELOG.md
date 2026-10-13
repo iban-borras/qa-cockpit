@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- On Windows, a stack that is one process (`processStack`) no longer opens
+  windows, and its output reaches `stack.log` again. It was started
+  detached, so with no console, and every console program under it opened
+  one of its own and wrote there: the shell that runs `python` or `npm`,
+  then the stack's own children (an API, Vite), each in a window that
+  stayed open while the stack lived, its output lost when it closed. Now a
+  small launcher starts it with a console that has no window, which its
+  children share, and writes what they all say into the log. Measured in a
+  project with a Python stack on Windows 11; the skill says what can still
+  open a window (the stack's own script).
+
 ## 0.10.0 (2026-10-10)
 
 - Tags: groups of suites, in one file beside them, `<suites>/tags.json`,
