@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.10.1 (2026-10-13)
 
 - On Windows, a stack that is one process (`processStack`) no longer opens
   windows, and its output reaches `stack.log` again. It was started
