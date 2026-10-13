@@ -138,7 +138,7 @@ svg.i.lg { width: 18px; height: 18px; }
   87.5% { transform: translateY(calc(-0.59px * var(--amp))) rotate(calc(7.07deg * var(--amp))); }
 }
 /* With less motion asked for, it waves all the same, for it is how the
-   cockpit says a run is going: half as high, and four times as slow
+   cockpit says a run is going: half as high, and twice as slow
    (cockpit.js, waveMs). */
 @media (prefers-reduced-motion: reduce) { .mark { --amp: 0.5; } }
 /* A flex row, so the chip sits on the title's middle and not on its

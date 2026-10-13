@@ -563,6 +563,9 @@ function renderPickerTags() {
 
 function renderPicker() {
   renderPickerTags();
+  // «Hide the ones with no setup» only while there is one to hide: it comes
+  // back, as it was left, with the next suite that has none.
+  $('pickerHideRow').hidden = (S.state?.suites ?? []).every((s) => s.setup);
   const items = pickerItems();
   // -1: no item lit (the suite on screen is not in the list), until a key moves.
   S.picker.active = Math.max(-1, Math.min(items.length - 1, S.picker.active));
@@ -820,10 +823,11 @@ const WAVE_MS = 100;
 // With less motion asked for (`prefers-reduced-motion`, which Windows sets
 // when its «Animation effects» are off, often a company's policy and nobody's
 // choice), the octopus waves all the same, for it is how the cockpit says a
-// run is going: four times as slow, and the logo's legs half as high
-// (cockpit.css). The favicon and the logo keep one pace.
+// run is going: twice as slow (four times looked out of breath), and the
+// logo's legs half as high (cockpit.css). The favicon and the logo keep one
+// pace.
 const lessMotion = matchMedia('(prefers-reduced-motion: reduce)');
-const waveMs = () => (lessMotion.matches ? 4 : 1) * WAVE_MS;
+const waveMs = () => (lessMotion.matches ? 2 : 1) * WAVE_MS;
 let waveFrames = null;
 let waveTimer = null; // the worker that beats while the favicon waves
 
@@ -3730,6 +3734,9 @@ function connect() {
     if (!S.state.task) {
       S.acting.clear();
       S.chase = false;
+      // The run it followed is over (a group's, all of it: its suites share
+      // one task): its pill goes, and the next run followed comes back here.
+      S.follow = null;
     }
     await refreshState();
   });

@@ -12,6 +12,13 @@
   children share, and writes what they all say into the log. Measured in a
   project with a Python stack on Windows 11; the skill says what can still
   open a window (the stack's own script).
+- The pill of a run the page follows («Following …, run by … · back to …»)
+  goes when that run ends; it stayed, and the next run elsewhere showed its
+  own pill beside it. A group's run keeps it through all its suites.
+- The suite picker's «Hide the ones with no setup» shows only while some
+  suite has none; it comes back, as it was left, with the next one.
+- With less motion asked for, the octopus waves twice as slow as usual
+  instead of four times: at that pace it looked out of breath.
 
 ## 0.10.0 (2026-10-10)
 
