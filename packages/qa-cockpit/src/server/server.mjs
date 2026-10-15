@@ -1283,6 +1283,7 @@ function onFrame(f) {
     masks: masksOf(f.masks),
     console: consoleOf(f.console),
     findings: findingsOf(f.findings),
+    langOwn: typeof f.langOwn === 'string' && f.langOwn ? f.langOwn.slice(0, 20) : null,
     langs: langsOf(f.langs),
     // A step whose language was not changed (the change failed, or the
     // project's `ready` said not now),

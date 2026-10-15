@@ -158,8 +158,15 @@ everything says ok:
      async ready({ page }) {
        if (await page.getByRole('dialog').isVisible()) return 'a dialog is open';
      },
+     // Optional: the language a screen is in now, when its <html lang> does
+     // not say it (the app never sets it, or sets it wrong).
+     // async current({ page }) { return page.evaluate(() => localStorage.getItem('lang')); },
    },
    ```
+
+   `switchTo` is asked for the very language to change to, each time, and
+   for the screen's own one to come back to (`back: true` then): never
+   take one language to mean «back».
 
    The control's own words change with the language: find it by what does
    not (a test id, an icon's role, a name in every language). Then
@@ -450,6 +457,12 @@ config's `priority` languages, or every other one when it names none;
 `--languages fr,de` for those only (the new ones, say, not the ones
 already right). Never on its own: only when asked. The suite
 plays in its own language, as its recording finds things by their words.
+That is each screen's own, read from it at each step (its `<html lang>`,
+or the config's `current`): the suites' (`browser.locale`'s, or
+`languages.base`), or another when a suite, or a person in it, uses the
+app in one (a demo filmed in English, Bob reading in Spanish). A screen
+in another language than the suites' is also looked at in the suites'
+own, and its photo's tab says its own language.
 At each step's end, each person it names has their screen changed to
 every other language by the config's `switchTo`, photographed, and
 changed back; the change is not the step's (no marks, no photos of its

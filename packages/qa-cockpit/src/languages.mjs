@@ -1,10 +1,11 @@
 // The app's screens in its other languages (`replay --languages`, and
 // `languages check` to try it first). The suite plays in its own language,
-// as its recording finds things by their words; at each step's end the
-// person's screen is changed to each other language, the way the project's
-// agent wrote it in the config (`languages.switchTo`, with the actions a
-// person takes on the app's own control), photographed, looked at, and
-// changed back. What it finds, against the same screen in the suite's own
+// as its recording finds things by their words (the suites', or the one a
+// suite's people use, read from each screen: ownLanguage); at each step's
+// end the person's screen is changed to each other language, the way the
+// project's agent wrote it in the config (`languages.switchTo`, with the
+// actions a person takes on the app's own control), photographed, looked
+// at, and changed back. What it finds, against the same screen in its own
 // language:
 //
 //   cut   a text that does not fit its box any more (cut, or spilling out)
@@ -150,9 +151,41 @@ async function withShortTimeouts(page, fn) {
   }
 }
 
-/** The project's own change of language, with a short time for each of its actions. */
-export async function switchTo(config, page, lang, person) {
-  await withShortTimeouts(page, () => config.languages.switchTo({ page, lang, person, config, timeout: SWITCH_MS }));
+/**
+ * The project's own change of language, with a short time for each of its
+ * actions. `back`: to the screen's own language, after the others.
+ */
+export async function switchTo(config, page, lang, person, { back = false } = {}) {
+  await withShortTimeouts(page, () => config.languages.switchTo({ page, lang, person, config, back, timeout: SWITCH_MS }));
+}
+
+/**
+ * The language a person's screen is in now, one of the app's: the
+ * project's word (`languages.current`), else the page's own `<html lang>`,
+ * else the suites' (`languages.base`). Not always the suites': a suite, or
+ * a person in it, may play in another (a demo filmed in English in an app
+ * whose suites play in Catalan).
+ */
+export async function ownLanguage(config, page, person) {
+  const { base, others, current } = config.languages;
+  let said = '';
+  try {
+    said = current
+      ? await withShortTimeouts(page, () => current({ page, person, config, timeout: SWITCH_MS }))
+      : await page.evaluate(() => document.documentElement.lang);
+  } catch {
+    // Not said: the suites' own.
+  }
+  const codes = [base, ...others];
+  const code = String(said ?? '').trim().toLowerCase();
+  if (!code) return base;
+  return codes.find((c) => c.toLowerCase() === code) ?? codes.find((c) => c.toLowerCase() === code.split('-')[0]) ?? base;
+}
+
+/** The languages to look at from a screen in `own`: the asked ones but it, and the suites' own when it is not. */
+export function langsFrom(config, own, langs) {
+  const { base } = config.languages;
+  return [...(own === base ? [] : [base]), ...langs.filter((l) => l !== own && l !== base)];
 }
 
 /**
@@ -192,15 +225,18 @@ export function compare(base, scan, lang, told, where) {
 
 /**
  * A person's screen in each other language, and back. `shoot(lang)` takes
- * the photo of the screen in that language: { file, scroll }.
- * @returns {Promise<{ shots: any[], skipped: string | null, broken: string | null }>}
+ * the photo of the screen in that language: { file, scroll }. `own`: the
+ * language the screen was in, which its own photo shows.
+ * @returns {Promise<{ own: string | null, shots: any[], skipped: string | null, broken: string | null }>}
  */
 export async function lookInLanguages({ config, page, person, langs, shoot, told }) {
-  const base = config.languages.base;
   // The project's no, before anything is touched: this step is skipped,
   // and the look goes on at the next one.
   const why = await notReady(config, page, person);
-  if (why) return { shots: [], skipped: why, broken: null, baseKeys: [] };
+  if (why) return { own: null, shots: [], skipped: why, broken: null, baseKeys: [] };
+  // The screen's own language, which its photo is in, and the others from it.
+  const own = await ownLanguage(config, page, person);
+  const visit = langsFrom(config, own, langs);
   // A screen still moving at the step's end is given a moment; one that
   // never stands still (a clock) is taken as it is.
   await settle(page, () => true, 2_000, STILL_MS);
@@ -216,7 +252,7 @@ export async function lookInLanguages({ config, page, person, langs, shoot, told
   const shots = [];
   let skipped = null;
   let touched = false;
-  for (const lang of langs) {
+  for (const lang of visit) {
     const at = await page.evaluate(printOf);
     try {
       touched = true;
@@ -233,13 +269,13 @@ export async function lookInLanguages({ config, page, person, langs, shoot, told
     const scan = await page.evaluate(scanTexts);
     shots.push({ lang, ...shot, changed, findings: compare(baseScan, scan, lang, told, where) });
   }
-  // Back to the suite's own language, and to the very same screen.
+  // Back to the screen's own language, and to the very same screen.
   let broken = null;
   if (touched && (await page.evaluate(printOf).catch(() => null)) !== before) {
     try {
-      await switchTo(config, page, base, person);
+      await switchTo(config, page, own, person, { back: true });
     } catch (e) {
-      broken = `back to ${base}: ${String(e?.message ?? e).split('\n')[0].slice(0, 160)}`;
+      broken = `back to ${own}: ${String(e?.message ?? e).split('\n')[0].slice(0, 160)}`;
     }
     let same = await settle(page, (p) => p === before, 4_000);
     if (!same) {
@@ -247,7 +283,7 @@ export async function lookInLanguages({ config, page, person, langs, shoot, told
       await page.keyboard.press('Escape').catch(() => {});
       same = await settle(page, (p) => p === before, 1_500);
     }
-    if (!same) broken ??= `the screen did not come back the same in ${base}`;
+    if (!same) broken ??= `the screen did not come back the same in ${own}`;
   }
-  return { shots, skipped, broken, baseKeys: compare({ cut: [], keys: [], wide: null }, { cut: [], keys: baseScan.keys, wide: null }, base, told, where) };
+  return { own, shots, skipped, broken, baseKeys: compare({ cut: [], keys: [], wide: null }, { cut: [], keys: baseScan.keys, wide: null }, own, told, where) };
 }

@@ -2155,7 +2155,7 @@ function runReport(notesMd = '') {
         // The same screen in the app's other languages, and what does not fit there.
         const unfit = (list) => list.map((x, i) => `${i + 1}. ${saidLang[x.rule]?.(x) ?? x.rule}${where(x)}`).join('; ');
         const ownKeys = (f.findings ?? []).filter((x) => x.kind === 'lang');
-        if (ownKeys.length) lines.push(`  - In ${S.state.languages ? langSaid(S.state.languages.base) : 'its own language'}: ${unfit(ownKeys)}`);
+        if (ownKeys.length) lines.push(`  - In ${S.state.languages ? langSaid(ownLang(f)) : 'its own language'}: ${unfit(ownKeys)}`);
         for (const l of f.langs ?? []) {
           lines.push(`  - In ${langSaid(l.lang)}: \`${OUT}/${l.file}\`${l.changed ? '' : ' (no word changed)'}${l.findings?.length ? `; ${unfit(l.findings)}` : '; everything fits'}`);
         }
@@ -2259,6 +2259,8 @@ function marksOf(f) {
 // languages.mjs): a tab each over the photo. The language chosen stays while
 // the photos go by, on the steps that have it.
 const langOf = (f) => (S.ins?.lang && f && !isAction(f) ? (f.langs ?? []).find((l) => l.lang === S.ins.lang) ?? null : null);
+/** The language a step's own photo is in: the screen's (a suite, or a person, may play in another than the suites'). */
+const ownLang = (f) => f?.langOwn ?? S.state.languages?.base ?? '';
 // A language of the app by its name: the config's (`languages.names`), the
 // browser's, or its code. In the run report, the English one by its code.
 const langName = (code) => languageName(code, { names: S.state?.languages?.names, ui: getLang(), locale: locale() });
@@ -2792,7 +2794,7 @@ function renderLangTabs(f) {
   const langs = S.ins && !S.ins.live && f && !isAction(f) ? (f.langs ?? []) : [];
   tabs.hidden = !langs.length;
   if (!langs.length) return;
-  const base = S.state.languages?.base ?? '';
+  const base = ownLang(f);
   const shown = langOf(f)?.lang ?? base;
   const tab = (code, n, title) =>
     `<button class="lt${code === shown ? ' sel' : ''}" data-code="${esc(code)}" title="${esc(title)}" aria-pressed="${code === shown}">${esc(code.toUpperCase())}${n ? `<i>${n}</i>` : ''}</button>`;
@@ -4150,7 +4152,7 @@ $('optFinds').onchange = () => {
 $('insLangs').addEventListener('click', (e) => {
   const code = e.target.closest('[data-code]')?.dataset.code;
   if (!code || !S.ins) return;
-  S.ins.lang = code === S.state.languages?.base ? null : code;
+  S.ins.lang = code === ownLang(insFrame()) ? null : code;
   renderInspector();
 });
 // A finding named under the photo lights its box on it.

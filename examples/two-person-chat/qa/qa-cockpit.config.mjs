@@ -60,18 +60,14 @@ export default defineConfig({
 
   // The app's other languages, and how a person changes to one: the menu in
   // its header, as they would (`replay --languages`, `languages check`). The
-  // suites play in English, the browser's.
+  // suites play in English, the browser's; a screen in another language on
+  // purpose (Bob reads the chat in Spanish in suites/two-languages.md) says
+  // so in its <html lang>, and is looked at in English and Catalan instead,
+  // then changed back to Spanish.
   languages: {
     others: ['ca', 'es'],
     async switchTo({ page, lang }) {
       await page.getByTestId('lang').selectOption(lang);
-    },
-    // A screen in another language on purpose (Bob reads the chat in
-    // Spanish in suites/two-languages.md) is left as it is: changed back to
-    // English, it would not be the screen the step left.
-    async ready({ page }) {
-      const lang = await page.evaluate(() => document.documentElement.lang);
-      if (lang !== 'en') return `the page is in ${lang} on purpose`;
     },
   },
 

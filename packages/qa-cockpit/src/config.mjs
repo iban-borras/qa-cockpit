@@ -199,9 +199,10 @@ export function resolveConfig(raw, file) {
 }
 
 /**
- * `languages`: { base?, others, priority?, names?, switchTo({ page, lang, person }),
- * ready?({ page, person }) }.
- * The suites' own language is the browser's unless said; the others are the
+ * `languages`: { base?, others, priority?, names?, switchTo({ page, lang, person, back }),
+ * ready?({ page, person }), current?({ page, person }) }.
+ * The suites' own language is the browser's unless said; a screen's own is
+ * read from it (`current`, else its `<html lang>`); the others are the
  * app's other languages; `priority`, the ones looked at when a run names
  * none (every other one, unless said): an app of many languages, its new
  * ones; `names`, what to call the ones a browser has no name for.
@@ -224,7 +225,11 @@ function languagesOf(l, locale) {
   if (l.ready !== undefined && typeof l.ready !== 'function') {
     throw new Error('`languages.ready({ page, person })`: a function that waits for the screen to be ready to change, or returns why not.');
   }
-  return { base, others, priority, names: namesOf(l.names, [base, ...others]), switchTo: l.switchTo, ready: l.ready ?? null };
+  // The language a screen is in, when its `<html lang>` does not say it.
+  if (l.current !== undefined && typeof l.current !== 'function') {
+    throw new Error('`languages.current({ page, person })`: a function that says the language the screen is in now ("ca").');
+  }
+  return { base, others, priority, names: namesOf(l.names, [base, ...others]), switchTo: l.switchTo, ready: l.ready ?? null, current: l.current ?? null };
 }
 
 /**

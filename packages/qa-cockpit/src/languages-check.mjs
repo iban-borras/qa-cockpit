@@ -7,7 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { contextOptions, deviceFor } from './devices.mjs';
-import { compare, langSaid, nameless, notReady, printOf, scanTexts, settle, switchTo } from './languages.mjs';
+import { compare, langSaid, langsFrom, nameless, notReady, ownLanguage, printOf, scanTexts, settle, switchTo } from './languages.mjs';
 import { playwrightOf } from './playwright.mjs';
 
 const firstLine = (e) => String(e?.message ?? e).split('\n')[0].slice(0, 200);
@@ -56,9 +56,11 @@ export async function checkLanguages(config, id, say) {
     say(`${person.name} on ${device.name}, at ${page.url()}`);
     const before = await page.evaluate(printOf);
     const baseScan = await page.evaluate(scanTexts);
-    say(`  ${said(base)}, the suites' own: ${await shoot(base)}`);
+    // The screen's own language: the suites', or the one this person uses.
+    const own = await ownLanguage(config, page, person);
+    say(`  ${said(own)}, ${own === base ? "the suites' own" : `this screen's own (the suites' is ${said(base)})`}: ${await shoot(own)}`);
     const told = new Set();
-    for (const lang of others) {
+    for (const lang of langsFrom(config, own, others)) {
       const at = await page.evaluate(printOf);
       const loadsBefore = loads;
       const t0 = Date.now();
@@ -79,14 +81,14 @@ export async function checkLanguages(config, id, say) {
       if (!changed) ok = false;
       for (const x of compare(baseScan, await page.evaluate(scanTexts), lang, told, '')) say(`    ${x.rule}: «${x.text}»`);
       try {
-        await switchTo(config, page, base, person);
+        await switchTo(config, page, own, person, { back: true });
       } catch (e) {
         ok = false;
-        say(`  back to ${said(base)}: the change failed: ${firstLine(e)}`);
+        say(`  back to ${said(own)}: the change failed: ${firstLine(e)}`);
         break;
       }
       const same = await settle(page, (p) => p === before, 4_000);
-      say(`  back to ${said(base)}: ${same ? 'the very same screen' : 'NOT THE SAME SCREEN: a run would stop looking at languages there'}`);
+      say(`  back to ${said(own)}: ${same ? 'the very same screen' : 'NOT THE SAME SCREEN: a run would stop looking at languages there'}`);
       if (!same) {
         ok = false;
         break;

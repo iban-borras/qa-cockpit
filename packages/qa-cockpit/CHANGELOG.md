@@ -11,6 +11,18 @@
   stayed «Live» beside «Run finished», and the person's card kept its own
   «Live» badge for as long as the inspector was open. That badge now shows
   only while a run goes.
+- The languages look reads each screen's own language, instead of taking
+  the suites' for every screen. A suite whose people use the app in
+  another language (a demo filmed in English, in an app whose suites play
+  in Catalan) had its English photos labelled as Catalan, its «English»
+  photos were the same screen again, and the suites' own language was
+  never photographed. A screen's language is its `<html lang>`, or what the
+  config's new `languages.current({ page, person })` says; the screen is
+  looked at in the asked languages but its own, and in the suites' own
+  when it is another, then changed back to its own. `switchTo` is told
+  `back: true` then: a config that took the suites' language to mean
+  «back» should go where it is asked. The tab of a step's own photo names
+  its language; `languages check` starts from the screen's own too.
 
 ## 0.10.1 (2026-10-13)
 

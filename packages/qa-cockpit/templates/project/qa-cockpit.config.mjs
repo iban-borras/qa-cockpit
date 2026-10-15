@@ -80,7 +80,8 @@ export default defineConfig({
 
   // If the app speaks other languages: which, and how a person changes it,
   // with its own control (`replay --languages`; `languages check` tries it).
-  // The suites play in browser.locale's.
+  // The suites play in browser.locale's; a screen in another on purpose
+  // says so in its <html lang> (or `current` below).
   // languages: {
   //   others: ['ca', 'es'],
   //   priority: ['es'],   // looked at when a run names none; all of them otherwise
@@ -93,6 +94,8 @@ export default defineConfig({
   //   // async ready({ page }) {
   //   //   if (await page.getByRole('dialog').isVisible()) return 'a dialog is open';
   //   // },
+  //   // The language a screen is in, when its <html lang> does not say it.
+  //   // async current({ page }) { return page.evaluate(() => localStorage.getItem('lang')); },
   // },
 
   // What changes on a screen by itself (a clock, a date, an avatar), as

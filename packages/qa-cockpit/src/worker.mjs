@@ -251,6 +251,8 @@ export async function photo(f) {
         // What the page said went wrong while the step went: its errors.
         console: f.console ?? [],
         findings,
+        // The language the step's own photo is in, and the others it was looked at in.
+        langOwn: tour?.own ?? null,
         langs: tour?.shots.map((s) => ({ lang: s.lang, file: relOut(s.file), scroll: s.scroll, changed: s.changed, findings: s.findings })) ?? [],
         langsSkipped: tour?.skipped ?? null,
         langsStopped: tour?.broken ?? null,
@@ -304,7 +306,7 @@ async function languagesOf(f) {
     return tour;
   } catch (e) {
     langsOff = String(e?.message ?? e).split('\n')[0].slice(0, 160);
-    return { shots: [], skipped: null, broken: langsOff, baseKeys: [] };
+    return { own: null, shots: [], skipped: null, broken: langsOff, baseKeys: [] };
   } finally {
     entry.touring = false;
   }
