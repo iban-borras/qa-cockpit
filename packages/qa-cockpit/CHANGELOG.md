@@ -23,6 +23,8 @@
   `back: true` then: a config that took the suites' language to mean
   «back» should go where it is asked. The tab of a step's own photo names
   its language; `languages check` starts from the screen's own too.
+- The README opens with the new presentation video (70 s), its poster the
+  cockpit itself.
 
 ## 0.10.1 (2026-10-13)
 

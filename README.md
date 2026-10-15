@@ -16,7 +16,7 @@ Agents write and run the multi-user tests; people watch every screen and judge.<
 > developer do not write tests: they watch each person's screen, step by
 > step, and pin a note on whatever is wrong for the agent to fix.
 
-https://github.com/user-attachments/assets/cf63c079-fdde-4680-871e-3f2f245f8be6
+https://github.com/user-attachments/assets/edf507d2-3b3e-4132-b6f4-7ea7cd6d2bb8
 
 **How it goes**
 
