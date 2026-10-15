@@ -6,6 +6,11 @@
   the page is on it, its title right above. It says who ran it, when it
   knows, and the way back («Run by Claude · back to «Chat»», or «Back to
   «Chat»»); its tooltip, why the page is there.
+- An inspector opened during a run leaves its live view when the run ends:
+  it goes to the person's last photo, and lets go of the live picture. It
+  stayed «Live» beside «Run finished», and the person's card kept its own
+  «Live» badge for as long as the inspector was open. That badge now shows
+  only while a run goes.
 
 ## 0.10.1 (2026-10-13)
 

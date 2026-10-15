@@ -1485,7 +1485,7 @@ function cardHtml(p, moment, running) {
       : f
         ? ['ok', t('card.done')]
         : ['', t('card.waiting')];
-  const watching = S.state.watched?.includes(p.id);
+  const watching = running && S.state.watched?.includes(p.id);
   const name = cap(p.id);
   return `<article class="${cls}" data-actor="${esc(p.id)}">
     <div class="card-head">
@@ -1675,6 +1675,13 @@ function renderInspector(first = false) {
   const ins = S.ins;
   if (!ins) return;
   if (first) setLive(ins.live);
+  // The run ended while the inspector watched it live: it goes to the last
+  // photo, and lets go of the live picture (its card said «Live» for as
+  // long as it was held).
+  else if (ins.live && !isRunning()) {
+    setLive(false);
+    ins.idx = Math.max(0, insFrames().length - 1);
+  }
   renderInsPlay();
   const list = insFrames();
   const f = list[ins.idx];
