@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.10.2 (2026-10-15)
 
 - The pill of a run the page follows no longer names the suite it shows:
   the page is on it, its title right above. It says who ran it, when it
