@@ -4083,17 +4083,18 @@ function takeReloaded() {
   }
 }
 
-/** The pill of a run followed by itself: what it shows, who ran it, and the way back. */
+/** The pill of a run followed by itself: who ran it, and the way back. Not
+ *  the suite it shows: the page is on it, its title right above. */
 function renderFollow() {
   const f = S.follow;
   const pill = $('followBack');
   const from = f && f.suite === S.suite && f.from !== S.suite ? suiteOf(f.from) : null;
   pill.hidden = !from;
   if (!from) return;
-  const now = suiteOf(f.suite)?.title ?? f.suite;
   // «terminal»: a shell with no agent known above it (lock.mjs, whoAmI), nobody to name.
   const who = f.who && f.who !== 'terminal' ? f.who : null;
-  withIcon(pill, 'radio', `${who ? t('follow.now', { suite: now, who }) : t('follow.now_bare', { suite: now })} · ${t('follow.back', { suite: from.title })}`);
+  withIcon(pill, 'radio', who ? `${t('follow.by', { who })} · ${t('follow.back', { suite: from.title })}` : t('follow.back_to', { suite: from.title }));
+  pill.dataset.tip = t('follow.tip');
 }
 $('followBack').onclick = () => S.follow && pickSuite(S.follow.from);
 

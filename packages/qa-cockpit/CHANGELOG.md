@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- The pill of a run the page follows no longer names the suite it shows:
+  the page is on it, its title right above. It says who ran it, when it
+  knows, and the way back («Run by Claude · back to «Chat»», or «Back to
+  «Chat»»); its tooltip, why the page is there.
+
 ## 0.10.1 (2026-10-13)
 
 - On Windows, a stack that is one process (`processStack`) no longer opens
