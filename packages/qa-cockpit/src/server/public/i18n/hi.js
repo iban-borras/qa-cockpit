@@ -26,6 +26,8 @@ export default {
   'opts.title': 'रन के विकल्प',
   'opts.headed': 'दिखने वाली विंडो',
   'opts.headed_hint': 'रन चलते समय Chromium आपकी स्क्रीन पर खुलता है। सिर्फ़ तब, जब cockpit आपने खुद शुरू किया हो।',
+  'opts.off_while': '“{option}” चालू रहने तक बंद',
+  'opts.off_screen': 'बंद: विंडो आपकी स्क्रीन पर नहीं दिखेंगी',
   'opts.docker': 'कंटेनर में',
   'opts.docker_hint': 'Replay आधिकारिक Playwright इमेज के अंदर चलता है, जो हर मशीन पर एक जैसी है।',
   'opts.a11y': 'एक्सेसिबिलिटी',

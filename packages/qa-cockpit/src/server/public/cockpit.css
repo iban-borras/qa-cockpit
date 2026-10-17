@@ -489,9 +489,14 @@ button.chip.chg-tag:hover { background: rgba(251, 146, 60, 0.22); border-color: 
 .races .rd.chg::after { content: ''; position: absolute; top: -3px; right: -3px; width: 8px; height: 8px; border-radius: 50%; background: #fb923c; box-shadow: 0 0 0 2px var(--panel); }
 .opt-sub.chaos .field { height: 30px; font-size: 12.5px; }
 .opt-sub.chaos .field select { height: 28px; color: var(--text); }
-.opt.off, .opt-sub.off { opacity: 0.45; }
-.opt.off { cursor: not-allowed; }
+/* An option off: faded, all but the «i» at its end that says there is a
+   reason (cockpit.js, optOff); the reason is in the cockpit's tooltip. */
+.opt.off > input, .opt.off > div, .opt-sub.off { opacity: 0.45; }
+.opt.off { cursor: help; }
 .opt-sub.off { pointer-events: none; }
+.opt .why { flex: none; display: inline-flex; margin: 1px 0 0 auto; padding: 2px; color: var(--warn); border-radius: 50%; cursor: help; }
+.opt .why svg { width: 15px; height: 15px; }
+.opt .why:focus-visible { outline: 2px solid var(--warn); outline-offset: 1px; }
 /* The strip under the run: the round, how it slowed each person, then what
    the rounds found, each round a way to its run. */
 .races { grid-column: 1 / -1; min-width: 0; display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }

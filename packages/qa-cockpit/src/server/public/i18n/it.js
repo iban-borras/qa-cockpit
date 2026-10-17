@@ -26,6 +26,8 @@ export default {
   'opts.title': 'Opzioni della passata',
   'opts.headed': 'Finestre visibili',
   'opts.headed_hint': 'Chromium si apre sullo schermo mentre la passata va avanti. Solo se hai avviato tu il cockpit.',
+  'opts.off_while': 'Disattivata finché «{option}» è selezionato',
+  'opts.off_screen': 'Disattivata: le finestre non comparirebbero sul tuo schermo',
   'opts.docker': 'In un container',
   'opts.docker_hint': "Il replay gira dentro l'immagine ufficiale di Playwright, uguale su ogni macchina.",
   'opts.a11y': 'Accessibilità',

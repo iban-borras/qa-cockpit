@@ -26,6 +26,8 @@ export default {
   'opts.title': '実行オプション',
   'opts.headed': 'ウィンドウを表示',
   'opts.headed_hint': '実行中、Chromium が画面に開きます。コックピットをご自身で起動した場合にだけ使えます。',
+  'opts.off_while': '「{option}」がオンの間はオフ',
+  'opts.off_screen': 'オフ: ウィンドウがあなたの画面に表示されません',
   'opts.docker': 'コンテナ内で',
   'opts.docker_hint': 'Replay は公式の Playwright イメージ内で実行され、どのマシンでも同じです。',
   'opts.a11y': 'アクセシビリティ',

@@ -975,7 +975,7 @@ function renderHeader() {
   else if (st.outdated) banner(t('err.cockpit_outdated', st.outdated), 'err');
   else if (renderHeader.outdated && !st.desktopWarning) banner(null);
   renderHeader.outdated = Boolean(st.outdated || S.pageOld);
-  $('optHeaded').disabled = Boolean(st.desktopWarning);
+  optOff('optHeaded', st.desktopWarning ? t('opts.off_screen') : null, st.desktopWarning ? desktopText(st.desktopWarning) : null);
 }
 
 /** Who holds the stack when it is not the cockpit's own task, or null. */
@@ -1078,6 +1078,10 @@ function updateButtons() {
 const TIP_DELAY_MS = 1000;
 const TIP_NEXT_MS = 300;
 const TIPS = {
+  // An option off, and why (optOff).
+  off(el) {
+    return `<div class="tip-text"><b>${esc(el.dataset.why)}</b>${el.dataset.more ? `<br>${esc(el.dataset.more)}` : ''}</div>`;
+  },
   busy() {
     const b = busyElsewhere();
     if (!b) return null;
@@ -1095,7 +1099,7 @@ let tipTimer = null;
 const TIP_TARGET = '[data-tip], [data-tip-kind]';
 
 function tipHtml(el) {
-  const built = el.dataset.tipKind ? TIPS[el.dataset.tipKind]?.() : null;
+  const built = el.dataset.tipKind ? TIPS[el.dataset.tipKind]?.(el) : null;
   if (built) return built;
   if (el.dataset.tip && el.dataset.tip.trim() === el.textContent.trim() && el.scrollWidth <= el.clientWidth) return null;
   return el.dataset.tip ? `<div class="tip-text">${esc(el.dataset.tip)}</div>` : null;
@@ -2406,11 +2410,47 @@ function renderChaosPicks() {
   }
   select.value = String(chaosRounds());
   for (const id of ['optA11y', 'optLangs', 'optRealtime', 'optChanges']) {
-    $(id).disabled = on;
-    $(id).closest('.opt').classList.toggle('off', on);
-    $(id).closest('.opt').title = on ? t('races.no_looks') : '';
+    optOff(id, on ? t('opts.off_while', { option: t('opts.chaos') }) : null, t('races.no_looks'));
   }
   $('optLangsList').classList.toggle('off', on);
+}
+
+/**
+ * An option that cannot be taken now, and why: the cockpit's own tooltip
+ * over the whole option, quick, and a small «i» at its end that shows there
+ * is a reason and that the keyboard reaches. Its reason lived only in a
+ * native tooltip on a greyed option, which went unfound: a grey option
+ * invites no pointer, and no key reaches it. `why`: the short reason, or
+ * null to give the option back; `more`: the long one, under it.
+ */
+function optOff(id, why, more = null) {
+  const input = $(id);
+  const opt = input.closest('.opt');
+  input.disabled = Boolean(why);
+  opt.classList.toggle('off', Boolean(why));
+  let mark = $(`${id}Why`);
+  if (!why) {
+    mark?.remove();
+    delete opt.dataset.tipKind;
+    input.removeAttribute('aria-describedby');
+    return;
+  }
+  if (!mark) {
+    mark = document.createElement('span');
+    mark.className = 'why';
+    mark.id = `${id}Why`;
+    mark.tabIndex = 0;
+    mark.setAttribute('role', 'img');
+    mark.innerHTML = icon('info');
+    opt.append(mark);
+  }
+  for (const el of [opt, mark]) {
+    el.dataset.tipKind = 'off';
+    el.dataset.why = why;
+    el.dataset.more = more ?? '';
+  }
+  mark.setAttribute('aria-label', more ? `${why}. ${more}` : why);
+  input.setAttribute('aria-describedby', mark.id);
 }
 
 /** «T1/3 · Bob: sees it arrive». */

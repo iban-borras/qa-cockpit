@@ -26,6 +26,8 @@ export default {
   'opts.title': '运行选项',
   'opts.headed': '可见窗口',
   'opts.headed_hint': '运行进行时，Chromium 会在你的屏幕上打开。仅当由你自己启动驾驶舱时才可用。',
+  'opts.off_while': '勾选“{option}”时不可用',
+  'opts.off_screen': '不可用：窗口不会显示在你的屏幕上',
   'opts.docker': '在容器中',
   'opts.docker_hint': 'Replay 在官方 Playwright 镜像中运行，在任何机器上都一样。',
   'opts.a11y': '无障碍',

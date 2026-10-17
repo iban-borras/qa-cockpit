@@ -26,6 +26,8 @@ export default {
   'opts.title': 'Koşu seçenekleri',
   'opts.headed': 'Görünür pencereler',
   'opts.headed_hint': 'Koşu sürerken Chromium ekranınızda açılır. Yalnızca cockpit’i kendiniz başlattıysanız.',
+  'opts.off_while': '“{option}” işaretliyken kapalı',
+  'opts.off_screen': 'Kapalı: pencereler ekranınızda görünmezdi',
   'opts.docker': 'Konteynerde',
   'opts.docker_hint': 'Replay, her makinede aynı olan resmi Playwright imajının içinde çalışır.',
   'opts.a11y': 'Erişilebilirlik',

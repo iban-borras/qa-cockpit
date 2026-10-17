@@ -29,6 +29,8 @@ export default {
   'opts.title': 'Run options',
   'opts.headed': 'Visible windows',
   'opts.headed_hint': 'Chromium opens on your screen while the run goes. Only if you started the cockpit yourself.',
+  'opts.off_while': 'Off while «{option}» is on',
+  'opts.off_screen': 'Off: its windows would not show on your screen',
   'opts.docker': 'In a container',
   'opts.docker_hint': 'The replay runs inside the official Playwright image, the same on any machine.',
   'opts.a11y': 'Accessibility',

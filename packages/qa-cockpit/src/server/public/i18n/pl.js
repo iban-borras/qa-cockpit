@@ -26,6 +26,8 @@ export default {
   'opts.title': 'Opcje przebiegu',
   'opts.headed': 'Widoczne okna',
   'opts.headed_hint': 'Chromium otwiera się na ekranie podczas przebiegu. Tylko jeśli kokpit uruchomisz sam.',
+  'opts.off_while': 'Wyłączone, dopóki zaznaczone jest „{option}”',
+  'opts.off_screen': 'Wyłączone: okna nie pokazałyby się na twoim ekranie',
   'opts.docker': 'W kontenerze',
   'opts.docker_hint': 'Replay działa w oficjalnym obrazie Playwright, takim samym na każdym komputerze.',
   'opts.a11y': 'Dostępność',

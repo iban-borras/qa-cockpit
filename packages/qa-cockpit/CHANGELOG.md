@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- An option that cannot be taken now says why where it is found: the
+  cockpit's own tooltip over the whole option, quick («Off while «Races
+  between people» is on», then the long reason), and a small amber «i» at
+  its end that shows there is a reason, which the keyboard reaches and
+  screen readers read. It lived only in a native tooltip on a greyed
+  option, which nobody hovered and no key reached: under the looks a
+  search for races does without, and under «Visible windows» on a desktop
+  nobody sees. In every language.
 - With more than five suites, the suite picker orders them by name (by
   where they stand, as always) or by their last run, the most recent
   first, to find the ones just played among many; the choice is kept. A

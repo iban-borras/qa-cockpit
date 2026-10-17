@@ -26,6 +26,8 @@ export default {
   'opts.title': 'Opções da execução',
   'opts.headed': 'Janelas visíveis',
   'opts.headed_hint': 'O Chromium abre na sua tela enquanto a execução acontece. Só se você mesmo iniciou o cockpit.',
+  'opts.off_while': 'Desativada enquanto “{option}” estiver marcado',
+  'opts.off_screen': 'Desativada: as janelas não apareceriam na sua tela',
   'opts.docker': 'Em um contêiner',
   'opts.docker_hint': 'O replay é executado dentro da imagem oficial do Playwright, a mesma em qualquer máquina.',
   'opts.a11y': 'Acessibilidade',

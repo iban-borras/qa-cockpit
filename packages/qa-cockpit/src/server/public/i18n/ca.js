@@ -29,6 +29,8 @@ export default {
   'opts.title': "Opcions de l'execució",
   'opts.headed': 'Finestres visibles',
   'opts.headed_hint': "Chromium s'obri a la teua pantalla mentre la prova corre. Només si has arrancat tu el cockpit.",
+  'opts.off_while': 'Apagada mentre «{option}» està marcat',
+  'opts.off_screen': 'Apagada: les finestres no eixirien a la teua pantalla',
   'opts.docker': 'En contenidor',
   'opts.docker_hint': 'El replay corre dins de la imatge oficial de Playwright, igual a qualsevol màquina.',
   'opts.a11y': 'Accessibilitat',

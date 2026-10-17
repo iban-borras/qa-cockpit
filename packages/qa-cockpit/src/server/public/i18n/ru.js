@@ -26,6 +26,8 @@ export default {
   'opts.title': 'Параметры прогона',
   'opts.headed': 'Видимые окна',
   'opts.headed_hint': 'Chromium открывается на вашем экране во время прогона. Только если вы сами запустили QA Cockpit.',
+  'opts.off_while': 'Выключено, пока отмечено «{option}»',
+  'opts.off_screen': 'Выключено: окна не появились бы на вашем экране',
   'opts.docker': 'В контейнере',
   'opts.docker_hint': 'Replay идёт внутри официального образа Playwright, одинакового на любой машине.',
   'opts.a11y': 'Доступность',
