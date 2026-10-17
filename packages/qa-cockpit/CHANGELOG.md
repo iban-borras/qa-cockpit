@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.0 (2026-10-17)
 
 - The inspector's list flags a step where the page said something went
   wrong (its console's errors, what it threw), in red with how many: the
