@@ -666,6 +666,8 @@ dialog.ask p { margin: 0 0 16px; font-size: 14px; line-height: 1.5; }
 /* The picker's tags (tags.mjs): a chip each shows only its suites; a tag
    chosen, its group plays from here, one suite after another. */
 .picker-tags { flex: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 14px 2px; }
+.picker-sort { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 14px 2px; font-size: 12.5px; color: var(--muted); }
+.picker-sort > span { margin-right: 2px; }
 .tag-pick { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line-2); background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
 .tag-pick:hover, .tag-pick:focus-visible { color: var(--text); border-color: #4a4b56; }
 .tag-pick.on { color: #c7d2fe; background: rgba(99, 102, 241, 0.18); border-color: rgba(99, 102, 241, 0.6); }

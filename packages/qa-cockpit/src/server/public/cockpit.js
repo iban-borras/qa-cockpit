@@ -190,7 +190,7 @@ const S = {
   notes: [], // the notes on the photos of the run shown (notes.mjs)
   note: null, // the id of the note whose post-it is open
   dropped: null, // the note just pinned: its tack lands
-  picker: { open: false, active: 0, query: '', hideNoSetup: false },
+  picker: { open: false, active: 0, query: '', hideNoSetup: false, sort: 'name' },
   runPick: { open: false, active: 0 },
   cmpPick: { open: false, active: 0 },
   langsOpen: false, // the languages under the run's option, unfolded
@@ -527,8 +527,21 @@ function pickerItems() {
   // A tag's suites in the order its group plays them (tags.json); the rest
   // by where they stand.
   if (tag) return all.sort((a, b) => tag.suites.indexOf(a.name) - tag.suites.indexOf(b.name));
-  return STANDING_ORDER.flatMap((st) => all.filter((s) => standing(s) === st));
+  const byStanding = STANDING_ORDER.flatMap((st) => all.filter((s) => standing(s) === st));
+  if (pickerSort() !== 'recent') return byStanding;
+  // The last run first: the suites just played, a long list or not; the
+  // ones never played here after them, by where they stand.
+  const played = byStanding.filter((s) => lastRunAt(s)).sort((a, b) => lastRunAt(b).localeCompare(lastRunAt(a)));
+  return [...played, ...byStanding.filter((s) => !lastRunAt(s))];
 }
+
+// THE PICKER'S ORDER, once there are more suites than a glance takes in:
+// by where they stand and their name (as always), or their last run first,
+// to find the ones just played among many. Kept for the next visit; a
+// tag's suites keep the order its group plays them in.
+const SORT_FROM = 6;
+const lastRunAt = (s) => runsOf(s.name)[0]?.startedAt ?? '';
+const pickerSort = () => ((S.state?.suites ?? []).length >= SORT_FROM && S.picker.sort === 'recent' ? 'recent' : 'name');
 
 // A TAG'S GROUP, in the picker (tags.mjs, `replay --tag`): a chip per tag
 // shows only its suites, and plays them all, one after another, each from
@@ -575,10 +588,19 @@ function renderPicker() {
   // group plays them; one that cannot play says so by its own tag.
   const tag = pickerTag();
   if (tag && items.length) html += `<div class="picker-group">${esc(t('group.order'))} <span class="count">${items.length}</span></div>`;
+  const sortBox = $('pickerSort');
+  sortBox.hidden = Boolean(tag) || (S.state?.suites ?? []).length < SORT_FROM;
+  for (const b of sortBox.querySelectorAll('[data-sort]')) {
+    const on = b.dataset.sort === pickerSort();
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', String(on));
+  }
+  // Under a heading each: where they stand, or, last run first, played or not yet.
+  const groupOf = (s) => (pickerSort() === 'recent' ? (lastRunAt(s) ? 'recent' : 'never_run') : standing(s));
   items.forEach((s, i) => {
-    if (!tag && standing(s) !== group) {
-      group = standing(s);
-      const n = items.filter((x) => standing(x) === group).length;
+    if (!tag && groupOf(s) !== group) {
+      group = groupOf(s);
+      const n = items.filter((x) => groupOf(x) === group).length;
       html += `<div class="picker-group">${esc(t(`picker.${group}`))} <span class="count">${n}</span></div>`;
     }
     const last = runsOf(s.name)[0];
@@ -668,6 +690,15 @@ $('groupPlay').onclick = async () => {
   S.chase = true;
   void act('group', { tag: tag.name, keepGoing: !$('groupStopFirst').checked, chaos: false });
 };
+S.picker.sort = localStorageGet('pickerSort') === 'recent' ? 'recent' : 'name';
+$('pickerSort').addEventListener('click', (e) => {
+  const sort = e.target.closest('[data-sort]')?.dataset.sort;
+  if (!sort || sort === S.picker.sort) return;
+  S.picker.sort = sort;
+  localStorageSet('pickerSort', sort);
+  S.picker.active = 0;
+  renderPicker();
+});
 S.picker.hideNoSetup = localStorageGet('hideNoSetup') === '1';
 $('pickerHide').checked = S.picker.hideNoSetup;
 $('pickerHide').onchange = () => {

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- With more than five suites, the suite picker orders them by name (by
+  where they stand, as always) or by their last run, the most recent
+  first, to find the ones just played among many; the choice is kept. A
+  tag's suites keep the order its group plays them in.
+
 ## 0.10.2 (2026-10-15)
 
 - The pill of a run the page follows no longer names the suite it shows:
