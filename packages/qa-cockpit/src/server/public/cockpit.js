@@ -1774,7 +1774,7 @@ function renderInspector(first = false) {
     const sel = x === shown && !unfolded ? ' sel' : x.seq === open ? ' open' : '';
     const dur = Number.isFinite(x.ms) ? `<span class="dur${x.ms >= SLOW_STEP_MS ? ' slow' : ''}">${esc(fmtDur(x.ms))}</span>` : '';
     // What the step's own photo shows: on the step folded, on «When done» unfolded.
-    const marks = `${handOffBadge(x.realtime)}${findBadges(x)}${changeOf(x) ? '<i class="cdot" aria-hidden="true"></i>' : ''}`;
+    const marks = `${handOffBadge(x.realtime)}${findBadges(x)}${consoleBadge(x)}${changeOf(x) ? '<i class="cdot" aria-hidden="true"></i>' : ''}`;
     const pins = pinsOf(x) + (x.seq === open ? 0 : (actionPins.get(x.seq) ?? 0));
     html += `<button class="step${sel}" data-i="${first === -1 ? i : first}"><span class="st ${st}">${icon(ic, 'sm')}</span><span class="sx">${esc(x.step)}</span>${unfolded ? '' : `${marks}${pinBadge(pins)}`}${dur}</button>`;
     if (!unfolded) return;
@@ -1857,6 +1857,7 @@ function renderInspector(first = false) {
   $('insFindsList').innerHTML = !ins.live && f ? findsList(f) : '';
   $('insHandOff').innerHTML = !ins.live && f && !isAction(f) ? handOffLine(f.realtime) : '';
   $('insConsole').innerHTML = !ins.live && f && !isAction(f) ? consoleLine(f) : '';
+  $('insCopyInfo').hidden = ins.live || !f;
   $('insChangesLine').innerHTML = !ins.live && f ? changeLine(f) : '';
   // Its switch only in a run that found something.
   $('findsToggle').hidden = !list.some((x) => allFindings(x).some((y) => y.kind === 'a11y'));
@@ -2204,7 +2205,7 @@ function runReport(notesMd = '') {
         if (f.langsSkipped) lines.push(`  - No other language at this step: ${f.langsSkipped}`);
         // Another person's action reaching this screen (`--realtime`).
         if (f.realtime) lines.push(`  - Real time from ${cap(f.realtime.from)} («${f.realtime.what}»): ${handOffText(f.realtime)}`);
-        // A report from «Play as»: what the page said went wrong.
+        // What the page said went wrong: its console's errors, what it threw.
         if (f.console?.length) lines.push(`  - Page errors: ${f.console.map((c) => `${c.level === 'exception' ? 'uncaught ' : ''}${c.text}`).join('; ')}`);
       }
       if (head.error) lines.push('- Error:', '', '```text', head.error, '```');
@@ -2734,7 +2735,10 @@ function renderPlays() {
   box.innerHTML = html;
 }
 
-/** A step's page errors (a report from «Play as»), the first few. */
+/** A step's badge in the inspector's list: the page said something went wrong there. */
+const consoleBadge = (f) => (f.console?.length ? `<i class="fc con" title="${esc(t('ins.console', { n: f.console.length }))}">${icon('flag', 'sm')}${f.console.length}</i>` : '');
+
+/** A step's page errors (its console's, what it threw), the first few. */
 function consoleLine(f) {
   const list = f.console ?? [];
   if (!list.length) return '';
@@ -3214,6 +3218,36 @@ $('insTrace').onclick = () => {
   const trace = f && S.run?.tests?.[f.test]?.trace;
   if (trace) window.open(`/trace/index.html?trace=${encodeURIComponent(`${location.origin}/out/${trace}`)}`, '_blank', 'noopener');
 };
+// The box under the photo, as text: each line whole, though cut on screen,
+// and every error the page said, not only its first two.
+$('insCopyInfo').onclick = async () => {
+  const f = insFrame();
+  if (!f) return;
+  const plain = (el) => {
+    const c = el.cloneNode(true);
+    for (const n of c.querySelectorAll('.n')) n.append(' ');
+    for (const svg of c.querySelectorAll('svg')) svg.remove();
+    return c.textContent.replace(/\s+/g, ' ').trim();
+  };
+  const lines = ['insCap', 'insWhere', 'insMarksList', 'insFindsList', 'insHandOff', 'insChangesLine'].map((id) => plain($(id)));
+  const errors = isAction(f) ? [] : (f.console ?? []);
+  if (errors.length) lines.splice(5, 0, `${t('ins.console', { n: errors.length })}:`, ...errors.map((c) => `- ${c.text}`));
+  const btn = $('insCopyInfo');
+  try {
+    await navigator.clipboard.writeText(lines.filter(Boolean).join('\n'));
+  } catch (e) {
+    return banner(e.message, 'err');
+  }
+  btn.classList.add('done');
+  btn.innerHTML = icon('check', 'sm');
+  btn.dataset.tip = t('ins.copied');
+  clearTimeout(btn.timer);
+  btn.timer = setTimeout(() => {
+    btn.classList.remove('done');
+    btn.innerHTML = icon('copy', 'sm');
+    btn.dataset.tip = t('ins.copy_info');
+  }, 2000);
+};
 $('insCopy').onclick = async () => {
   const f = insFrames()[S.ins.idx];
   if (!f) return;
@@ -3241,7 +3275,8 @@ $('insCopy').onclick = async () => {
 };
 
 dlg.addEventListener('keydown', (e) => {
-  if (!S.ins || e.target.closest('input, select, textarea')) return;
+  // With a modifier a key is the browser's: Ctrl+C copies, it does not hide the clicks.
+  if (!S.ins || e.ctrlKey || e.metaKey || e.altKey || e.target.closest('input, select, textarea')) return;
   const n = insFrames().length;
   const keys = {
     ArrowLeft: () => insGo(S.ins.live ? n - 2 : S.ins.idx - 1),
@@ -4086,6 +4121,9 @@ function labelButtons() {
   $('runMoreBtn').innerHTML = icon('down', 'sm');
   updateButtons();
   withIcon($('insCopy'), 'copy', t('ins.copy'));
+  $('insCopyInfo').innerHTML = icon('copy', 'sm');
+  $('insCopyInfo').setAttribute('aria-label', t('ins.copy_info'));
+  $('insCopyInfo').dataset.tip = t('ins.copy_info');
   withIcon($('logToggle'), 'chevron', t('log.toggle'));
   withIcon($('logDownload'), 'download', t('log.download'));
   withIcon($('runReport'), 'fileText');

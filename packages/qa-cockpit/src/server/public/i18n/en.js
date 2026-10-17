@@ -119,6 +119,7 @@ export default {
   'ins.keys': '← → photos · Space plays · L live · C clicks · N note · I language · Esc closes',
   'ins.copy': 'Copy message',
   'ins.copied': 'Copied',
+  'ins.copy_info': 'Copy these details',
   'ins.took': 'step took {d}',
   'ins.took_photos': "step took {d}, and the cockpit's photos {p}",
   'ins.requests_one': '{n} request: {req}',

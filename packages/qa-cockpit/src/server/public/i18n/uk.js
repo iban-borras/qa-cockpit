@@ -124,6 +124,7 @@ export default {
   'ins.keys': '← → знімки · Пробіл відтворює · L наживо · C кліки · N нотатка · I мова · Esc закриває',
   'ins.copy': 'Копіювати повідомлення',
   'ins.copied': 'Скопійовано',
+  'ins.copy_info': 'Скопіювати ці відомості',
   'ins.took': 'крок тривав {d}',
   'ins.took_photos': 'крок тривав {d}, знімки QA Cockpit забрали {p}',
   'ins.requests_one': '{n} запит: {req}',

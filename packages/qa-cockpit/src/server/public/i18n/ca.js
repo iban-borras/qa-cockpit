@@ -119,6 +119,7 @@ export default {
   'ins.keys': '← → fotos · Espai reprodueix · L directe · C clics · N nota · I idioma · Esc tanca',
   'ins.copy': 'Copia el missatge',
   'ins.copied': 'Copiat',
+  'ins.copy_info': 'Copia estos detalls',
   'ins.took': 'el pas: {d}',
   'ins.took_photos': 'el pas: {d}, i les fotos del cockpit: {p}',
   'ins.requests_one': '{n} petició: {req}',

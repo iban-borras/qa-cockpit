@@ -116,6 +116,7 @@ export default {
   'ins.keys': '← → Fotos · Leertaste spielt ab · L Live · C Klicks · N Notiz · I Sprache · Esc schließt',
   'ins.copy': 'Nachricht kopieren',
   'ins.copied': 'Kopiert',
+  'ins.copy_info': 'Diese Angaben kopieren',
   'ins.took': 'Schritt dauerte {d}',
   'ins.took_photos': 'Schritt dauerte {d}, die Fotos des Cockpits brauchten {p}',
   'ins.requests_one': '{n} Anfrage: {req}',

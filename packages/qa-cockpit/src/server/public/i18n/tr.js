@@ -116,6 +116,7 @@ export default {
   'ins.keys': '← → fotoğraflar · Boşluk oynatır · L canlı · C tıklamalar · N not · I dil · Esc kapatır',
   'ins.copy': 'İletiyi kopyala',
   'ins.copied': 'Kopyalandı',
+  'ins.copy_info': 'Bu ayrıntıları kopyala',
   'ins.took': 'adım {d} sürdü',
   'ins.took_photos': 'adım {d} sürdü; cockpit’in fotoğrafları ise {p} aldı',
   'ins.requests_one': '{n} istek: {req}',

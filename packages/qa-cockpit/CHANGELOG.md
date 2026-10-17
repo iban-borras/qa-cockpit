@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- The inspector's list flags a step where the page said something went
+  wrong (its console's errors, what it threw), in red with how many: the
+  line under the photo told them, but nothing in the list did. The box
+  under the photo copies whole, from a button at its corner: each line
+  uncut, and every page error in full. And Ctrl+C (⌘C) copies what is
+  selected there, as the inspector's own C key had taken it to hide the
+  clicks. In every language.
 - A page older than the cockpit that answers it tells so by the page's own
   files too, not only by the version: a cockpit restarted on other page
   files of the same version (an unreleased change, a package packed

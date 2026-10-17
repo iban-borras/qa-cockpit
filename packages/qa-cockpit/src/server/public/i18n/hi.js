@@ -116,6 +116,7 @@ export default {
   'ins.keys': '← → फ़ोटो · स्पेस से चलाएँ · L लाइव · C क्लिक · N नोट · I भाषा · Esc बंद करें',
   'ins.copy': 'संदेश कॉपी करें',
   'ins.copied': 'कॉपी हो गया',
+  'ins.copy_info': 'ये विवरण कॉपी करें',
   'ins.took': 'स्टेप में {d} लगे',
   'ins.took_photos': 'स्टेप में {d} लगे, और cockpit की फ़ोटो में {p} लगे',
   'ins.requests_one': '{n} रिक्वेस्ट: {req}',

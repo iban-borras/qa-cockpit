@@ -112,6 +112,7 @@ export default {
   'ins.keys': '← → 写真 · スペースで再生 · L ライブ · C クリック · N メモ · I 言語 · Esc で閉じる',
   'ins.copy': 'メッセージをコピー',
   'ins.copied': 'コピーしました',
+  'ins.copy_info': 'この詳細をコピー',
   'ins.took': 'ステップの所要時間 {d}',
   'ins.took_photos': 'ステップの所要時間 {d}、コックピットの写真の撮影に {p}',
   'ins.requests_other': 'リクエスト {n} 件、最も遅いのは {req}',

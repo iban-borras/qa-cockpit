@@ -116,6 +116,7 @@ export default {
   'ins.keys': '← → captures · Espace lit · L direct · C clics · N note · I langue · Esc ferme',
   'ins.copy': 'Copier le message',
   'ins.copied': 'Copié',
+  'ins.copy_info': 'Copier ces détails',
   'ins.took': 'l’étape a duré {d}',
   'ins.took_photos': 'l’étape a duré {d}, et les captures du cockpit ont pris {p}',
   'ins.requests_one': '{n} requête : {req}',

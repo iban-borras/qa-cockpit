@@ -112,6 +112,7 @@ export default {
   'ins.keys': '← → 切换截图 · 空格 播放 · L 实时 · C 点击 · N 批注 · I 语言 · Esc 关闭',
   'ins.copy': '复制消息',
   'ins.copied': '已复制',
+  'ins.copy_info': '复制这些详情',
   'ins.took': '步骤用时 {d}',
   'ins.took_photos': '步骤用时 {d}，驾驶舱截图耗时 {p}',
   'ins.requests_other': '{n} 个请求，最慢的是 {req}',

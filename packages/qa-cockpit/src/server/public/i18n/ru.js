@@ -124,6 +124,7 @@ export default {
   'ins.keys': '← → снимки · Пробел — воспроизведение · L live · C клики · N заметка · I язык · Esc закрывает',
   'ins.copy': 'Копировать сообщение',
   'ins.copied': 'Скопировано',
+  'ins.copy_info': 'Скопировать эти сведения',
   'ins.took': 'шаг занял {d}',
   'ins.took_photos': 'шаг занял {d}, а снимки QA Cockpit — {p}',
   'ins.requests_one': '{n} запрос: {req}',

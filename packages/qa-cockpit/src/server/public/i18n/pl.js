@@ -124,6 +124,7 @@ export default {
   'ins.keys': '← → zdjęcia · Spacja odtwarza · L na żywo · C kliknięcia · N notatka · I język · Esc zamyka',
   'ins.copy': 'Kopiuj komunikat',
   'ins.copied': 'Skopiowano',
+  'ins.copy_info': 'Kopiuj te szczegóły',
   'ins.took': 'krok trwał {d}',
   'ins.took_photos': 'krok trwał {d}, a zdjęcia kokpitu: {p}',
   'ins.requests_one': '{n} żądanie: {req}',
