@@ -324,7 +324,8 @@ export default {
   'err.no_display': 'Sem tela (nem DISPLAY nem WAYLAND_DISPLAY): as janelas do navegador não podem abrir.',
   'err.cockpit_outdated':
     'O QA Cockpit {installed} está instalado, mas este cockpit ainda executa a versão {running}: as novas execuções chegariam a ele pela metade (sem os cliques nas fotos, por exemplo), então não inicia nenhuma. Reinicie-o: {cli} cockpit --restart',
-  'err.page_outdated': 'Agora responde o QA Cockpit {running}, e esta página é mais antiga: recarregue-a (F5).',
+  'err.page_outdated': 'Agora responde o QA Cockpit {running}, e esta página é mais antiga: ela se recarrega sozinha assim que ninguém a estiver usando.',
+  'err.reload_now': 'Recarregar agora',
   'status.running': 'Executando',
   'picker.search': 'Buscar uma suite',
   'picker.ready': 'Pronta para executar',

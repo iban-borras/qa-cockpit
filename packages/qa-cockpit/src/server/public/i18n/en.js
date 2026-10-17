@@ -327,7 +327,8 @@ export default {
   'err.no_display': 'No display (neither DISPLAY nor WAYLAND_DISPLAY): browser windows cannot open.',
   'err.cockpit_outdated':
     'QA Cockpit {installed} is installed, but this cockpit still runs {running}: new runs would reach it in part (without the clicks on the photos, for one), so it starts none. Restart it: {cli} cockpit --restart',
-  'err.page_outdated': 'QA Cockpit {running} answers now, and this page is older: reload it (F5).',
+  'err.page_outdated': 'QA Cockpit {running} answers now, and this page is older: it reloads itself as soon as nobody is using it.',
+  'err.reload_now': 'Reload now',
   'status.running': 'Running',
   'picker.search': 'Find a suite',
   'picker.ready': 'Ready to run',

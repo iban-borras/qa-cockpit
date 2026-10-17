@@ -323,7 +323,8 @@ export default {
   'err.no_display': 'Nessun display (né DISPLAY né WAYLAND_DISPLAY): le finestre del browser non possono aprirsi.',
   'err.cockpit_outdated':
     "È installato QA Cockpit {installed}, ma questo cockpit è ancora alla versione {running}: le nuove passate andrebbero a metà (senza i clic sulle foto, per esempio), quindi non ne avvia nessuna. Riavvialo: {cli} cockpit --restart",
-  'err.page_outdated': 'Ora risponde QA Cockpit {running} e questa pagina è più vecchia: ricaricala (F5).',
+  'err.page_outdated': 'Ora risponde QA Cockpit {running} e questa pagina è più vecchia: si ricaricherà da sola appena nessuno la usa.',
+  'err.reload_now': 'Ricarica ora',
   'status.running': 'In corso',
   'picker.search': 'Trova una suite',
   'picker.ready': 'Pronte da eseguire',

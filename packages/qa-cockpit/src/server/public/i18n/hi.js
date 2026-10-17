@@ -323,7 +323,8 @@ export default {
   'err.no_display': 'कोई डिस्प्ले नहीं (न DISPLAY, न WAYLAND_DISPLAY): ब्राउज़र की विंडो नहीं खुल सकतीं।',
   'err.cockpit_outdated':
     'QA Cockpit {installed} इंस्टॉल है, लेकिन यह cockpit अब भी {running} चला रहा है: नए रन इस तक आधे-अधूरे पहुँचेंगे (जैसे फ़ोटो पर क्लिक के बिना), इसलिए यह कोई रन शुरू नहीं करता। इसे रीस्टार्ट करें: {cli} cockpit --restart',
-  'err.page_outdated': 'अब QA Cockpit {running} जवाब दे रहा है, और यह पेज पुराना है: इसे फिर से लोड करें (F5)।',
+  'err.page_outdated': 'अब QA Cockpit {running} जवाब दे रहा है, और यह पेज पुराना है: जैसे ही कोई इसका इस्तेमाल न कर रहा हो, यह अपने-आप रीलोड हो जाएगा।',
+  'err.reload_now': 'अभी रीलोड करें',
   'status.running': 'चल रहा है',
   'picker.search': 'Suite ढूँढें',
   'picker.ready': 'चलाने के लिए तैयार',

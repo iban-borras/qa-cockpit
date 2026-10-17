@@ -228,6 +228,10 @@ select option { background: var(--panel-2); color: var(--text); }
 .banner.warn { background: var(--warn-soft); border: 1px solid rgba(251, 191, 36, 0.35); color: #fde68a; }
 .banner.err { background: var(--err-soft); border: 1px solid rgba(248, 113, 113, 0.4); color: #fecaca; }
 .banner .x { margin-left: auto; }
+/* Its own button (a reload, say), before the cross that hides it. */
+.banner .act { flex: none; margin-left: auto; height: 28px; padding: 0 12px; font-size: 12.5px; }
+.banner .act + .x { margin-left: 0; }
+.banner.warn .act { border-color: rgba(251, 191, 36, 0.5); color: #fde68a; }
 
 /* Status of the run */
 .status { margin-top: 12px; padding: 12px 16px; display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: center; }

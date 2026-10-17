@@ -306,7 +306,8 @@ export default {
   'err.no_display': 'ディスプレイがありません (DISPLAY も WAYLAND_DISPLAY もありません): ブラウザのウィンドウは開けません。',
   'err.cockpit_outdated':
     'QA Cockpit {installed} がインストールされていますが、このコックピットはまだ {running} で動いています。新しい実行は一部しか届かないため（写真のクリックなどが抜けます）、どれも開始されません。再起動してください: {cli} cockpit --restart',
-  'err.page_outdated': '現在は QA Cockpit {running} が応答しています。このページは古いため、再読み込みしてください（F5）。',
+  'err.page_outdated': '現在は QA Cockpit {running} が応答しており、このページは古いままです。誰も操作していないときに自動で再読み込みされます。',
+  'err.reload_now': '今すぐ再読み込み',
   'status.running': '実行中',
   'picker.search': 'スイートを探す',
   'picker.ready': '実行できます',

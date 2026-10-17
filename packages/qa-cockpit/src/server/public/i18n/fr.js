@@ -324,7 +324,8 @@ export default {
   'err.no_display': 'Aucun écran (ni DISPLAY ni WAYLAND_DISPLAY) : les fenêtres du navigateur ne peuvent pas s’ouvrir.',
   'err.cockpit_outdated':
     'QA Cockpit {installed} est installé, mais ce cockpit tourne encore en version {running} : les nouvelles exécutions l’atteindraient en partie (sans les clics sur les captures, par exemple), alors il n’en lance aucune. Redémarrez-le : {cli} cockpit --restart',
-  'err.page_outdated': 'QA Cockpit {running} répond désormais, et cette page est plus ancienne : rechargez-la (F5).',
+  'err.page_outdated': 'QA Cockpit {running} répond maintenant, et cette page est plus ancienne : elle se rechargera d’elle-même dès que personne ne l’utilisera.',
+  'err.reload_now': 'Recharger maintenant',
   'status.running': 'En cours',
   'picker.search': 'Chercher une suite',
   'picker.ready': 'Prêtes à exécuter',

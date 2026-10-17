@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- A page older than the cockpit that answers it tells so by the page's own
+  files too, not only by the version: a cockpit restarted on other page
+  files of the same version (an unreleased change, a package packed
+  again) is seen as newer, and the page reloads itself as soon as nobody
+  is using it, at the same suite and run, as it did on a new version. Its
+  banner now says it will, and has a «Reload now» button for when the
+  page is in use (an inspector or a menu open keeps it waiting).
 - The run options are the cockpit's, no longer each browser's: visible
   windows, a container, and the looks (accessibility, other languages,
   real time, changes, races, with its rounds and its languages). The same

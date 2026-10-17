@@ -21,7 +21,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { shown } from '../config.mjs';
 import { acquireLock, isAlive, lockFileOf, readLock, StackBusy } from '../lock.mjs';
@@ -41,6 +41,25 @@ const VERSION = JSON.parse(fs.readFileSync(PACKAGE_JSON, 'utf8')).version;
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(HERE, 'public');
+// The page's own files, as this cockpit found them when it started: a page
+// served before a change to them (a new package of the same version, an
+// unreleased change) tells it is older by this, as by the version.
+const PAGE_BUILD = (() => {
+  const hash = createHash('sha1');
+  const walk = (dir) => {
+    for (const name of fs.readdirSync(dir).sort()) {
+      const file = path.join(dir, name);
+      if (fs.statSync(file).isDirectory()) walk(file);
+      else hash.update(name).update(fs.readFileSync(file));
+    }
+  };
+  try {
+    walk(PUBLIC_DIR);
+  } catch {
+    // An unreadable file: the version alone tells.
+  }
+  return hash.digest('hex').slice(0, 12);
+})();
 const BIN = path.join(HERE, '..', '..', 'bin', 'qa-cockpit.mjs');
 const OPEN_BROWSER = path.join(HERE, '..', 'open-browser.mjs');
 const HOST = '127.0.0.1';
@@ -1467,6 +1486,7 @@ function state() {
     // Which cockpit this is, and its process: `cockpit --detach` tells an
     // older one apart, and `--restart` stops this one (detach.mjs).
     version: VERSION,
+    build: PAGE_BUILD,
     // Older than the package installed now: restart it.
     outdated: checkInstalled(),
     pid: process.pid,

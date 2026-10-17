@@ -210,6 +210,7 @@ async function api(path, opts) {
 
 // The cockpit's version this page's code came with (the first hello).
 let pageVersion = null;
+let pageBuild = null;
 
 const RUN_ACTIONS = new Set(['reset', 'setup', 'prepare', 'replay', 'full', 'group']);
 
@@ -246,15 +247,20 @@ async function act(action, extra = {}) {
   }
 }
 
-function banner(text, kind = 'warn') {
+/** A line across the page; `action`: a button of its own, { label, run }. */
+function banner(text, kind = 'warn', action = null) {
   const b = $('banner');
   if (!text) {
     b.hidden = true;
     return;
   }
   b.className = `banner ${kind}`;
-  b.innerHTML = `${icon('alert')}<div>${esc(text)}</div><button class="btn icon ghost x" aria-label="${esc(t('banner.hide'))}">${icon('x')}</button>`;
+  b.innerHTML =
+    `${icon('alert')}<div>${esc(text)}</div>` +
+    (action ? `<button class="btn act">${esc(action.label)}</button>` : '') +
+    `<button class="btn icon ghost x" aria-label="${esc(t('banner.hide'))}">${icon('x')}</button>`;
   b.querySelector('.x').onclick = () => (b.hidden = true);
+  if (action) b.querySelector('.act').onclick = action.run;
   b.hidden = false;
 }
 
@@ -972,7 +978,7 @@ function renderHeader() {
   // Older than the package installed now (server.mjs): it starts no run.
   // Not so any more (restarted): the banner goes. A page older than the
   // cockpit that answers it: reloaded, it is the cockpit's.
-  if (S.pageOld) banner(t('err.page_outdated', { running: S.pageOld }), 'warn');
+  if (S.pageOld) banner(t('err.page_outdated', { running: S.pageOld }), 'warn', { label: t('err.reload_now'), run: reloadNow });
   else if (st.outdated) banner(t('err.cockpit_outdated', st.outdated), 'err');
   else if (renderHeader.outdated && !st.desktopWarning) banner(null);
   renderHeader.outdated = Boolean(st.outdated || S.pageOld);
@@ -3882,7 +3888,10 @@ function connect() {
     // reloaded (CritKeep's said to restart a cockpit already restarted).
     const first = pageVersion === null;
     pageVersion ??= S.state.version;
-    S.pageOld = S.state.version && S.state.version !== pageVersion ? S.state.version : null;
+    pageBuild ??= S.state.build ?? null;
+    // Older by its version, or, the same version, by its files (PAGE_BUILD).
+    const older = (S.state.version && S.state.version !== pageVersion) || (S.state.build && pageBuild && S.state.build !== pageBuild);
+    S.pageOld = older ? S.state.version : null;
     if (S.pageOld) reloadWhenQuiet();
     // The project's own words and language (the person's choice wins).
     setGlobals({ cli: S.state.cli, skill: S.state.paths?.skill });
@@ -4267,22 +4276,25 @@ function idle(ms = IDLE_MS) {
 }
 
 // A PAGE OLDER THAN THE COCKPIT THAT ANSWERS IT (restarted on a newer
-// version): its banner asks for a reload, and it reloads by itself as soon
-// as nobody is using it (a few seconds without a hand, nothing open), at the
-// same suite and run. A page from before this one keeps its banner until F5.
+// version, or on other page files): it reloads by itself as soon as nobody
+// is using it (a few seconds without a hand, nothing open), at the same
+// suite and run; its banner says so, with a button to do it now. A page
+// from before 0.10.0 keeps its banner until F5.
 const QUIET_MS = 10_000;
 const RELOADED = 'qa-cockpit-reloaded';
+function reloadNow() {
+  clearInterval(reloadWhenQuiet.timer);
+  try {
+    sessionStorage.setItem(RELOADED, JSON.stringify({ suite: S.suite, run: S.viewRunId }));
+  } catch {
+    // Without it, the page comes back at the suite kept and its newest run.
+  }
+  location.reload();
+}
 function reloadWhenQuiet() {
   if (reloadWhenQuiet.timer) return;
   const now = () => {
-    if (!S.pageOld || !idle(QUIET_MS)) return;
-    clearInterval(reloadWhenQuiet.timer);
-    try {
-      sessionStorage.setItem(RELOADED, JSON.stringify({ suite: S.suite, run: S.viewRunId }));
-    } catch {
-      // Without it, the page comes back at the suite kept and its newest run.
-    }
-    location.reload();
+    if (S.pageOld && idle(QUIET_MS)) reloadNow();
   };
   reloadWhenQuiet.timer = setInterval(now, 2_000);
   now();
