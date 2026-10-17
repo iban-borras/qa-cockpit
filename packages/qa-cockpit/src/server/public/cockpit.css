@@ -700,6 +700,19 @@ dialog.ask p { margin: 0 0 16px; font-size: 14px; line-height: 1.5; }
 .group-strip .verdict { color: var(--text); }
 .picker-empty { margin: 12px 10px; font-size: 13px; color: var(--faint); }
 .opts[open] > summary { border-color: var(--accent); }
+/* The run options changed by somebody else (an agent, another browser):
+   the button lit until this page opens it (cockpit.js, «the run options»);
+   opened, a line at the top says who changed what, and those options are
+   marked while it stays open. */
+.opts > summary.news { position: relative; border-color: var(--warn); color: var(--warn); box-shadow: 0 0 0 3px var(--warn-soft); }
+.opts > summary.news::after { content: ''; position: absolute; top: -3px; right: -3px; width: 9px; height: 9px; border-radius: 50%; background: var(--warn); box-shadow: 0 0 0 2px var(--bg); }
+.opts-news { display: flex; align-items: flex-start; gap: 8px; margin: 2px 2px 6px; padding: 8px 10px; border-radius: 8px; background: var(--warn-soft); color: var(--warn); font-size: 12.5px; line-height: 1.4; }
+.opts-news svg { flex: none; width: 14px; height: 14px; margin-top: 2px; }
+.opt.changed { box-shadow: inset 3px 0 0 var(--warn); background: var(--warn-soft); }
+/* The run button names the looks its run takes («Full run · accessibility»). */
+.btn .looks { display: inline-flex; align-items: center; gap: 5px; margin-left: 2px; font-weight: 450; opacity: 0.92; }
+.btn .looks i { font-style: normal; opacity: 0.7; }
+.btn .looks .hot { padding: 0 6px; border-radius: 999px; background: rgba(0, 0, 0, 0.28); font-weight: 600; }
 .lang summary.btn { gap: 6px; padding: 0 8px 0 10px; }
 .lang .code { font-weight: 650; font-size: 12.5px; letter-spacing: 0.06em; }
 .lang .menu { width: 220px; display: grid; gap: 2px; }

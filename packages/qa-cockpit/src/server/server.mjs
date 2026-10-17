@@ -34,6 +34,7 @@ import { playRun } from '../play.mjs';
 import { candidatesOf, readChanges } from '../changes.mjs';
 import { playwrightCoreDir } from '../deps.mjs';
 import { changeTags, readTags, TAG as TAG_NAME, tagsOfSuite } from '../tags.mjs';
+import { changeOptions, readOptions } from '../options.mjs';
 
 const PACKAGE_JSON = new URL('../../package.json', import.meta.url);
 const VERSION = JSON.parse(fs.readFileSync(PACKAGE_JSON, 'utf8')).version;
@@ -1504,6 +1505,8 @@ function state() {
     run: summary(run),
     runs: runsIndex(),
     watched: watchedActors(),
+    // The run options, the cockpit's own (options.mjs), and who changed them.
+    options: readOptions(CFG),
     // The windows of «Play as» followed for a report, and what each did since the last.
     plays: playsInfo(),
   };
@@ -1797,6 +1800,21 @@ async function handle(req, res) {
   if (req.method === 'POST' && p === '/api/report-event') {
     onReport(await readJson(req));
     return send(res, 200, { ok: true });
+  }
+  // The run options: read, or changed by a page or an agent; every page
+  // sees the change at once, and who made it (options.mjs).
+  if (req.method === 'GET' && p === '/api/options') return send(res, 200, readOptions(CFG));
+  if (req.method === 'POST' && p === '/api/options') {
+    const body = await readJson(req);
+    if (!body || typeof body.options !== 'object' || Array.isArray(body.options)) return send(res, 400, { ok: false, error: 'options' });
+    const by = typeof body.by === 'string' && body.by.trim() ? body.by.trim() : 'someone';
+    const client = typeof body.client === 'string' ? body.client.slice(0, 40) : null;
+    const now = changeOptions(CFG, body.options, { by, client, seed: body.seed === true });
+    if (now.keys.length) {
+      if (by !== 'page') log(`[cockpit] options: ${by} changed ${now.keys.join(', ')}`);
+      broadcast('options', { options: now.options, rev: now.rev, log: now.log });
+    }
+    return send(res, 200, { ok: true, options: now.options, rev: now.rev, log: now.log, changed: now.keys });
   }
   // A suite put in a tag or taken off it, from the suite's panel.
   if (req.method === 'POST' && p === '/api/tags') {

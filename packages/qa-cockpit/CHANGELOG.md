@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- The run options are the cockpit's, no longer each browser's: visible
+  windows, a container, and the looks (accessibility, other languages,
+  real time, changes, races, with its rounds and its languages). The same
+  in every page, kept as they were left, and an agent reads and changes
+  them as a person does: `qa-cockpit options` (`--languages ca,es`,
+  `--chaos 5`, `--no-<option>`, `--off`...) or `/api/options`. Every open
+  page sees a change at once, its boxes ticking themselves; one made by
+  somebody else (an agent, another browser) lights the options button
+  until the page opens it, which then says who changed what and marks
+  those options. A page keeps the options it had before, given to the
+  cockpit the first time. And the run button names the looks its run will
+  take («Full run · accessibility · languages CA», «Full run · races ×3»):
+  a search for races left on by a run days before showed nowhere.
 - An option that cannot be taken now says why where it is found: the
   cockpit's own tooltip over the whole option, quick («Off while «Races
   between people» is on», then the long reason), and a small amber «i» at

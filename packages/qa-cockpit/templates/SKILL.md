@@ -43,6 +43,19 @@ in the cockpit.
 
    The result is in `<out>/cockpit/<run id>/`: `run.json` (each test's
    status and errors) and `log.jsonl` (the whole log).
+
+   **The run options** (visible windows, a container, and the looks:
+   accessibility, other languages, real time, changes, races) are the
+   cockpit's, shared by every page: they are what a person's run button
+   plays with, and they stay as they were left. `npx qa-cockpit options`
+   says them, and who changed them last; `options --languages ca,es
+   --no-chaos` (`--a11y`, `--realtime`, `--changes`, `--chaos 5`,
+   `--headed`, `--docker`, `--no-<option>`, `--off`) changes them, and
+   every open page shows it at once, its options button lit until the
+   person opens it. Change them when the person asks («look at it in
+   Catalan from now on»), or say what you changed; an action's own options
+   (`"languages":["ca"]` in its body, `replay --languages ca`) are for
+   that run alone and change nothing there.
 4. **The terminal for single commands:** one test of a recording
    (`replay <suite> -g T3`), a setup while you write it. They take the lock
    too, and the cockpit follows them.
@@ -202,6 +215,7 @@ npx qa-cockpit up               # start the stack and wait until it answers
 npx qa-cockpit status           # where it answers, saved sessions
 npx qa-cockpit suites           # every suite and what it needs next
 npx qa-cockpit tags             # the groups of suites (tags), and what is wrong in tags.json; «Groups of suites»
+npx qa-cockpit options          # the cockpit's run options (--a11y, --languages ca,es, --chaos 5, --no-<option>, --off ...)
 npx qa-cockpit reset            # fresh data; saved sessions cleared
 npx qa-cockpit setup <suite>    # the suite's setup, sessions saved
 npx qa-cockpit sessions         # fresh saved sessions for the cast

@@ -30,6 +30,7 @@ without a person beside it.
 | `src/devices.mjs` | a person's device, from Playwright's profiles or the project's own sizes, and their own context options; the device a suite gives each person, for the sessions it signs in |
 | `src/deps.mjs` | the project's package manager: which one, whether `node_modules` match its lockfile, how to heal them |
 | `src/suites.mjs` | the Markdown suites: their cast, their hash, `decide` |
+| `src/options.mjs` | the run options, the cockpit's (`<out>/cockpit/options.json`): what its run button plays with, changed by a page or an agent (`qa-cockpit options`, `/api/options`) and seen by every page |
 | `src/compose.mjs`, `src/process.mjs` | the two stacks a project can use (`process-launcher.mjs`: on Windows, the one-process stack's parent, so it opens no window and its output reaches the log) |
 | `src/lock.mjs` | one run at a time, and who holds the stack |
 | `src/stackdata.mjs` | what the stack's data is now: the setup of which suite, or spent by a replay |

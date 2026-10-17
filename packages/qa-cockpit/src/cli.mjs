@@ -1483,6 +1483,74 @@ export async function runCli(rawConfig, argv) {
       }
     },
 
+    // The run options, the cockpit's own (options.mjs): what its page's run
+    // button plays with. With no words, as they are and who changed them
+    // last; with some, changed, through the cockpit when it is up so every
+    // page sees it at once (and lights its options button: somebody else
+    // changed them).
+    async options() {
+      const { CHAOS_ROUNDS, changeOptions, optionsLine, readOptions } = await import('./options.mjs');
+      const { whoAmI } = await import('./lock.mjs');
+      const usage = [
+        `Usage: ${CLI} options                          the run options, and who changed them last`,
+        `       ${CLI} options [--a11y] [--languages [ca,es]] [--realtime] [--changes] [--chaos [${CHAOS_ROUNDS.join('|')}]]`,
+        `                 [--headed] [--docker]           on; --no-<option> off; --off: every one off`,
+      ].join('\n');
+      const patch = {};
+      const bool = { '--a11y': 'a11y', '--realtime': 'realtime', '--changes': 'changes', '--headed': 'headed', '--docker': 'docker', '--languages': 'languages', '--chaos': 'chaos' };
+      for (let i = 0; i < rest.length; i += 1) {
+        const a = rest[i];
+        const next = rest[i + 1] && !rest[i + 1].startsWith('--') ? rest[i + 1] : null;
+        if (a === '--off') Object.assign(patch, { a11y: false, languages: false, realtime: false, changes: false, chaos: false, headed: false, docker: false });
+        else if (a.startsWith('--no-') && bool[`--${a.slice(5)}`]) patch[bool[`--${a.slice(5)}`]] = false;
+        else if (bool[a]) {
+          patch[bool[a]] = true;
+          if (a === '--languages' && next) {
+            const codes = next.split(',').map((x) => x.trim()).filter(Boolean);
+            const others = config.languages?.others ?? [];
+            const strange = codes.filter((c) => !others.includes(c));
+            if (!config.languages) fail('This project has no `languages` in its config: there are no other languages to look at.');
+            if (strange.length) fail(`Not among the app's other languages (${others.join(', ')}): ${strange.join(', ')}.`);
+            patch.languageList = codes;
+            i += 1;
+          } else if (a === '--chaos' && next) {
+            if (!CHAOS_ROUNDS.includes(Number(next))) fail(`A search for races plays ${CHAOS_ROUNDS.join(', ')} rounds, not «${next}».`);
+            patch.chaosRounds = Number(next);
+            i += 1;
+          }
+        } else fail(usage);
+      }
+      const say = (now) => {
+        console.log(`Run options: ${optionsLine(now.options ?? {})}.`);
+        const last = now.log?.at(-1);
+        if (last) console.log(`  Last changed by ${last.by === 'page' ? 'a person in the cockpit' : last.by}, ${new Date(last.at).toLocaleString()}: ${last.keys.join(', ')}.`);
+      };
+      const COCKPIT = `http://127.0.0.1:${config.cockpit.port}`;
+      if (!Object.keys(patch).length) {
+        const now = await fetch(`${COCKPIT}/api/options`, { signal: AbortSignal.timeout(1_500) })
+          .then((r) => (r.ok ? r.json() : null))
+          .catch(() => null);
+        return say(now ?? readOptions(config));
+      }
+      const by = whoAmI();
+      const r = await fetch(`${COCKPIT}/api/options`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ options: patch, by }),
+        signal: AbortSignal.timeout(1_500),
+      }).catch(() => null);
+      if (r?.ok) {
+        const now = await r.json();
+        say(now);
+        console.log(now.changed.length ? 'The cockpit has them: every page shows them, and lights its options button until somebody opens it.' : 'Nothing changed.');
+        return;
+      }
+      if (r && r.status === 404) fail(`The cockpit at ${COCKPIT} is older than its options: restart it (${CLI} cockpit --restart), then again.`);
+      const now = changeOptions(config, patch, { by });
+      say(now);
+      console.log(`No cockpit answers at ${COCKPIT}: kept in ${shown(config, path.join(P.out, 'cockpit', 'options.json'))}, for its page when it starts.`);
+    },
+
     // The notes pinned on a run's photos in the cockpit (notes.mjs), as
     // Markdown for the agent that acts on them: the newest run with notes,
     // or the one named. `--list`: every run that has some.
@@ -1724,6 +1792,8 @@ export async function runCli(rawConfig, argv) {
   reset            fresh data; saved sessions cleared
   suites           every suite and what it needs next
   tags [add|remove|about <tag> ...]   groups of suites, in <suites>/tags.json
+  options [--a11y|--languages [ca,es]|--chaos [3]|--no-<option>|--off ...]
+                   the cockpit's run options, shared by its pages: what its run button plays with
   setup <suite>    cast and initial state of a suite, sessions saved
   sessions         fresh saved sessions for everybody with an account
   smoke            the app loads and the API answers

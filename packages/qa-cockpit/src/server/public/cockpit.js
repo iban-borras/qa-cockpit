@@ -940,6 +940,7 @@ function renderHeader() {
   if (!st) return;
   // The app's other languages, a run's option when its config says how to change them.
   $('optLangsRow').hidden = !st.languages;
+  renderOptions();
   renderLangPicks();
   renderChaosPicks();
   void waveFavicon(Boolean(st.task));
@@ -1040,7 +1041,7 @@ function updateButtons() {
   $('runMoreBtn').classList.toggle('primary', Boolean(plan));
   if (plan) {
     const r = RUNS[plan.action];
-    withIcon(run, r.icon, t(r.label));
+    run.innerHTML = icon(r.icon) + `<span>${esc(t(r.label))}</span>` + looksHtml();
     run.dataset.tip = !st.stack.up
       ? t('stack.sub_down')
       : [plan.why ? t('run.first', { why: plan.why }) : t(r.tip), s.status === 'stale' && t('status.stale_why')].filter(Boolean).join(' ');
@@ -2304,13 +2305,139 @@ const langSaid = (code) => {
   return name === code ? code : `${name} (${code})`;
 };
 
+// THE RUN OPTIONS ARE THE COCKPIT'S (options.mjs), no longer each browser's:
+// the same in every page, kept as they were left, and an agent changes them
+// as a person does (`qa-cockpit options`, /api/options), the boxes ticking
+// themselves. Changed by somebody else (an agent, another browser), the
+// options button lights up until this page opens it; opened, it says who
+// changed what, and marks those options while it stays open.
+const OPTION_BOXES = { headed: 'optHeaded', docker: 'optDocker', a11y: 'optA11y', languages: 'optLangs', realtime: 'optRealtime', changes: 'optChanges', chaos: 'optChaos' };
+const OPTION_WORDS = { headed: 'opts.headed', docker: 'opts.docker', a11y: 'opts.a11y', languages: 'opts.languages', languageList: 'opts.languages', realtime: 'opts.realtime', changes: 'opts.changes', chaos: 'opts.chaos', chaosRounds: 'opts.chaos' };
+const runOptions = () => S.state?.options?.options ?? {};
+
+/** This browser, the same in all its pages: its own changes are not news to it. */
+const CLIENT = (() => {
+  const kept = localStorageGet('client');
+  if (kept) return kept;
+  const id = Math.random().toString(36).slice(2, 12);
+  localStorageSet('client', id);
+  return id;
+})();
+
+/** The boxes as the cockpit's options are; a cockpit with none yet takes this browser's (before 0.11). */
+function renderOptions() {
+  const rec = S.state?.options;
+  if (rec && !rec.options && !renderOptions.seeded) {
+    renderOptions.seeded = true;
+    void seedOptions();
+  }
+  const o = runOptions();
+  for (const [key, id] of Object.entries(OPTION_BOXES)) $(id).checked = Boolean(o[key]);
+  renderOptionsNews();
+}
+
+async function setOptions(patch, extra = {}) {
+  const rec = S.state?.options;
+  // At once here; the cockpit's answer, and every other page, follow.
+  if (rec) rec.options = { ...(rec.options ?? {}), ...patch };
+  renderHeader();
+  updateButtons();
+  try {
+    const res = await api('/api/options', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ options: patch, by: 'page', client: CLIENT, ...extra }),
+    });
+    S.state.options = { options: res.options, rev: res.rev, log: res.log };
+  } catch (e) {
+    banner(e.message, 'err');
+  }
+  renderHeader();
+  updateButtons();
+}
+
+/** The options this browser kept before they were the cockpit's, given once, then forgotten. */
+async function seedOptions() {
+  const old = (k) => localStorageGet(k);
+  const seed = {};
+  for (const [key, id] of Object.entries(OPTION_BOXES)) if (old(id) !== null) seed[key] = old(id) === '1';
+  if (old('optChaosRounds') !== null) seed.chaosRounds = Number(old('optChaosRounds'));
+  if (old('optLangsList') !== null) seed.languageList = old('optLangsList').split(',').filter(Boolean);
+  await setOptions(seed, { seed: true });
+  for (const k of [...Object.values(OPTION_BOXES), 'optChaosRounds', 'optLangsList']) {
+    try {
+      localStorage.removeItem(`qa-cockpit-${k}`);
+      localStorage.removeItem(`ck-cockpit-${k}`);
+    } catch {
+      // Private windows may refuse.
+    }
+  }
+}
+
+/** The changes somebody else made that this browser has not seen: newest last. */
+function optionsNews() {
+  const seen = Number(localStorageGet('optionsSeen')) || 0;
+  return (S.state?.options?.log ?? []).filter((c) => c.rev > seen && c.client !== CLIENT);
+}
+
+/** Opened: what is new is shown (and kept shown while open), and seen. */
+function seeOptions() {
+  const news = optionsNews();
+  if (news.length) S.optionsNews = [...(S.optionsNews ?? []), ...news];
+  localStorageSet('optionsSeen', String(S.state?.options?.rev ?? 0));
+}
+
+function renderOptionsNews() {
+  const btn = $('opts').querySelector('summary');
+  const unseen = $('opts').open ? [] : optionsNews();
+  const whoOf = (c) => (c.by === 'page' ? t('opts.another_page') : c.by);
+  btn.classList.toggle('news', unseen.length > 0);
+  if (unseen.length) {
+    btn.dataset.tip = t('opts.news_tip', { who: listOf([...new Set(unseen.map(whoOf))]) });
+    btn.removeAttribute('title');
+  } else {
+    delete btn.dataset.tip;
+    btn.title = t('opts.title');
+  }
+  const shown = $('opts').open ? (S.optionsNews ?? []) : [];
+  const keys = new Set(shown.flatMap((c) => c.keys));
+  for (const [key, id] of Object.entries(OPTION_BOXES)) {
+    const changed = keys.has(key) || (key === 'languages' && keys.has('languageList')) || (key === 'chaos' && keys.has('chaosRounds'));
+    $(id).closest('.opt').classList.toggle('changed', changed);
+  }
+  const note = $('optsNews');
+  note.hidden = !shown.length;
+  if (shown.length) {
+    const last = shown.at(-1);
+    const list = [...new Set([...keys].map((k) => t(OPTION_WORDS[k] ?? k)))];
+    withIcon(note, 'info', t('opts.news', { who: listOf([...new Set(shown.map(whoOf))]), time: hhmm(last.at), list: listOf(list) }));
+  }
+}
+
+/** The looks the run button's run will take, after its words: none said when none. */
+function looksHtml() {
+  const l = S.state?.languages;
+  const looks = $('optChaos').checked
+    ? [{ text: t('looks.races', { n: chaosRounds() }), hot: true }]
+    : [
+        $('optA11y').checked && { text: t('looks.a11y') },
+        $('optLangs').checked && l && { text: t('looks.languages', { list: chosenLangs().map((c) => c.toUpperCase()).join(' ') || '—' }) },
+        $('optRealtime').checked && { text: t('looks.realtime') },
+        $('optChanges').checked && { text: t('looks.changes') },
+      ].filter(Boolean);
+  if (!looks.length) return '';
+  const shown = looks.slice(0, 2).map((x) => `<span class="${x.hot ? 'hot' : ''}">${esc(x.text)}</span>`);
+  if (looks.length > 2) shown.push(`<span>+${looks.length - 2}</span>`);
+  return `<span class="looks"><i>·</i>${shown.join('<i>·</i>')}</span>`;
+}
+
 // THE LANGUAGES A RUN LOOKS AT (`--languages`): chosen under the run's option,
-// kept in this browser; the config's priority ones until somebody chooses.
+// kept with the cockpit's options; the config's priority ones until somebody chooses.
 function chosenLangs() {
   const l = S.state?.languages;
   if (!l) return [];
-  const kept = localStorageGet('optLangsList');
-  return kept === null ? l.priority : kept.split(',').filter((x) => l.others.includes(x));
+  const kept = runOptions().languageList;
+  return Array.isArray(kept) ? kept.filter((x) => l.others.includes(x)) : l.priority;
 }
 
 // The languages to choose, folded into one field: the codes chosen, the
@@ -2394,7 +2521,7 @@ function slowText(p) {
 }
 
 function chaosRounds() {
-  const kept = Number(localStorageGet('optChaosRounds'));
+  const kept = Number(runOptions().chaosRounds);
   return CHAOS_ROUNDS.includes(kept) ? kept : 3;
 }
 
@@ -3898,6 +4025,13 @@ function connect() {
     S.state.plays = JSON.parse(e.data);
     renderPlays();
   });
+  // The run options changed: by this page, another, or an agent (options.mjs).
+  es.addEventListener('options', (e) => {
+    S.state.options = JSON.parse(e.data);
+    if ($('opts').open) seeOptions();
+    renderHeader();
+    updateButtons();
+  });
   es.addEventListener('watch', (e) => {
     S.state.watched = JSON.parse(e.data).actors;
     renderCast();
@@ -4187,13 +4321,10 @@ $('optMarks').onchange = () => {
   localStorageSet('optMarks', $('optMarks').checked ? '1' : '0');
   $('insMarks').classList.toggle('off', !$('optMarks').checked);
 };
-for (const id of ['optHeaded', 'optDocker', 'optA11y', 'optLangs', 'optRealtime', 'optChanges', 'optChaos']) {
-  $(id).checked = localStorageGet(id) === '1';
-  $(id).onchange = () => localStorageSet(id, $(id).checked ? '1' : '0');
-}
+for (const [key, id] of Object.entries(OPTION_BOXES)) $(id).onchange = () => void setOptions({ [key]: $(id).checked });
 $('optChaos').addEventListener('change', renderChaosPicks);
 $('optChanges').addEventListener('change', () => renderChanges());
-$('optChaosN').addEventListener('change', () => localStorageSet('optChaosRounds', $('optChaosN').value));
+$('optChaosN').addEventListener('change', () => void setOptions({ chaosRounds: Number($('optChaosN').value) }));
 renderChaosPicks();
 $('optLangs').addEventListener('change', renderLangPicks);
 $('optLangsList').addEventListener('click', (e) => {
@@ -4206,13 +4337,16 @@ $('optLangsList').addEventListener('keydown', (e) => {
   foldLangPicks(false);
   $('optLangsBtn').focus();
 });
-// The options closed, the languages fold with them.
+// The options closed, the languages fold with them. Opened, what somebody
+// else changed in them is seen: said at their top, its options marked.
 $('opts').addEventListener('toggle', () => {
   if (!$('opts').open && S.langsOpen) foldLangPicks(false);
+  if ($('opts').open) seeOptions();
+  else S.optionsNews = null;
+  renderOptionsNews();
 });
 $('optLangsList').addEventListener('change', () => {
-  localStorageSet('optLangsList', [...$('optLangsList').querySelectorAll('input:checked:not(:disabled)')].map((i) => i.value).join(','));
-  renderLangPicks();
+  void setOptions({ languageList: [...$('optLangsList').querySelectorAll('input:checked:not(:disabled)')].map((i) => i.value) });
 });
 $('optFinds').checked = localStorageGet('optFinds') !== '0';
 $('optFinds').onchange = () => {
