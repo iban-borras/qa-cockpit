@@ -1193,6 +1193,18 @@ const findingsOf = (list) =>
 // What changes on a screen by itself (changes.mjs), as boxes at its photo's pixels.
 const masksOf = (list) => (Array.isArray(list) ? list : []).slice(0, 50).map(boxOf).filter(Boolean);
 // What a page said went wrong while its step went: console errors, what it threw.
+// How a step's photo waited for its page to settle (worker.mjs): how long,
+// for how many calls, and what was still going when it gave up.
+const settleOf = (s) =>
+  s && typeof s === 'object' && Number.isFinite(Number(s.ms))
+    ? {
+        ms: Math.max(0, Math.round(Number(s.ms))),
+        calls: Math.max(0, Math.round(Number(s.calls) || 0)),
+        going: (Array.isArray(s.going) ? s.going : []).slice(0, 5).map((x) => String(x).slice(0, 200)),
+        busy: s.busy ? String(s.busy).slice(0, 200) : null,
+      }
+    : null;
+
 const consoleOf = (list) =>
   (Array.isArray(list) ? list : []).slice(0, 20).map((c) => ({
     level: c?.level === 'exception' ? 'exception' : 'error',
@@ -1311,6 +1323,7 @@ function onFrame(f) {
     langsSkipped: f.langsSkipped ? String(f.langsSkipped).slice(0, 200) : null,
     langsStopped: f.langsStopped ? String(f.langsStopped).slice(0, 200) : null,
     realtime: handOffOf(f.realtime),
+    settle: settleOf(f.settle),
     began,
     ms: Number.isFinite(Number(f.ms)) && f.ms !== null ? Math.max(0, Math.round(Number(f.ms))) : null,
     // The cockpit's own photos in the step, and the step's: apart from `ms`.

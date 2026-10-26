@@ -227,6 +227,7 @@ npx qa-cockpit replay <suite> --a11y      # each step's screen looked at for acc
 npx qa-cockpit replay <suite> --languages # each step's screen in the app's other languages too (--languages fr,de: those), with the cockpit; «Languages»
 npx qa-cockpit languages check  # the config's change of language, tried on one screen and back
 npx qa-cockpit replay <suite> --realtime  # how long what one person does takes to reach another's screen; «Real time»
+npx qa-cockpit replay <suite> --no-settle # each step's photo at once, not waiting for its page's calls
 npx qa-cockpit replay <suite> --chaos 5  # races between people: rounds from fresh data, each person slowed by a seed; «Races»
 npx qa-cockpit replay <suite> --chaos-seed <n>  # that round again, with any look
 npx qa-cockpit replay <suite> --changes  # then compared with the last green run made the same way; «Changes»
@@ -944,6 +945,17 @@ test('T1 · Bob sees Alice\'s message', async ({ alice, bob }) => {
   photos take time (tens of milliseconds each, more on a busy machine): a
   step's time in the cockpit is the step's own, and the photos' is said
   apart, in the inspector and in the run report.
+- **A passed step's photo waits for what its last action asked for**: a
+  dialog whose content is still on its way would be photographed empty,
+  and look like a bug. Each person the step names waits until their page
+  has made no call (fetch, XHR, a script loaded on demand) for a moment and
+  shows no «still loading» mark, at most 2.5 s. A photo taken at that limit
+  has an amber hourglass in the inspector and says what was still going;
+  the run report says it too. If that is the app's own loading mark or a
+  call that never ends (a poll, analytics), tell the person and offer to
+  add it to `photos.settle` in the config (`busy`, `ignore`). The photos
+  before each action and a failed step's never wait: they show the screen
+  as it was. `replay --no-settle` takes every photo at once.
 - Cross-person waits use `toBeVisible({ timeout: 30_000 })` and never a
   blind reload: what is being proven is that it arrives on its own.
 - **An absence is proven only after a presence.** `toHaveCount(0)` right

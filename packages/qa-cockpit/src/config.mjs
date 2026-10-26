@@ -187,6 +187,26 @@ export function resolveConfig(raw, file) {
     changes: {
       mask: Array.isArray(raw.changes?.mask) ? raw.changes.mask.map(String) : [],
     },
+    // A step's photo waits for its page to settle first (worker.mjs,
+    // SETTLING): no call of the app's for `quietMs`, none of the `busy`
+    // selectors shown (the ARIA ones too, unless `aria: false`), at most
+    // `maxMs`. `ignore`: calls never waited for, as strings found in their
+    // address or RegExps (an analytics beacon, a poll). `settle: false`
+    // takes each photo at once, as before 0.12.
+    photos: {
+      settle:
+        raw.photos?.settle === false
+          ? null
+          : {
+              quietMs: raw.photos?.settle?.quietMs ?? 250,
+              maxMs: raw.photos?.settle?.maxMs ?? 2_500,
+              busy: [
+                ...(raw.photos?.settle?.aria === false ? [] : ['[aria-busy="true"]', '[role="progressbar"]:not([aria-valuenow])']),
+                ...(Array.isArray(raw.photos?.settle?.busy) ? raw.photos.settle.busy.map(String) : []),
+              ],
+              ignore: Array.isArray(raw.photos?.settle?.ignore) ? raw.photos.settle.ignore : [],
+            },
+    },
     network: {
       keep: raw.network?.keep ?? 5,
       // Names that look like a secret's and are none in this app (a game's

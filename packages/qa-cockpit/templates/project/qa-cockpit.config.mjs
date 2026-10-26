@@ -105,6 +105,20 @@ export default defineConfig({
   //   mask: ['[data-testid=clock]', '.last-seen'],
   // },
 
+  // A passed step's photo waits for what its last action asked for: until
+  // the page makes no call for a moment and shows no «still loading» mark
+  // (`[aria-busy=true]` and an indeterminate progress bar already count),
+  // at most 2.5 s; a photo taken at that limit says what was still going.
+  // Your app's own loading marks, and the calls never to wait for:
+  // photos: {
+  //   settle: {
+  //     busy: ['.spinner', '[data-loading]'],
+  //     ignore: ['/analytics/', /\/api\/poll/],   // in a call's address
+  //     // quietMs: 250, maxMs: 2_500, aria: true,
+  //   },
+  //   // settle: false,   // each photo at once, as before 0.12
+  // },
+
   // Demo videos of the suites (`qa-cockpit video`), if you ever make them:
   // the product's name on the cards, each person's role on their label, a
   // logo for a dark background, the colours, the words of the subtitles.

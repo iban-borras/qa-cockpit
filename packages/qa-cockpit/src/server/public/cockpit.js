@@ -62,6 +62,7 @@ const ICONS = {
   // A report from «Play as»: a flag on what went wrong.
   plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
   flag: '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/>',
+  hourglass: '<path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/>',
 };
 const icon = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
 const withIcon = (el, name, text = '') => (el.innerHTML = icon(name) + (text ? `<span>${esc(text)}</span>` : ''));
@@ -1774,7 +1775,7 @@ function renderInspector(first = false) {
     const sel = x === shown && !unfolded ? ' sel' : x.seq === open ? ' open' : '';
     const dur = Number.isFinite(x.ms) ? `<span class="dur${x.ms >= SLOW_STEP_MS ? ' slow' : ''}">${esc(fmtDur(x.ms))}</span>` : '';
     // What the step's own photo shows: on the step folded, on «When done» unfolded.
-    const marks = `${handOffBadge(x.realtime)}${findBadges(x)}${consoleBadge(x)}${changeOf(x) ? '<i class="cdot" aria-hidden="true"></i>' : ''}`;
+    const marks = `${handOffBadge(x.realtime)}${findBadges(x)}${settleBadge(x)}${consoleBadge(x)}${changeOf(x) ? '<i class="cdot" aria-hidden="true"></i>' : ''}`;
     const pins = pinsOf(x) + (x.seq === open ? 0 : (actionPins.get(x.seq) ?? 0));
     html += `<button class="step${sel}" data-i="${first === -1 ? i : first}"><span class="st ${st}">${icon(ic, 'sm')}</span><span class="sx">${esc(x.step)}</span>${unfolded ? '' : `${marks}${pinBadge(pins)}`}${dur}</button>`;
     if (!unfolded) return;
@@ -1848,7 +1849,9 @@ function renderInspector(first = false) {
       : f.langsSkipped
         ? t('ins.lang_skipped', { why: f.langsSkipped })
         : null;
-    $('insWhere').textContent = [langNote, pathOf(f.url), hhmmss(f.time), took, into, reqs, f.location].filter(Boolean).join(' · ');
+    // How long its photo waited for the page to settle, when it was noticeable.
+    const settled = !unsettled(f) && f.settle?.ms >= SETTLED_SAID_MS ? t('ins.settled', { d: fmtDur(f.settle.ms) }) : null;
+    $('insWhere').textContent = [langNote, pathOf(f.url), hhmmss(f.time), took, settled, into, reqs, f.location].filter(Boolean).join(' · ');
   } else {
     $('insCap').textContent = '';
     $('insWhere').textContent = '';
@@ -1856,6 +1859,7 @@ function renderInspector(first = false) {
   $('insMarksList').innerHTML = !ins.live && f ? marksList(f) : '';
   $('insFindsList').innerHTML = !ins.live && f ? findsList(f) : '';
   $('insHandOff').innerHTML = !ins.live && f && !isAction(f) ? handOffLine(f.realtime) : '';
+  $('insSettle').innerHTML = !ins.live && f && !isAction(f) ? settleLine(f) : '';
   $('insConsole').innerHTML = !ins.live && f && !isAction(f) ? consoleLine(f) : '';
   $('insCopyInfo').hidden = ins.live || !f;
   $('insChangesLine').innerHTML = !ins.live && f ? changeLine(f) : '';
@@ -2205,6 +2209,11 @@ function runReport(notesMd = '') {
         if (f.langsSkipped) lines.push(`  - No other language at this step: ${f.langsSkipped}`);
         // Another person's action reaching this screen (`--realtime`).
         if (f.realtime) lines.push(`  - Real time from ${cap(f.realtime.from)} («${f.realtime.what}»): ${handOffText(f.realtime)}`);
+        // How its photo waited for the page to settle (worker.mjs), and what it did not.
+        if (unsettled(f)) {
+          const going = [...(f.settle.going ?? []), ...(f.settle.busy ? [`«${f.settle.busy}» on screen`] : [])];
+          lines.push(`  - Photo taken while the page was still loading, after waiting ${secs(f.settle.ms)}: ${going.join('; ')}`);
+        } else if (f.settle?.ms >= SETTLED_SAID_MS) lines.push(`  - Its photo waited ${secs(f.settle.ms)} for the page to settle (${f.settle.calls} call${f.settle.calls === 1 ? '' : 's'})`);
         // What the page said went wrong: its console's errors, what it threw.
         if (f.console?.length) lines.push(`  - Page errors: ${f.console.map((c) => `${c.level === 'exception' ? 'uncaught ' : ''}${c.text}`).join('; ')}`);
       }
@@ -2735,6 +2744,22 @@ function renderPlays() {
   box.innerHTML = html;
 }
 
+// A STEP'S PHOTO WAITS FOR ITS PAGE TO SETTLE (worker.mjs, SETTLING): the
+// calls its last action made answered, no «still loading» mark shown. One
+// taken all the same, at the wait's end, says so: a badge in the list, a
+// line under the photo with what was still going. A wait long enough to
+// notice is said with the step's time.
+const SETTLED_SAID_MS = 500;
+const unsettled = (f) => Boolean(f?.settle && (f.settle.going?.length || f.settle.busy));
+const settleBadge = (f) => (unsettled(f) ? `<i class="fc wait" title="${esc(t('ins.unsettled_short'))}">${icon('hourglass', 'sm')}</i>` : '');
+
+function settleLine(f) {
+  if (!unsettled(f)) return '';
+  const s = f.settle;
+  const what = [...(s.going ?? []).map((c) => quote(c)), ...(s.busy ? [t('ins.busy_shown', { sel: quote(s.busy) })] : [])];
+  return `${icon('hourglass', 'sm')} ${esc(t('ins.unsettled', { d: fmtDur(s.ms), what: listOf(what) }))}`;
+}
+
 /** A step's badge in the inspector's list: the page said something went wrong there. */
 const consoleBadge = (f) => (f.console?.length ? `<i class="fc con" title="${esc(t('ins.console', { n: f.console.length }))}">${icon('flag', 'sm')}${f.console.length}</i>` : '');
 
@@ -3229,9 +3254,10 @@ $('insCopyInfo').onclick = async () => {
     for (const svg of c.querySelectorAll('svg')) svg.remove();
     return c.textContent.replace(/\s+/g, ' ').trim();
   };
-  const lines = ['insCap', 'insWhere', 'insMarksList', 'insFindsList', 'insHandOff', 'insChangesLine'].map((id) => plain($(id)));
   const errors = isAction(f) ? [] : (f.console ?? []);
-  if (errors.length) lines.splice(5, 0, `${t('ins.console', { n: errors.length })}:`, ...errors.map((c) => `- ${c.text}`));
+  const lines = ['insCap', 'insWhere', 'insMarksList', 'insFindsList', 'insHandOff', 'insSettle', 'insConsole', 'insChangesLine'].flatMap((id) =>
+    id !== 'insConsole' ? [plain($(id))] : errors.length ? [`${t('ins.console', { n: errors.length })}:`, ...errors.map((c) => `- ${c.text}`)] : [],
+  );
   const btn = $('insCopyInfo');
   try {
     await navigator.clipboard.writeText(lines.filter(Boolean).join('\n'));

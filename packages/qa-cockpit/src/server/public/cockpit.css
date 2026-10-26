@@ -447,6 +447,8 @@ dialog#inspector::backdrop { background: rgba(4, 4, 6, 0.72); }
 .fc.lang { background: #e879f9; color: #2a0631; }
 /* What the page said went wrong at a step: its console's errors, what it threw. */
 .fc.con { background: var(--err); color: #3b0a0a; }
+/* A step photographed while its page still loaded (worker.mjs, SETTLING). */
+.fc.wait { padding: 0 3px; background: var(--warn); color: #3a2600; }
 .finds .find.lang { border-color: #e879f9; background: rgba(232, 121, 249, 0.08); }
 .finds .find.lang.hl { background: rgba(232, 121, 249, 0.25); }
 .finds .find.lang b { background: #e879f9; color: #2a0631; }
@@ -542,6 +544,9 @@ dialog.play-dialog { width: min(480px, 92vw); }
 .play-dialog p span { color: var(--muted); font-size: 13px; }
 .play-dialog textarea { display: block; width: 100%; box-sizing: border-box; margin: 0 0 14px; padding: 10px 12px; border: 1px solid var(--line-2); border-radius: 8px; background: var(--panel-2); color: var(--text); font: 13.5px/1.5 var(--sans); resize: vertical; }
 .play-dialog textarea:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.caption .settle-line { font-size: 12px; color: var(--warn); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.caption .settle-line:empty { display: none; }
+.caption .settle-line svg.i { width: 12px; height: 12px; vertical-align: -2px; }
 .caption .console-line { font-size: 12px; color: var(--err); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .caption .console-line:empty { display: none; }
 .caption .console-line svg.i { width: 12px; height: 12px; vertical-align: -2px; }

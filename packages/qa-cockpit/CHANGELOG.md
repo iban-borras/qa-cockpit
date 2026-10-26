@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+- A passed step's photo waits for what its last action asked for. A
+  dialog opened at a step's end, its content asked for a moment after the
+  click, was photographed empty, and looked like a bug in the app. Before
+  the photo, each person the step names now waits until their page has
+  made no call of the app's for a moment (fetch, XHR, a script loaded on
+  demand: Playwright sees them in the browser, whatever the app is written
+  in) and shows none of its «still loading» marks (`[aria-busy=true]`, an
+  indeterminate progress bar, and the project's own in
+  `photos.settle.busy`), at most 2.5 s. A wait that reaches that limit
+  takes the photo all the same and says so: an amber hourglass on the step
+  in the inspector's list, a line under the photo with the calls still
+  going, and the run report. A wait long enough to notice is said with the
+  step's time. A call that never ends (a long poll, a stream) is not waited
+  for once it has lasted, nor again after a wait gave up on it; the
+  config's `photos.settle.ignore` leaves out others (analytics, a poll).
+  The photos before each action never wait, nor a failed step's: they show
+  the screen as it was. Nor do the races' rounds (`--chaos`), where time is
+  what is tried. `replay --no-settle`, or `photos: { settle: false }` in the
+  config, takes every photo at once, as before. A step where nothing loads
+  waits a quarter of a second. In every language.
+
 ## 0.11.0 (2026-10-17)
 
 - The inspector's list flags a step where the page said something went

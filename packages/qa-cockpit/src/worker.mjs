@@ -6,7 +6,8 @@
 //   - A PHOTO when a step of a recording ends, of every person the step's
 //     title names ("8 · Quim, Laia: res" is two), and of every open page when
 //     the step fails. A step ends after its own assertions, so the photo is
-//     the screen the suite describes, not one half loaded. It is the WHOLE
+//     the screen the suite describes, not one half loaded; and a passed
+//     step's waits for what its last action asked for (SETTLING). It is the WHOLE
 //     page, with where the person was scrolled to. Before it, a photo of each
 //     ACTION the step took, the window just before it (see ACTION PHOTOS
 //     below), with its click or its typing marked on it (MARKS). The images
@@ -49,6 +50,42 @@ const REALTIME = process.env.QA_REALTIME === '1';
 const acts = [];
 let lastStep = null;
 const RUN = (process.env.COCKPIT_RUN || 'adhoc').replace(/[^\w.-]/g, '_');
+
+// SETTLING (config `photos.settle`): a screen whose data is still on its
+// way (a dialog opened, its content asked for) is photographed empty, and
+// looks like a bug. Before the photo of a step that passed, each person it
+// names waits until their page has made no call of the app's for a moment
+// (fetch, XHR, a script loaded on demand: Playwright sees them in the
+// browser, whatever the app is written in) and shows none of its «still
+// loading» marks; at most `maxMs`, then the photo is taken all the same and
+// says what was still going. Not before an action's photo, which shows what
+// the person had before them as they acted; not on a failed step, whose
+// photo is what the test saw; not while looking for races (`--chaos`), where
+// time is what is tried; not with `replay --no-settle`.
+const SETTLE_OFF = process.env.QA_SETTLE === '0' || Boolean(process.env.QA_CHAOS || process.env.QA_CHAOS_LOG);
+const SETTLE_KINDS = ['fetch', 'xhr', 'script'];
+// A call that lasts longer than a wait could (a long poll, a stream) is
+// never waited for: by its age, by its address once one has lasted, and
+// itself once a wait gave up on it.
+const LASTING_MS = 8_000;
+const lasting = new Set();
+const givenUp = new WeakSet();
+const addressOf = (url) => {
+  try {
+    const u = new URL(url);
+    return u.origin + u.pathname;
+  } catch {
+    return String(url);
+  }
+};
+// A call as a person reads it: its path, never its query (a token may travel there).
+const pathOfCall = (url) => {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return String(url).slice(0, 80);
+  }
+};
 const LIVE_INTERVAL_MS = 250;
 // The package's own files: a step's location is the first frame outside them.
 const PACKAGE_DIR = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -194,6 +231,62 @@ const relOut = (abs) => path.relative(OUT_DIR, abs).split(path.sep).join('/');
 const forget = (shots) => shots.forEach((s) => fs.rm(s.file, { force: true }, () => {}));
 
 /**
+ * Until a person's page has settled, for its step's photo (SETTLING): from
+ * the step's end (`from`), `quietMs` without a call of the app's beginning
+ * or ending and none still going, then none of its «still loading» marks
+ * shown. How long it took and for how many calls; at `maxMs`, what was
+ * still going too.
+ */
+async function settle(entry, from) {
+  const S = CONFIG?.photos?.settle;
+  if (!S || SETTLE_OFF || !entry?.inflight || entry.page.isClosed()) return null;
+  const start = Date.now();
+  const waitedFor = new Set();
+  for (;;) {
+    const now = Date.now();
+    const going = [...entry.inflight].filter(([r, at]) => now - at < LASTING_MS && !givenUp.has(r) && !lasting.has(addressOf(r.url())));
+    for (const [r] of going) waitedFor.add(r);
+    let busy = null;
+    if (!going.length && now - Math.max(entry.lastCall, from) >= S.quietMs) {
+      busy = await busyMark(entry.page, S.busy);
+      if (!busy) return { ms: Date.now() - start, calls: waitedFor.size };
+    }
+    if (Date.now() - start >= S.maxMs || entry.page.isClosed()) {
+      for (const [r] of going) givenUp.add(r);
+      return {
+        ms: Date.now() - start,
+        calls: waitedFor.size,
+        going: going.slice(0, 5).map(([r]) => `${r.method()} ${pathOfCall(r.url())}`),
+        busy,
+      };
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+}
+
+/** The first of the config's «still loading» selectors the page shows, or null. */
+async function busyMark(page, selectors) {
+  if (!selectors?.length) return null;
+  return quietly(page, () =>
+    page.evaluate((list) => {
+      const shown = (el) => {
+        if (typeof el.checkVisibility === 'function') return el.checkVisibility({ opacityProperty: true, visibilityProperty: true });
+        const r = el.getBoundingClientRect();
+        return r.width > 0 && r.height > 0;
+      };
+      for (const sel of list) {
+        try {
+          if ([...document.querySelectorAll(sel)].some(shown)) return sel;
+        } catch {
+          // A selector the browser does not take: never shown.
+        }
+      }
+      return null;
+    }, selectors),
+  ).catch(() => null);
+}
+
+/**
  * Photograph one page and tell the cockpit: its photo, and before it the
  * photos of the actions that marked something since the last one.
  * @param {{ actor: string, page: import('@playwright/test').Page, step: string, status: string, test?: string, error?: string, location?: string, outputDir?: string, marks?: any[] }} f
@@ -257,6 +350,8 @@ export async function photo(f) {
         langsSkipped: tour?.skipped ?? null,
         langsStopped: tour?.broken ?? null,
         realtime: f.realtime ?? null,
+        // How the photo waited for its page to settle, and what it did not.
+        settle: f.settle ?? null,
         // The device the person plays on: its name and kind, for the card.
         device: f.device ?? null,
         // The step's start and how long it took, the photos aside: where a
@@ -355,8 +450,11 @@ export async function stepEnded(s) {
     }
   }
   await Promise.all(
-    who.map((actor) =>
-      photo({
+    who.map(async (actor) => {
+      // A passed step's people wait for what its last action asked for; the
+      // calls that answer meanwhile are the step's (SETTLING).
+      const settled = s.status === 'passed' && named.includes(actor) ? await photoTime(() => settle(pages.get(actor), ended)) : null;
+      return photo({
         actor,
         page: pages.get(actor).page,
         device: pages.get(actor).device,
@@ -371,6 +469,7 @@ export async function stepEnded(s) {
         // The people it names, in the app's other languages too (`--languages`).
         tour: named.includes(actor),
         realtime: handOffs.get(actor) ?? null,
+        settle: settled,
         test: s.test,
         error,
         location: s.location,
@@ -378,8 +477,8 @@ export async function stepEnded(s) {
         began: s.began,
         ms: s.began ? Math.max(0, ended - s.began - inside) : null,
         photosMs: inside,
-      }),
-    ),
+      });
+    }),
   );
 }
 
@@ -623,7 +722,7 @@ async function shoot(entry, prepare) {
  */
 export async function register(actor, page, device = null) {
   if (!enabled) return;
-  const entry = { actor, page, device, lastSent: 0, marks: [], requests: [], console: [], acting: false, shot: null };
+  const entry = { actor, page, device, lastSent: 0, marks: [], requests: [], console: [], acting: false, shot: null, inflight: new Map(), lastCall: 0 };
   pages.set(actor, entry);
   for (const by of [page, page.mouse, page.keyboard]) entries.set(by, entry);
   installActionPhotos(page);
@@ -674,6 +773,29 @@ export async function register(actor, page, device = null) {
   page.on('requestfailed', (request) => {
     if (kept(request)) keep(request, 0);
   });
+  // The app's calls going now, and when one last began or ended: what a
+  // step's photo waits for (SETTLING). The config's `ignore` never counts
+  // (an analytics beacon, a poll), nor what the cockpit's own change of
+  // language asks for.
+  const ignore = CONFIG?.photos?.settle?.ignore ?? [];
+  const counted = (request) =>
+    !entry.touring &&
+    SETTLE_KINDS.includes(request.resourceType()) &&
+    !ignore.some((x) => (x instanceof RegExp ? x.test(request.url()) : request.url().includes(String(x))));
+  page.on('request', (request) => {
+    if (!counted(request)) return;
+    entry.inflight.set(request, Date.now());
+    entry.lastCall = Date.now();
+  });
+  const callEnded = (request) => {
+    const began = entry.inflight.get(request);
+    if (began === undefined) return;
+    entry.inflight.delete(request);
+    entry.lastCall = Date.now();
+    if (Date.now() - began >= LASTING_MS) lasting.add(addressOf(request.url()));
+  };
+  page.on('requestfinished', callEnded);
+  page.on('requestfailed', callEnded);
   try {
     await page.context().exposeBinding('__qaCockpitMark', (_source, mark) => {
       // The clicks of the cockpit's own change of language are not the step's.

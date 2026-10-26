@@ -579,7 +579,7 @@ export async function runCli(rawConfig, argv) {
    */
   async function replayGroup(tag, args) {
     const { readTags } = await import('./tags.mjs');
-    const usage = `Usage: ${CLI} replay --tag <tag> [--keep-going] [--a11y] [--languages [es,fr]] [--realtime] [--changes] [--network] [--in-docker]`;
+    const usage = `Usage: ${CLI} replay --tag <tag> [--keep-going] [--a11y] [--languages [es,fr]] [--realtime] [--changes] [--network] [--no-settle] [--in-docker]`;
     if (!tag || tag.startsWith('--')) fail(usage);
     if (args.some((a) => a.startsWith('--chaos'))) fail(`--chaos looks for races in one suite: ${CLI} replay <suite> --chaos.`);
     const keepGoing = args.includes('--keep-going');
@@ -905,7 +905,7 @@ export async function runCli(rawConfig, argv) {
       const tagAt = rest.indexOf('--tag');
       if (tagAt !== -1) return replayGroup(rest[tagAt + 1], rest.filter((_, i) => i !== tagAt && i !== tagAt + 1));
       const suite = rest[0];
-      if (!suite) fail(`Usage: ${CLI} replay <suite> [--network [--bodies]] [--a11y] [--languages [es,fr]] [--realtime] [--changes [run]] [--chaos [N] | --chaos-seed <n>] [--in-docker] [playwright args]\n       ${CLI} replay --tag <tag> [--keep-going] [looks]`);
+      if (!suite) fail(`Usage: ${CLI} replay <suite> [--network [--bodies]] [--a11y] [--languages [es,fr]] [--realtime] [--changes [run]] [--chaos [N] | --chaos-seed <n>] [--no-settle] [--in-docker] [playwright args]\n       ${CLI} replay --tag <tag> [--keep-going] [looks]`);
       const file = recordingOf(config, suite);
       if (!file) fail(`No recording for the suite "${suite}" in ${P.recordings}`);
       const network = rest.includes('--network');
@@ -936,7 +936,9 @@ export async function runCli(rawConfig, argv) {
       // same way; `--changes <run>`: with that one (changes.mjs).
       const changesFlag = valued('--changes', /^\d{8}-\d{6}-[\w.-]+$/);
       const dropped = new Set([...langsFlag.used, ...chaosFlag.used, ...seedFlag.used, ...changesFlag.used]);
-      const pwArgs = rest.slice(1).filter((a, i) => !dropped.has(i + 1) && !['--network', '--bodies', '--a11y', '--realtime'].includes(a));
+      const pwArgs = rest.slice(1).filter((a, i) => !dropped.has(i + 1) && !['--network', '--bodies', '--a11y', '--realtime', '--no-settle'].includes(a));
+      // Each step's photo at once, without waiting for its page to settle (worker.mjs).
+      if (rest.includes('--no-settle')) process.env.QA_SETTLE = '0';
       if (seedFlag.on && !(Number.isInteger(seed) && seed >= 1 && seed <= 999_999_999)) fail(`--chaos-seed takes a round's seed, as a search printed it: ${CLI} replay ${suite} --chaos-seed 4711`);
       if (chaosFlag.on && seedFlag.on) fail(`--chaos-seed plays one round of a search again, by itself: ${CLI} replay ${suite} --chaos-seed ${seed}`);
       if (chaosFlag.on && !(Number.isInteger(rounds) && rounds >= 2 && rounds <= 50)) {
@@ -1816,7 +1818,9 @@ export async function runCli(rawConfig, argv) {
                    --chaos-seed <n>: that round again;
                    --changes [run]: then compared with the newest green run before it, made the
                    same way (or the one named), with the cockpit: what changed on its photos,
-                   in its requests, in its page's errors
+                   in its requests, in its page's errors;
+                   --no-settle: each step's photo at once, without waiting for the calls its
+                   last action made (config photos.settle)
   replay --tag <tag>   the tag's suites (tags.json) one after another, each as a full run (reset,
                    setup, replay) with the looks asked for; the first that fails stops the rest
                    (--keep-going: every one)
