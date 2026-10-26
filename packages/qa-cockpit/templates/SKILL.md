@@ -953,9 +953,14 @@ test('T1 · Bob sees Alice\'s message', async ({ alice, bob }) => {
   has an amber hourglass in the inspector and says what was still going;
   the run report says it too. If that is the app's own loading mark or a
   call that never ends (a poll, analytics), tell the person and offer to
-  add it to `photos.settle` in the config (`busy`, `ignore`). The photos
-  before each action and a failed step's never wait: they show the screen
-  as it was. `replay --no-settle` takes every photo at once.
+  add it to `photos.settle` in the config (`busy`, `ignore`). A failed
+  step's photo never waits: it shows the screen as it was. The photo
+  before each action waits only for what the action itself waits for (its
+  target seen, and enabled or editable): waiting longer would move the
+  action. So an action's photo with a dialog still loading means the step
+  acted while it loaded; when that content matters to the step, it waits
+  for it first (`await expect(dialog.getByText('…')).toBeVisible()`), and
+  the photo shows it. `replay --no-settle` takes every photo at once.
 - Cross-person waits use `toBeVisible({ timeout: 30_000 })` and never a
   blind reload: what is being proven is that it arrives on its own.
 - **An absence is proven only after a presence.** `toHaveCount(0)` right

@@ -59,7 +59,8 @@ const RUN = (process.env.COCKPIT_RUN || 'adhoc').replace(/[^\w.-]/g, '_');
 // browser, whatever the app is written in) and shows none of its «still
 // loading» marks; at most `maxMs`, then the photo is taken all the same and
 // says what was still going. Not before an action's photo, which shows what
-// the person had before them as they acted; not on a failed step, whose
+// the person had before them as they acted, and waits only for what the
+// action itself waits for (ACTION PHOTOS); not on a failed step, whose
 // photo is what the test saw; not while looking for races (`--chaos`), where
 // time is what is tried; not with `replay --no-settle`.
 const SETTLE_OFF = process.env.QA_SETTLE === '0' || Boolean(process.env.QA_CHAOS || process.env.QA_CHAOS_LOG);
@@ -568,10 +569,10 @@ function markScript() {
 // up: the action then waits on its own, and fails with its own error if it
 // never comes. An action with a timeout of its own waits no longer than it.
 const BEFORE_MS = 5_000;
-// The actions wrapped, and what their target must be first: «seen»
-// (visible, as Playwright's pointer actions and `fill` wait for) or only
-// «there» (a key pressed on it).
-const FRAME_ACTIONS = { click: 'seen', dblclick: 'seen', tap: 'seen', check: 'seen', uncheck: 'seen', fill: 'seen', press: 'there', type: 'there' };
+// The actions wrapped, and what their target must be first, as Playwright
+// waits for it: seen and «enabled» (its pointer actions), seen and
+// «editable» (`fill`), or only «there» (a key pressed on it).
+const FRAME_ACTIONS = { click: 'enabled', dblclick: 'enabled', tap: 'enabled', check: 'enabled', uncheck: 'enabled', fill: 'editable', press: 'there', type: 'there' };
 let photographing = false;
 
 function installActionPhotos(page) {
@@ -589,7 +590,7 @@ function installActionPhotos(page) {
   // that call, and its fill goes straight through. So is the mouse's
   // `dblclick`, which clicks inside one.
   wrapAction(Object.getPrototypeOf(page.locator('html')), 'clear', (l) => entries.get(l.page?.()), (entry, l, args) =>
-    ready(entry, l._frame, l.first(), 'seen', args[0] ?? {}),
+    ready(entry, l._frame, l.first(), 'editable', args[0] ?? {}),
   );
   for (const name of ['click', 'dblclick']) wrapAction(Object.getPrototypeOf(page.mouse), name, (m) => entries.get(m));
   for (const name of ['press', 'type', 'insertText']) wrapAction(Object.getPrototypeOf(page.keyboard), name, (k) => entries.get(k));
@@ -630,15 +631,21 @@ function wrapAction(proto, name, entryOf, prepare) {
 }
 
 /**
- * An action's target as the action itself will have it: visible when it
- * waits for that, and scrolled into view. Throws when it is not, in time:
- * no photo then. False: an action that is not taken (a trial).
+ * An action's target as the action itself will have it: visible and
+ * enabled (or editable) when it waits for that, and scrolled into view.
+ * Throws when it is not, in time: no photo then. False: an action that is
+ * not taken (a trial).
  */
 async function ready(entry, frame, target, need, options) {
   if (options.trial) return false;
   const limit = timeoutOf(frame, options);
   const timeout = limit > 0 ? Math.min(limit, BEFORE_MS) : BEFORE_MS;
-  const seen = need === 'seen' && !options.force;
+  const seen = need !== 'there' && !options.force;
+  const until = Date.now() + timeout;
+  // As Playwright tells it, whose action waits for it; a target it cannot
+  // tell (`fill` on what takes no text) is the action's own error to give.
+  const usable = () =>
+    (need === 'editable' ? target.isEditable({ timeout: Math.max(1, until - Date.now()) }) : target.isEnabled({ timeout: Math.max(1, until - Date.now()) })).catch(() => true);
   await quietly(entry.page, async () => {
     // The target as it is now, without waiting: most often there, seen and
     // in view, and this one look is all the photo asks of it.
@@ -647,6 +654,17 @@ async function ready(entry, frame, target, need, options) {
     // same, and that wait is the app's time, not the photo's.
     if (where === 'absent' || (seen && where === 'hidden')) {
       await target.waitFor({ state: seen ? 'visible' : 'attached', timeout });
+      where = await photoTime(() => target.evaluateAll(whereIs));
+    }
+    // Seen but off for now: a dialog's button waiting on what the dialog
+    // loads (found in CritKeep: «Fes-me'n una còpia», photographed with
+    // the dialog empty, then clicked once it had filled). The action waits
+    // for it, so the photo does too; meanwhile the page may have moved it.
+    if (seen && !(await photoTime(usable))) {
+      do {
+        if (Date.now() >= until) throw new Error('The target stayed disabled: no photo, the action waits on its own.');
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      } while (!(await usable()));
       where = await photoTime(() => target.evaluateAll(whereIs));
     }
     // Where Playwright's own scroll would bring it, so that it scrolls no

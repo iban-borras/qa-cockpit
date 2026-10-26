@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- The photo before an action waits for its target to be enabled (or
+  editable, for a field filled), as the action itself does. A dialog's
+  confirm button, disabled until the dialog's content had come, was
+  photographed as soon as it showed, with the dialog still empty, and
+  clicked only once it had filled: the photo was not what the person had
+  before them as they acted. It now is, and the action's timing is the
+  same, since Playwright waited for it anyway.
+
 ## 0.12.0 (2026-10-26)
 
 - A passed step's photo waits for what its last action asked for. A
