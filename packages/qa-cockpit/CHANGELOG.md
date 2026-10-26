@@ -22,6 +22,10 @@
   what is tried. `replay --no-settle`, or `photos: { settle: false }` in the
   config, takes every photo at once, as before. A step where nothing loads
   waits a quarter of a second. In every language.
+- The inspector's playing stops at a frame picked by hand: a photo in the
+  strip, a step in the list, the arrows or ⏮ ⏭. Playing went on from
+  there, and the photo you wanted to look at was gone a second later.
+  Placing a note stops it too, so the note stays on the photo it was for.
 
 ## 0.11.0 (2026-10-17)
 

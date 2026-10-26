@@ -1697,9 +1697,12 @@ function setLive(on) {
   }
 }
 
+// A frame picked by hand (the strip, the list, the arrows) is where the
+// person wants to stay: the playing stops there.
 function insGo(idx) {
   const n = insFrames().length;
   if (!n || !S.ins) return;
+  stopPlay();
   if (S.ins.live) setLive(false);
   S.ins.idx = Math.max(0, Math.min(n - 1, idx));
   if (S.ins.idx === n - 1) S.ins.fresh = 0;
@@ -3203,6 +3206,7 @@ function togglePlay() {
 
 function goLiveOrEnd() {
   if (!S.ins) return;
+  stopPlay();
   if (isRunning()) setLive(true);
   else S.ins.idx = Math.max(0, insFrames().length - 1);
   S.ins.fresh = 0;
@@ -3447,6 +3451,11 @@ function startPlacing() {
   // Not on another language's photo: a note belongs to the step's own.
   if (!insFrame() || $('insTack').disabled) return;
   closePostit();
+  // The note is for the photo shown now, not the one playing would bring.
+  if (S.ins.timer) {
+    stopPlay();
+    renderInspector();
+  }
   S.ins.placing = true;
   renderPlacing();
 }
