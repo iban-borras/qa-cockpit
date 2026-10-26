@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.1 (2026-10-26)
 
 - The photo before an action waits for its target to be enabled (or
   editable, for a field filled), as the action itself does. A dialog's
