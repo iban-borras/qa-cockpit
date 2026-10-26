@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.0 (2026-10-26)
 
 - A passed step's photo waits for what its last action asked for. A
   dialog opened at a step's end, its content asked for a moment after the
