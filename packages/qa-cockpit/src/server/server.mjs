@@ -1205,6 +1205,14 @@ const settleOf = (s) =>
       }
     : null;
 
+// When the page came again without the test asking (worker.mjs, RELOADS),
+// and at which address.
+const reloadsOf = (list) =>
+  (Array.isArray(list) ? list : [])
+    .slice(0, 20)
+    .filter((r) => Number.isFinite(Number(r?.at)))
+    .map((r) => ({ at: Number(r.at), path: String(r.path ?? '').slice(0, 200) }));
+
 const consoleOf = (list) =>
   (Array.isArray(list) ? list : []).slice(0, 20).map((c) => ({
     level: c?.level === 'exception' ? 'exception' : 'error',
@@ -1324,6 +1332,7 @@ function onFrame(f) {
     langsStopped: f.langsStopped ? String(f.langsStopped).slice(0, 200) : null,
     realtime: handOffOf(f.realtime),
     settle: settleOf(f.settle),
+    reloads: reloadsOf(f.reloads),
     began,
     ms: Number.isFinite(Number(f.ms)) && f.ms !== null ? Math.max(0, Math.round(Number(f.ms))) : null,
     // The cockpit's own photos in the step, and the step's: apart from `ms`.

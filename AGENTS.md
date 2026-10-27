@@ -21,7 +21,7 @@ without a person beside it.
 | `src/env.mjs` | `loadEnv`: the `.env` beside the config, for what differs per machine |
 | `src/cli.mjs` | every command |
 | `src/fixtures.mjs`, `src/playwright.mjs` | the cast as Playwright fixtures (and `together`); the default Playwright config |
-| `src/reporter.mjs`, `src/worker.mjs` | what a run tells the cockpit: tests and steps; each person's photos (a step's, after its page has settled, and one before each action) and the time they took, clicks and requests |
+| `src/reporter.mjs`, `src/worker.mjs` | what a run tells the cockpit: tests and steps; each person's photos (a step's, after its page has settled, and one before each action) and the time they took, clicks, requests and the reloads the test did not ask for |
 | `src/a11y.mjs` | `replay --a11y`: a step's screen read from Chromium's accessibility tree, its problems as boxes on the step's photo |
 | `src/languages.mjs`, `src/languages-check.mjs` | `replay --languages`: a step's screen in the app's other languages, changed by the config's `languages.switchTo`, and what no longer fits; `languages check`, that change tried on one screen |
 | `src/realtime.mjs` | `replay --realtime`: each person's actions, what their page sent and was sent, and their screen's changes, on the browser's clock; the hand-off a step ends with |

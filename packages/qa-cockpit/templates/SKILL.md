@@ -325,6 +325,17 @@ When the suite ITSELF is wrong (it quotes a text the app never had, or
 describes a rule that changed by decision), say so in the notes and leave
 the suite's edit to its author.
 
+Before either verdict, look for **a page that reloaded without the test
+asking**. The replay's end lists each one (the test, the step, the person,
+when, the address), and the inspector marks its step with an amber
+circular arrow. A step that failed after one may have waited for what the
+reload took away: most often a development server reloading every page
+open on it because one of the app's files was saved, by a person or
+another agent, while the suite ran. Replay it once nobody is changing them;
+only a red that comes back is a verdict. A reload that comes in every
+replay is the app's own (a `location.reload()` after an action): the
+recording waits for the page to come back before its next action.
+
 ## Notes pinned on the photos
 
 A person reviewing a run in the cockpit can pin notes on its photos: each
@@ -1021,6 +1032,10 @@ videos/                 <suite>.json: video scripts, and their narration's audio
   0.10.0 the package did it itself: every console program under the stack
   (`python`, then its API and Vite) opened a window and wrote there, and
   the log stayed empty.
+- A stack that runs the app's development server (Vite, webpack, Next) on
+  the project's own files reloads every page open on it when one of them is
+  saved: editing the app while a suite runs reloads the replay's pages in
+  the middle of a step. Edit before or after a replay, not during it.
 - `up` refuses with «Something already answers on …»: another app has the
   stack's port, most often the developer's own server. The QA copy could
   not listen there, and the other app would answer its health check, so

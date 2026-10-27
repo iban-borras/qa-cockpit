@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.13.0 (unreleased)
+
+- A page that reloads without the test asking is told. A development
+  server reloads every page open on it when one of the app's files is
+  saved, and somebody editing the app while a suite runs reloads the
+  replay's pages in the middle of a step: one waiting for a button the
+  reload took away failed minutes later, with a timeout and nothing to say
+  why. Now the step has an amber circular arrow in the inspector, a line
+  under its photo with when and at which address (and, on a failed step,
+  what that may mean), a line in the run report, and `replay` lists them
+  at its end. Chromium tells which navigations the page itself asked for,
+  so the test's own `page.reload()` is never told, and the app needs
+  nothing. The skill tells the healer to look for them before a verdict.
+
 ## 0.12.1 (2026-10-26)
 
 - The photo before an action waits for its target to be enabled (or

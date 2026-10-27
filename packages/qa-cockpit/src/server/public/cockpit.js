@@ -1778,7 +1778,7 @@ function renderInspector(first = false) {
     const sel = x === shown && !unfolded ? ' sel' : x.seq === open ? ' open' : '';
     const dur = Number.isFinite(x.ms) ? `<span class="dur${x.ms >= SLOW_STEP_MS ? ' slow' : ''}">${esc(fmtDur(x.ms))}</span>` : '';
     // What the step's own photo shows: on the step folded, on «When done» unfolded.
-    const marks = `${handOffBadge(x.realtime)}${findBadges(x)}${settleBadge(x)}${consoleBadge(x)}${changeOf(x) ? '<i class="cdot" aria-hidden="true"></i>' : ''}`;
+    const marks = `${handOffBadge(x.realtime)}${findBadges(x)}${settleBadge(x)}${reloadBadge(x)}${consoleBadge(x)}${changeOf(x) ? '<i class="cdot" aria-hidden="true"></i>' : ''}`;
     const pins = pinsOf(x) + (x.seq === open ? 0 : (actionPins.get(x.seq) ?? 0));
     html += `<button class="step${sel}" data-i="${first === -1 ? i : first}"><span class="st ${st}">${icon(ic, 'sm')}</span><span class="sx">${esc(x.step)}</span>${unfolded ? '' : `${marks}${pinBadge(pins)}`}${dur}</button>`;
     if (!unfolded) return;
@@ -1863,6 +1863,7 @@ function renderInspector(first = false) {
   $('insFindsList').innerHTML = !ins.live && f ? findsList(f) : '';
   $('insHandOff').innerHTML = !ins.live && f && !isAction(f) ? handOffLine(f.realtime) : '';
   $('insSettle').innerHTML = !ins.live && f && !isAction(f) ? settleLine(f) : '';
+  $('insReload').innerHTML = !ins.live && f && !isAction(f) ? reloadLine(f) : '';
   $('insConsole').innerHTML = !ins.live && f && !isAction(f) ? consoleLine(f) : '';
   $('insCopyInfo').hidden = ins.live || !f;
   $('insChangesLine').innerHTML = !ins.live && f ? changeLine(f) : '';
@@ -2217,6 +2218,13 @@ function runReport(notesMd = '') {
           const going = [...(f.settle.going ?? []), ...(f.settle.busy ? [`«${f.settle.busy}» on screen`] : [])];
           lines.push(`  - Photo taken while the page was still loading, after waiting ${secs(f.settle.ms)}: ${going.join('; ')}`);
         } else if (f.settle?.ms >= SETTLED_SAID_MS) lines.push(`  - Its photo waited ${secs(f.settle.ms)} for the page to settle (${f.settle.calls} call${f.settle.calls === 1 ? '' : 's'})`);
+        // The page came again without the test asking (worker.mjs, RELOADS).
+        if (f.reloads?.length) {
+          lines.push(
+            `  - The page reloaded without the test asking (a development server after a file changed, or the app itself): ${f.reloads.map((r) => `\`${r.path || '/'}\`${off(r.at)}`).join('; ')}` +
+              `${f.status === 'failed' ? '. The step failed after it: what it waited for may have gone with the reload' : ''}`,
+          );
+        }
         // What the page said went wrong: its console's errors, what it threw.
         if (f.console?.length) lines.push(`  - Page errors: ${f.console.map((c) => `${c.level === 'exception' ? 'uncaught ' : ''}${c.text}`).join('; ')}`);
       }
@@ -2763,6 +2771,20 @@ function settleLine(f) {
   return `${icon('hourglass', 'sm')} ${esc(t('ins.unsettled', { d: fmtDur(s.ms), what: listOf(what) }))}`;
 }
 
+// THE PAGE CAME AGAIN WITHOUT THE TEST ASKING (worker.mjs, RELOADS): a
+// development server after a file changed, or the app itself. No photo
+// shows it: a badge in the list, and a line under the step's photo with
+// when; one on a failed step says what that may mean.
+const reloadBadge = (f) => (f.reloads?.length ? `<i class="fc wait" title="${esc(t('ins.reloaded_short'))}">${icon('rotate', 'sm')}</i>` : '');
+
+function reloadLine(f) {
+  const list = f.reloads ?? [];
+  if (!list.length) return '';
+  const when = listOf(list.map((r) => `${hhmmss(r.at)}${r.path ? ` (${r.path})` : ''}`));
+  const text = `${t('ins.reloaded', { when })}${f.status === 'failed' ? ` ${t('ins.reloaded_failed')}` : ''}`;
+  return `<span title="${esc(text)}">${icon('rotate', 'sm')} ${esc(text)}</span>`;
+}
+
 /** A step's badge in the inspector's list: the page said something went wrong there. */
 const consoleBadge = (f) => (f.console?.length ? `<i class="fc con" title="${esc(t('ins.console', { n: f.console.length }))}">${icon('flag', 'sm')}${f.console.length}</i>` : '');
 
@@ -3259,7 +3281,7 @@ $('insCopyInfo').onclick = async () => {
     return c.textContent.replace(/\s+/g, ' ').trim();
   };
   const errors = isAction(f) ? [] : (f.console ?? []);
-  const lines = ['insCap', 'insWhere', 'insMarksList', 'insFindsList', 'insHandOff', 'insSettle', 'insConsole', 'insChangesLine'].flatMap((id) =>
+  const lines = ['insCap', 'insWhere', 'insMarksList', 'insFindsList', 'insHandOff', 'insSettle', 'insReload', 'insConsole', 'insChangesLine'].flatMap((id) =>
     id !== 'insConsole' ? [plain($(id))] : errors.length ? [`${t('ins.console', { n: errors.length })}:`, ...errors.map((c) => `- ${c.text}`)] : [],
   );
   const btn = $('insCopyInfo');

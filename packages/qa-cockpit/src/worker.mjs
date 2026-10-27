@@ -16,7 +16,8 @@
 //     problems too, each a box on it (a11y.mjs); with `--languages`, the
 //     same screen in the app's other languages, and what does not fit in
 //     them (languages.mjs). With `--realtime`, how long another person's action took to
-//     reach this screen: sent, received, seen (realtime.mjs).
+//     reach this screen: sent, received, seen (realtime.mjs). And when the
+//     page came again without the test asking (RELOADS).
 //   - A LIVE picture, only while somebody watches that person in the
 //     cockpit: a CDP screencast of their page, about four frames a second.
 //     The cockpit says who is watched (GET /api/watch); nobody watching costs
@@ -353,6 +354,8 @@ export async function photo(f) {
         realtime: f.realtime ?? null,
         // How the photo waited for its page to settle, and what it did not.
         settle: f.settle ?? null,
+        // When the page came again without the test asking (RELOADS).
+        reloads: f.reloads ?? [],
         // The device the person plays on: its name and kind, for the card.
         device: f.device ?? null,
         // The step's start and how long it took, the photos aside: where a
@@ -464,6 +467,7 @@ export async function stepEnded(s) {
         marks: pages.get(actor).marks.splice(0),
         requests: pages.get(actor).requests.splice(0),
         console: pages.get(actor).console.splice(0),
+        reloads: pages.get(actor).reloads.splice(0),
         step: s.title,
         // Somebody the failed step does not name is photographed as context.
         status: named.includes(actor) ? s.status : 'context',
@@ -548,6 +552,33 @@ function markScript() {
     },
     true,
   );
+}
+
+// RELOADS: a page that comes again without the test asking, which no
+// photo shows. Found in CritKeep: another session saved the app's
+// translations while a suite ran, its development server reloaded the page
+// in the middle of a click, and the test waited five minutes for a button
+// that was gone; only the server's log said why. Chromium tells each
+// navigation the page itself asks for, and why: «reload» for
+// `location.reload()` (what Vite, webpack and Next call) and
+// `history.go(0)`; never for Playwright's `page.reload()`, which the
+// browser makes, nor for a link, a form or an address set. Each one of the
+// main frame goes with the person's next photo.
+async function watchReloads(entry) {
+  const { page } = entry;
+  try {
+    const cdp = await quietly(page, () => page.context().newCDPSession(page));
+    await quietly(page, () => cdp.send('Page.enable'));
+    // The main frame keeps its id from one document to the next.
+    const main = (await quietly(page, () => cdp.send('Page.getFrameTree'))).frameTree.frame.id;
+    cdp.on('Page.frameRequestedNavigation', (e) => {
+      // The cockpit's own change of language may reload: not the step's.
+      if (e.frameId !== main || e.reason !== 'reload' || entry.touring || entry.reloads.length >= 20) return;
+      entry.reloads.push({ at: Date.now(), path: pathOfCall(e.url).slice(0, 200) });
+    });
+  } catch {
+    // Not told, then: the photos still come.
+  }
 }
 
 // ACTION PHOTOS: the window just before each action of a step (a click, a
@@ -740,7 +771,7 @@ async function shoot(entry, prepare) {
  */
 export async function register(actor, page, device = null) {
   if (!enabled) return;
-  const entry = { actor, page, device, lastSent: 0, marks: [], requests: [], console: [], acting: false, shot: null, inflight: new Map(), lastCall: 0 };
+  const entry = { actor, page, device, lastSent: 0, marks: [], requests: [], console: [], reloads: [], acting: false, shot: null, inflight: new Map(), lastCall: 0 };
   pages.set(actor, entry);
   for (const by of [page, page.mouse, page.keyboard]) entries.set(by, entry);
   installActionPhotos(page);
@@ -843,6 +874,7 @@ export async function register(actor, page, device = null) {
   } catch {
     // Without marks the photos still come.
   }
+  await watchReloads(entry);
   page.once('close', () => void unregister(actor));
   if (!poller) {
     poller = setInterval(() => void pollWatch(), 1_000);

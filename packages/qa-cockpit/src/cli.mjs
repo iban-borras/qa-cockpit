@@ -493,6 +493,39 @@ export async function runCli(rawConfig, argv) {
     });
   }
 
+  // A page that came again without the test asking (worker.mjs, RELOADS):
+  // no photo shows it, and a step waiting for what it took away fails long
+  // after, its error saying nothing of it. At the end, each one and where;
+  // nothing when there was none.
+  function tellReloads() {
+    const run = cockpitRun();
+    if (!run) return;
+    process.once('exit', () => {
+      let frames;
+      try {
+        frames = fs
+          .readFileSync(path.join(P.out, 'cockpit', run, 'frames.jsonl'), 'utf8')
+          .split('\n')
+          .filter(Boolean)
+          .map((line) => JSON.parse(line));
+      } catch {
+        return;
+      }
+      const reloaded = frames.filter((f) => f.reloads?.length);
+      if (!reloaded.length) return;
+      console.log('\nThe page reloaded without the test asking (a development server after a file changed, or the app itself):');
+      for (const f of reloaded) {
+        const test = /^(\S+)\s+·/.exec(f.test)?.[1];
+        const step = /^(\d+)\s+·/.exec(f.step)?.[1];
+        const when = f.reloads.map((r) => `${new Date(r.at).toTimeString().slice(0, 8)} ${r.path || '/'}`).join(', ');
+        console.log(`  ${test && step ? `${test}/${step}` : f.step} ${f.actor}: ${when}${f.status === 'failed' ? ', and the step failed after it' : ''}`);
+      }
+      if (reloaded.some((f) => f.status === 'failed')) {
+        console.log("  A step that failed after a reload may have waited for what the reload took away: play it again while nobody changes the app's files.");
+      }
+    });
+  }
+
   // ── races between people (`replay --chaos`, chaos.mjs) ──
 
   /** Each round from the same start, as a video's run: fresh data, then the suite's setup. Its code. */
@@ -994,6 +1027,7 @@ export async function runCli(rawConfig, argv) {
       if (a11y) lookAtA11y();
       if (languages) lookInLanguagesToo(langs);
       if (realtime) timeHandOffs();
+      tellReloads();
       if (!changesFlag.on) return void (await playwright(['test', testFileArg(file), ...pwArgs]));
       if (!cockpitRun()) {
         console.log(`--changes compares the photos the cockpit takes of each step, and no cockpit follows this run: start one first (${CLI} cockpit).`);

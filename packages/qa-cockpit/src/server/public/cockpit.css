@@ -447,7 +447,8 @@ dialog#inspector::backdrop { background: rgba(4, 4, 6, 0.72); }
 .fc.lang { background: #e879f9; color: #2a0631; }
 /* What the page said went wrong at a step: its console's errors, what it threw. */
 .fc.con { background: var(--err); color: #3b0a0a; }
-/* A step photographed while its page still loaded (worker.mjs, SETTLING). */
+/* A step photographed while its page still loaded (worker.mjs, SETTLING), or
+   whose page came again without the test asking (RELOADS). */
 .fc.wait { padding: 0 3px; background: var(--warn); color: #3a2600; }
 .finds .find.lang { border-color: #e879f9; background: rgba(232, 121, 249, 0.08); }
 .finds .find.lang.hl { background: rgba(232, 121, 249, 0.25); }
