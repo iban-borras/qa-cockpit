@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.13.0 (unreleased)
+## 0.13.0 (2026-10-27)
 
 - A page that reloads without the test asking is told. A development
   server reloads every page open on it when one of the app's files is
