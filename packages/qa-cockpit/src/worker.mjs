@@ -120,6 +120,8 @@ const pages = new Map();
 // The same entries by what an action is taken through: a page, its mouse,
 // its keyboard (ACTION PHOTOS).
 const entries = new WeakMap();
+// The browser contexts whose pages tell their clicks (register).
+const marking = new WeakSet();
 let poller = null;
 // The steps of a recording now open: actions are photographed only inside one.
 let openSteps = 0;
@@ -455,34 +457,51 @@ export async function stepEnded(s) {
   }
   await Promise.all(
     who.map(async (actor) => {
-      // A passed step's people wait for what its last action asked for; the
-      // calls that answer meanwhile are the step's (SETTLING).
-      const settled = s.status === 'passed' && named.includes(actor) ? await photoTime(() => settle(pages.get(actor), ended)) : null;
-      return photo({
-        actor,
-        page: pages.get(actor).page,
-        device: pages.get(actor).device,
-        // What this person clicked and typed since their last photo, and
-        // the requests their page made meanwhile.
-        marks: pages.get(actor).marks.splice(0),
-        requests: pages.get(actor).requests.splice(0),
-        console: pages.get(actor).console.splice(0),
-        reloads: pages.get(actor).reloads.splice(0),
-        step: s.title,
-        // Somebody the failed step does not name is photographed as context.
-        status: named.includes(actor) ? s.status : 'context',
-        // The people it names, in the app's other languages too (`--languages`).
-        tour: named.includes(actor),
-        realtime: handOffs.get(actor) ?? null,
-        settle: settled,
-        test: s.test,
-        error,
-        location: s.location,
-        outputDir: s.outputDir,
-        began: s.began,
-        ms: s.began ? Math.max(0, ended - s.began - inside) : null,
-        photosMs: inside,
-      });
+      try {
+        let entry = pages.get(actor);
+        // A passed step's people wait for what its last action asked for; the
+        // calls that answer meanwhile are the step's (SETTLING).
+        let settled = null;
+        if (s.status === 'passed' && named.includes(actor)) {
+          settled = await photoTime(() => settle(entry, ended));
+          // A tab of the app's that closed while it waited (found in
+          // CritKeep: a support visit that ran out): the person is back on
+          // their page before it, and the photo is of what they see now.
+          if (pages.get(actor) !== entry) {
+            entry = pages.get(actor);
+            settled = entry ? await photoTime(() => settle(entry, ended)) : null;
+          }
+        }
+        if (!entry) return;
+        await photo({
+          actor,
+          page: entry.page,
+          device: entry.device,
+          // What this person clicked and typed since their last photo, and
+          // the requests their page made meanwhile.
+          marks: entry.marks.splice(0),
+          requests: entry.requests.splice(0),
+          console: entry.console.splice(0),
+          reloads: entry.reloads.splice(0),
+          step: s.title,
+          // Somebody the failed step does not name is photographed as context.
+          status: named.includes(actor) ? s.status : 'context',
+          // The people it names, in the app's other languages too (`--languages`).
+          tour: named.includes(actor),
+          realtime: handOffs.get(actor) ?? null,
+          settle: settled,
+          test: s.test,
+          error,
+          location: s.location,
+          outputDir: s.outputDir,
+          began: s.began,
+          ms: s.began ? Math.max(0, ended - s.began - inside) : null,
+          photosMs: inside,
+        });
+      } catch {
+        // A photo that fails is a photo missing, never a red run: the error
+        // its test tells is the step's own.
+      }
     }),
   );
 }
@@ -771,8 +790,25 @@ async function shoot(entry, prepare) {
  */
 export async function register(actor, page, device = null) {
   if (!enabled) return;
-  const entry = { actor, page, device, lastSent: 0, marks: [], requests: [], console: [], reloads: [], acting: false, shot: null, inflight: new Map(), lastCall: 0 };
+  const now = pages.get(actor);
+  if (now?.page === page) return;
+  // A page this person played on already (back from a tab the app opened,
+  // which is still open): the same entry again.
+  const known = entries.get(page);
+  if (known?.actor === actor && !page.isClosed()) {
+    pages.set(actor, known);
+    if (now) await moveOn(now, known);
+    return;
+  }
+  const entry = { actor, page, device: device ?? now?.device ?? null, lastSent: 0, marks: [], requests: [], console: [], reloads: [], acting: false, shot: null, inflight: new Map(), lastCall: 0, back: null };
   pages.set(actor, entry);
+  // A tab the app opened, which the person goes on in (a support visit, a
+  // link to another window): their page before it is where they are back
+  // on when it closes.
+  if (now && !now.page.isClosed()) {
+    entry.back = now;
+    await moveOn(now, entry);
+  }
   for (const by of [page, page.mouse, page.keyboard]) entries.set(by, entry);
   installActionPhotos(page);
   // The page's own requests (the app's API calls and its page loads), with
@@ -846,60 +882,112 @@ export async function register(actor, page, device = null) {
   page.on('requestfinished', callEnded);
   page.on('requestfailed', callEnded);
   try {
-    await page.context().exposeBinding('__qaCockpitMark', (_source, mark) => {
-      // The clicks of the cockpit's own change of language are not the step's.
-      if (entry.marks.length >= 100 || entry.touring) return;
-      // One click, one mark: a label clicked clicks its field too, and a
-      // double click is two, at the same point within a moment, in the
-      // same action (two of the recording's, on one button, are two).
-      const last = entry.marks.at(-1);
-      const again = last?.kind === 'click' && last.shot === entry.shot && last.vx === mark.vx && last.vy === mark.vy;
-      if (mark.kind === 'click' && again && Date.now() - last.at < 300) return;
-      // Made by the action being photographed: on its photo. Playwright
-      // delivers it before the action returns.
-      const shot = entry.shot;
-      if (shot) shot.marked = true;
-      // When it came, from this clock: the step's start is on it too.
-      entry.marks.push({ ...mark, at: Date.now(), shot });
-      // The action it marks, timed now: the click itself, not its waits.
-      const act = REALTIME && shot ? acts.findLast((a) => a.actor === entry.actor && a.shot === shot) : null;
-      if (act && !act.label) Object.assign(act, { label: mark.label, t: Number.isFinite(mark.t) ? mark.t : Date.now() });
-    });
-    await page.context().addInitScript(markScript);
+    // Once a context: a tab the app opens is in its person's context and
+    // tells its clicks there too, each to the entry of its own page (none
+    // for a tab nobody registered).
+    const context = page.context();
+    if (!marking.has(context)) {
+      marking.add(context);
+      await context.exposeBinding('__qaCockpitMark', (source, mark) => {
+        const entry = entries.get(source.page);
+        // The clicks of the cockpit's own change of language are not the step's.
+        if (!entry || entry.marks.length >= 100 || entry.touring) return;
+        // One click, one mark: a label clicked clicks its field too, and a
+        // double click is two, at the same point within a moment, in the
+        // same action (two of the recording's, on one button, are two).
+        const last = entry.marks.at(-1);
+        const again = last?.kind === 'click' && last.shot === entry.shot && last.vx === mark.vx && last.vy === mark.vy;
+        if (mark.kind === 'click' && again && Date.now() - last.at < 300) return;
+        // Made by the action being photographed: on its photo. Playwright
+        // delivers it before the action returns.
+        const shot = entry.shot;
+        if (shot) shot.marked = true;
+        // When it came, from this clock: the step's start is on it too.
+        entry.marks.push({ ...mark, at: Date.now(), shot });
+        // The action it marks, timed now: the click itself, not its waits.
+        const act = REALTIME && shot ? acts.findLast((a) => a.actor === entry.actor && a.shot === shot) : null;
+        if (act && !act.label) Object.assign(act, { label: mark.label, t: Number.isFinite(mark.t) ? mark.t : Date.now() });
+      });
+      await context.addInitScript(markScript);
+      if (REALTIME) await quietly(page, () => context.addInitScript(changeScript));
+    }
     if (REALTIME) {
       entry.rt = { sent: [], got: [] };
-      await quietly(page, () => page.context().addInitScript(changeScript));
       await watchRealtime(page, entry.rt, quietly, () => [...new Set(acts.flatMap((a) => a.words ?? []))]);
     }
   } catch {
     // Without marks the photos still come.
   }
   await watchReloads(entry);
-  page.once('close', () => void unregister(actor));
+  page.once('close', () => void closed(actor, entry));
   if (!poller) {
     poller = setInterval(() => void pollWatch(), 1_000);
     poller.unref();
   }
 }
 
-export async function unregister(actor) {
-  const entry = pages.get(actor);
-  if (!entry) return;
+/**
+ * A person goes on from one of their pages to another (a tab the app
+ * opened, or back from it): what the one gathered for their next photo goes
+ * along. The photos of its actions, its calls, what it said, its reloads;
+ * not its marks without a photo of their own, which are drawn on the step's
+ * photo, of the other page now. Its live view stops: the poll starts the
+ * other's.
+ */
+async function moveOn(from, to) {
+  to.marks.push(...from.marks.splice(0).filter((m) => m.shot));
+  to.requests.push(...from.requests.splice(0));
+  to.console.push(...from.console.splice(0));
+  to.reloads.push(...from.reloads.splice(0));
+  await stopLive(from);
+}
+
+/**
+ * A person's page has closed by itself while their test goes on (a tab the
+ * app opened, which it shuts or the step does): they are back on their page
+ * before it, if it is still open, and the step they are in goes on.
+ */
+async function closed(actor, entry) {
+  if (pages.get(actor) !== entry) return drop(entry);
+  let back = entry.back;
+  while (back?.page.isClosed()) back = back.back;
+  if (back) {
+    pages.set(actor, back);
+    return moveOn(entry, back);
+  }
   pages.delete(actor);
-  // Photos of actions that no step's photo took along: nobody sees them.
+  await drop(entry);
+  stopPolling();
+}
+
+/** A page nobody plays on any more: the photos of its actions that no step's photo took along, which nobody sees, and its live view. */
+async function drop(entry) {
   forget([...new Set(entry.marks.map((m) => m.shot).filter(Boolean))]);
   entry.marks = [];
   await stopLive(entry);
-  // Nobody's page left: the test is over, and no step of it is open (one
-  // cut short by a timeout never said it ended).
-  if (pages.size === 0) {
-    openSteps = 0;
-    stepTitles.length = 0;
-  }
+}
+
+function stopPolling() {
   if (pages.size === 0 && poller) {
     clearInterval(poller);
     poller = null;
   }
+}
+
+/** A person's test is over: their page is nobody's (fixtures.mjs). */
+export async function unregister(actor) {
+  const entry = pages.get(actor);
+  if (!entry) return;
+  pages.delete(actor);
+  await drop(entry);
+  // Nobody's page left: the test is over, and no step of it is open (one
+  // cut short by a timeout never said it ended). Only here: a page that
+  // closes by itself (closed) leaves the test going on.
+  if (pages.size === 0) {
+    openSteps = 0;
+    stepTitles.length = 0;
+  }
+  stopPolling();
 }
 
 async function pollWatch() {

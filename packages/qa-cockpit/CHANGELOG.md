@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- A person who follows a tab the app opens (`cockpit.register('alice',
+  tab)`) no longer breaks the step when the app closes that tab. Closed
+  while the step's photo waited for it, the tab ended the step with
+  `Cannot read properties of undefined (reading 'page')`, which Playwright
+  told in place of the test's own error. The person is now back on their
+  page before the tab, and the step's photo shows it; the end of a step
+  never fails a test. The tab's clicks were lost, and the photos of its
+  actions with them: they now go with the person's step, and so does the
+  photo of the click that opened it. A step whose person's only page
+  closes stays open, and its next actions are photographed. The skill
+  tells how to follow a tab.
+
 ## 0.13.0 (2026-10-27)
 
 - A page that reloads without the test asking is told. A development

@@ -977,6 +977,14 @@ test('T1 · Bob sees Alice\'s message', async ({ alice, bob }) => {
 - **An absence is proven only after a presence.** `toHaveCount(0)` right
   after a `goto` passes on a page still loading. Wait first for what the
   page must show, then check what it must not.
+- **A tab the app opens** (a link to another window, a support visit) is
+  photographed once the recording says whose it is: take it with
+  `context().waitForEvent('page')` alongside the click that opens it, then
+  `await cockpit.register('alice', tab)` (`import * as cockpit from
+  'qa-cockpit/worker'`). From then on Alice's photos, clicks and action
+  photos are the tab's. When it closes, by the app or by the step, she is
+  back on her page before it, with nothing to call; to go back while it
+  stays open, `register` her page again.
 - When you cannot tell when to act, wait for the text the suite quotes,
   never for time.
 
