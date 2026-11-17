@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.13.2 (2026-11-17)
 
 - When the cockpit, `doctor` or a run puts `node_modules` back as the
   lockfile says, and that changes QA Cockpit's own version, it says so. A
