@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.13.1 (2026-11-17)
 
 - A person who follows a tab the app opens (`cockpit.register('alice',
   tab)`) no longer breaks the step when the app closes that tab. Closed
