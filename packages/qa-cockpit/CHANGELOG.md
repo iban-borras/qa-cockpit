@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- When the cockpit, `doctor` or a run puts `node_modules` back as the
+  lockfile says, and that changes QA Cockpit's own version, it says so. A
+  newer version installed without being saved (`npm install --no-save`)
+  was quietly taken back to the lockfile's by the next command, and the
+  cockpit restarted on the old one. It now says «QA Cockpit is 0.13.0 now,
+  as package-lock.json says; it was 0.13.1», and how to keep the newer one
+  (`npm install -D qa-cockpit@0.13.1`, or the project's own manager). The
+  skill says how to update the package so the project keeps it.
+
 ## 0.13.1 (2026-11-17)
 
 - A person who follows a tab the app opens (`cockpit.register('alice',

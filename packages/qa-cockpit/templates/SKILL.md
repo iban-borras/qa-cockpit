@@ -97,6 +97,13 @@ and would take the new runs in part (clicks lost). It says so, in a red
 band and in the terminal of every run, and starts or follows none until
 `npx qa-cockpit cockpit --restart`.
 
+Update the package so the project keeps it: `npm install -D
+qa-cockpit@<version>` (`pnpm add -D`, `yarn add -D`, `bun add -d`), which
+writes it in `package.json` and the lockfile. The cockpit, `doctor` and
+every run first put `node_modules` back as the lockfile says: a version
+installed without saving it (`--no-save`) is gone at the next one, which
+says so.
+
 ## Setting it up in a project (the first time)
 
 `npx qa-cockpit init [folder]` (default `qa`) writes a commented

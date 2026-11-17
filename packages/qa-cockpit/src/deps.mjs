@@ -171,10 +171,40 @@ export function installDeps(config, why) {
     const lock = pm.lockfile ? path.basename(pm.lockfile) : `package.json's packageManager`;
     throw new Error(`${cmd} is not on this machine's PATH, and ${lock} says the project uses it: install it (or \`corepack enable\`), then try again.`);
   }
+  const before = ourVersion(config);
   console.log(`Dependencies out of date (${why}): ${cmd} ${args.join(' ')} in ${pm.dir}...`);
   const r = run(cmd, args, { cwd: pm.dir, stdio: 'inherit' });
   if (r.status !== 0) throw new Error(`${cmd} ${args.join(' ')} failed in ${pm.dir}.`);
   markInstalled(packageManager(config));
+  // QA Cockpit is one of the project's own dependencies, and goes where
+  // the lockfile says too. One newer than it was installed without being
+  // saved, and is gone now (found in CritKeep: `npm install --no-save`, then
+  // `cockpit --restart` started the old one): said, with how to keep it.
+  const after = ourVersion(config);
+  if (before && after && before !== after) {
+    const lock = pm.lockfile ? path.basename(pm.lockfile) : 'the lockfile';
+    const add = { npm: 'npm install -D', pnpm: 'pnpm add -D', yarn: 'yarn add -D', bun: 'bun add -d' }[pm.name];
+    console.log(
+      `QA Cockpit is ${after} now, as ${lock} says; it was ${before}.` +
+        (older(after, before) ? ` To keep ${before}, save it in package.json and ${lock}: ${add} qa-cockpit@${before}` : ''),
+    );
+  }
+}
+
+/** The version of QA Cockpit the project has installed now, or null. */
+function ourVersion(config) {
+  try {
+    return readJson(createRequire(path.join(config.paths.project, 'package.json')).resolve('qa-cockpit/package.json'))?.version ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Version a comes before version b («0.13.0» before «0.13.1»). */
+function older(a, b) {
+  const [x, y] = [a, b].map((v) => String(v).split(/[.+-]/).slice(0, 3).map(Number));
+  for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] < y[i];
+  return false;
 }
 
 /** Where a module of the project's Playwright is, through the chain that owns it. */
