@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.14.0 (unreleased)
+## 0.14.0 (2026-11-21)
 
 - A note pinned on a photo has a state and a thread. Deleting a note was
   the only way to close one, and what it asked went with it. Now its
