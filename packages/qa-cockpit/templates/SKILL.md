@@ -245,7 +245,8 @@ npx qa-cockpit open <person>    # a browser window signed in as that person (not
 npx qa-cockpit stamp <suite>    # write the suite's hash into the recording's first line
 npx qa-cockpit pass <suite> <who> <result> <notes...>   # a row in the suite's runs table
 npx qa-cockpit mcp              # .mcp.json: one Playwright MCP server per saved session
-npx qa-cockpit notes [run]      # the notes a person pinned on a run's photos (--list: runs with notes)
+npx qa-cockpit notes [run]      # the notes a person pinned on a run's photos (--list: runs with notes; --all: closed ones whole)
+npx qa-cockpit notes reply <id> "<text>" --by "<you>"   # an answer under a note; verify <id> "<what changed>": fixed; «Notes pinned on the photos»
 npx qa-cockpit play [run]       # a report a person made from «Play as»: note, steps, photos, errors (--list); «Reports from Play as»
 npx qa-cockpit video check      # what a demo video needs from this machine (only when asked for one)
 npx qa-cockpit video script <suite>   # a first video script, in the suite's words
@@ -346,23 +347,41 @@ recording waits for the page to come back before its next action.
 ## Notes pinned on the photos
 
 A person reviewing a run in the cockpit can pin notes on its photos: each
-one a tack on the very point of the page it is about, and a text. When you
-are asked to act on them:
+one a tack on the very point of the page it is about, and a text. A note
+has a state: **open** (to act on), **to verify** (fixed, for the person to
+look at), **resolved** or **dismissed** (closed, and kept on its photo as
+a record). Under it, a thread: what the person and agents said about it
+since, and each change of state. When you are asked to act on them:
 
-1. `npx qa-cockpit notes` prints the newest run's notes (`notes <run>`
-   for another, `--list` for the runs that have some). Per photo: the
-   photo, the copy «with the pins», the page, the device and the recording
-   line. A step's photo is the whole page as the step left it; an action's
-   is the window just before that action (the report names it). Per pin:
-   its point in the photo's CSS pixels, whether it was on screen, the
-   action of the step it falls on, and the text.
+1. `npx qa-cockpit notes` prints the newest run with open notes
+   (`notes <run>` for another, `--list` for the runs that have some and
+   their states). Per photo: the photo, the copy «with the pins», the page,
+   the device and the recording line. A step's photo is the whole page as
+   the step left it; an action's is the window just before that action
+   (the report names it). Per pin: its state and id, its point in the
+   photo's CSS pixels, whether it was on screen, the action of the step it
+   falls on, the text and the thread. A closed note is one line (`--all`:
+   whole).
 2. Look at the copy with the pins first: the numbered tack shows the thing
    the note means, where bare coordinates are easy to misread. No copy yet:
    the cockpit draws it when the run is open there.
-3. A note is about the app or about the suite: fix the app, or change the
-   suite and GENERATE. Say which, note by note, in your answer.
-4. Notes stay until a person deletes them in the cockpit: never delete one
-   yourself.
+3. Read the thread: the person may have answered a question, or said that
+   a fix did not hold. Act on the open notes; one to verify waits for the
+   person, unless they answered it.
+4. A note is about the app or about the suite: fix the app, or change the
+   suite and GENERATE. Then say so under the note, and it goes to the
+   person to look at:
+   `npx qa-cockpit notes verify <id> "Fixed in the app: <what changed>" --by "<you> (<model>)"`.
+   Not sure what it means? Ask under it instead, and leave it open:
+   `npx qa-cockpit notes reply <id> "<your question>" --by "<you> (<model>)"`.
+   In your answer too, note by note: app or suite, and what changed.
+5. **Closing a note is the person's.** `notes resolve <id>`,
+   `notes dismiss <id>` (not a fault, or so by a decision) and
+   `notes reopen <id>` only when the person tells you to, with their words
+   as the text if they gave any. Never mark your own fix resolved.
+6. Notes stay until a person deletes them in the cockpit: never delete one
+   yourself. A run whose notes are all closed goes like any other run,
+   once newer ones push it out.
 
 ## Reports from «Play as» (when a person says they made one)
 

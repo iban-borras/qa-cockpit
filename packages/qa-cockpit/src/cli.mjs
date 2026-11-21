@@ -1588,19 +1588,78 @@ export async function runCli(rawConfig, argv) {
     },
 
     // The notes pinned on a run's photos in the cockpit (notes.mjs), as
-    // Markdown for the agent that acts on them: the newest run with notes,
-    // or the one named. `--list`: every run that has some.
+    // Markdown for the agent that acts on them: the newest run with open
+    // notes, or the one named (`--all`: its closed ones whole too).
+    // `--list`: every run that has some. And what an agent says under one:
+    // `notes reply <id> <text>`; `verify` (fixed, for the person to look
+    // at), and `resolve`, `dismiss`, `reopen` when the person says so.
     async notes() {
-      const { notesMarkdown, readNotes, readRunFiles, runsWithNotes } = await import('./notes.mjs');
+      const { findNote, isOpen, isPending, notesMarkdown, notesTally, readNotes, readRunFiles, runsWithNotes, said, writeNotes } = await import(
+        './notes.mjs'
+      );
       const cockpitDir = path.join(P.out, 'cockpit');
+      const SAY = { reply: null, verify: 'verify', resolve: 'resolved', dismiss: 'dismissed', reopen: 'open' };
+      if (rest[0] in SAY) {
+        const [verb, noteId] = rest;
+        const words = [];
+        let by = null;
+        for (let i = 2; i < rest.length; i++) {
+          if (rest[i] === '--by') by = rest[++i] ?? null;
+          else words.push(rest[i]);
+        }
+        const text = words.join(' ').trim();
+        const usage = `Usage: ${CLI} notes ${verb} <note-id> ${verb === 'reply' ? '<text>' : '[text]'} [--by <who>]   (each pin's id is in ${CLI} notes)`;
+        if (!noteId || noteId.startsWith('--') || (verb === 'reply' && !text)) fail(usage);
+        const found = findNote(cockpitDir, noteId);
+        if (!found) fail(`No note "${noteId}" in ${shown(config, cockpitDir)}: ${CLI} notes prints each pin's id.`);
+        const { whoAmI } = await import('./lock.mjs');
+        const body = { by: by || whoAmI(), text, state: SAY[verb] };
+        const done = (note) =>
+          console.log(
+            `The note ${noteId} on the run ${found.runId}: ${{ open: 'open', verify: 'to verify', resolved: 'resolved', dismissed: 'dismissed' }[note.state ?? 'open']}${text ? `, with «${text.length > 60 ? `${text.slice(0, 59)}…` : text}»` : ''}.`,
+          );
+        // Through the cockpit when it answers, so its pages show it at once.
+        const COCKPIT = `http://127.0.0.1:${config.cockpit.port}`;
+        const r = await fetch(`${COCKPIT}/api/runs/${encodeURIComponent(found.runId)}/notes/${encodeURIComponent(noteId)}/thread`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(3_000),
+        }).catch(() => null);
+        if (r?.ok) {
+          done((await r.json()).note);
+          return console.log('The cockpit shows it.');
+        }
+        if (r) {
+          const code = await r.json().then((b) => b.code).catch(() => null);
+          if (!code) fail(`The cockpit at ${COCKPIT} is older than notes with a thread: restart it (${CLI} cockpit --restart), then again.`);
+        }
+        // No cockpit (or one that no longer has the run): the file itself.
+        const notes = readNotes(found.dir);
+        const at = notes.findIndex((n) => n.id === noteId);
+        const next = said(notes[at], body);
+        if (!next) return done(notes[at]);
+        notes[at] = next;
+        writeNotes(found.dir, notes);
+        return done(next);
+      }
       const noted = runsWithNotes(cockpitDir);
       if (rest.includes('--list')) {
         if (!noted.length) return console.log('No run has notes.');
-        for (const id of noted) console.log(`${id}  ${readNotes(path.join(cockpitDir, id)).filter((n) => n.text.trim()).length} notes`);
+        for (const id of noted) console.log(`${id}  ${notesTally(readNotes(path.join(cockpitDir, id)))}`);
         return;
       }
-      const id = rest.find((a) => !a.startsWith('--')) ?? noted[0];
-      if (!id) return console.log('No run has notes. They are pinned on the photos, in the cockpit.');
+      const named = rest.find((a) => !a.startsWith('--'));
+      const id = named ?? runsWithNotes(cockpitDir, isOpen)[0];
+      if (!id) {
+        if (!noted.length) return console.log('No run has notes. They are pinned on the photos, in the cockpit.');
+        const waiting = runsWithNotes(cockpitDir, isPending);
+        return console.log(
+          waiting.length
+            ? `No run has open notes. Fixed, for a person to look at: ${waiting.join(', ')} (${CLI} notes <run>).`
+            : `No run has open notes: they are all closed (${CLI} notes --list).`,
+        );
+      }
       const dir = path.join(cockpitDir, id);
       if (path.dirname(dir) !== cockpitDir || !fs.existsSync(path.join(dir, 'run.json'))) fail(`No run "${id}" in ${shown(config, cockpitDir)}.`);
       const { meta, frames } = readRunFiles(dir);
@@ -1611,6 +1670,7 @@ export async function runCli(rawConfig, argv) {
         notes: readNotes(dir),
         out: shown(config, P.out),
         project: shown(config, P.project),
+        all: rest.includes('--all'),
       });
       if (!md) return console.log(`The run ${id} has no notes.`);
       console.log(
@@ -1619,6 +1679,7 @@ export async function runCli(rawConfig, argv) {
           '',
           `- Suite: \`${shown(config, P.suites)}/${meta.suite}.md\`; ${meta.status}, started ${meta.startedAt}`,
           `- The whole run, step by step: the cockpit's «Report» on this run`,
+          `- To answer under a note: \`${CLI} notes reply <id> "<text>"\`; fixed: \`${CLI} notes verify <id> "<what changed>"\``,
           '',
           md,
         ].join('\n'),
@@ -1872,7 +1933,11 @@ export async function runCli(rawConfig, argv) {
                    --detach: started for a person, in a window of its own, outliving
                    whoever asked (what an agent runs); --restart: a fresh one
   notes [run]      the notes pinned on a run's photos in the cockpit, as Markdown
-                   (the newest run with notes; --list: every run that has some)
+                   (the newest run with open notes; --all: the closed ones whole too;
+                   --list: every run that has some)
+  notes reply <id> <text>   an answer under a note (--by <who>: who says it)
+  notes verify <id> [text]  fixed, for the person to look at
+  notes resolve|dismiss|reopen <id> [text]   closed, or open again, when the person says so
   play [run]       a report a person made from «Play as» in the cockpit: their note, and what
                    they did as steps in a suite's words, with photos, requests and page errors
                    (the newest; --list: every one kept)

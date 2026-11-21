@@ -3,8 +3,20 @@
 // photo it is about. They live with the run, in <out>/cockpit/<run>/
 // notes.json, and a copy of each photo with its pins drawn goes to
 // notes/<seq>.jpg: the page draws it, since the browser has the photo
-// already and the package has no image library. A run with notes is kept
-// past `keepRuns` (server.mjs): somebody is still working on it.
+// already and the package has no image library. A run with notes still to
+// deal with is kept past `keepRuns` (server.mjs): somebody is working on it.
+//
+// A note has a STATE, and a THREAD under it. Deleting a note was the only
+// way to close one, and what it asked went with it (found in CritKeep,
+// 2026-11-21). Now it is closed and stays on its photo, a record:
+//   - open: to act on (no `state` in the file);
+//   - verify: the agent says it is fixed, for the person to look at;
+//   - resolved: done, as the person said;
+//   - dismissed: not a fault, or so by a decision, as the person said.
+// The thread is what was said about it since, oldest first: replies, by the
+// person in the cockpit or by an agent (`notes reply`), and each change of
+// state, with its words if any. An agent never closes a note on its own
+// word; it says «verify», and a person looks.
 //
 // A pin is a point of its photo, in CSS pixels from its top-left corner: a
 // step's photo is the whole page at CSS scale, an action's the window just
@@ -22,9 +34,30 @@ const ON_MARK = 20;
 const NEAR_MARK = 60;
 
 /**
+ * @typedef {{ id: string, at: string, by: string, text?: string,
+ *   state?: State }} Said
+ *   One entry of a note's thread: a reply, a change of state, or both. `by`:
+ *   'page' for the person in the cockpit, else who said it ('Claude').
+ * @typedef {'open'|'verify'|'resolved'|'dismissed'} State
  * @typedef {{ id: string, seq: number, actor: string, x: number, y: number,
- *   text: string, createdAt: string, updatedAt: string }} Note
+ *   text: string, createdAt: string, updatedAt: string,
+ *   state?: Exclude<State, 'open'>, thread?: Said[] }} Note
  */
+
+export const STATES = ['open', 'verify', 'resolved', 'dismissed'];
+const CLOSED = new Set(['resolved', 'dismissed']);
+const MAX_THREAD = 200;
+const MAX_BY = 60;
+
+/** A note somebody wrote: an empty one (the page keeps it until then) is not one. */
+export const isWritten = (n) => Boolean(String(n?.text ?? '').trim());
+/** Written and closed: resolved or dismissed. */
+export const isClosed = (n) => isWritten(n) && CLOSED.has(n.state);
+/** Written and not closed: open, or fixed and waiting for a person. */
+export const isPending = (n) => isWritten(n) && !CLOSED.has(n.state);
+/** Written and open: the agent's to act on. */
+export const isOpen = (n) => isWritten(n) && !n.state;
+export const stateOf = (n) => n.state ?? 'open';
 
 export const notesFileOf = (dir) => path.join(dir, 'notes.json');
 export const pinnedFileOf = (dir, seq) => path.join(dir, 'notes', `${seq}.jpg`);
@@ -60,7 +93,10 @@ export function writeNotes(dir, notes) {
   fs.renameSync(`${file}.tmp`, file);
 }
 
-/** A note as the page sends it, checked against the run's photos, or null. */
+/** A note as the page sends it, checked against the run's photos, or null.
+ *  Its state and thread are not the page's to send: they stay as they were
+ *  (`said` changes them), so a save as the note is typed never undoes a
+ *  reply or a state an agent gave it meanwhile. */
 export function cleanNote(id, body, frames, before) {
   const seq = Number(body?.seq);
   const frame = frames.find((f) => f.seq === seq);
@@ -77,7 +113,49 @@ export function cleanNote(id, body, frames, before) {
     text: String(body.text ?? '').slice(0, MAX_TEXT),
     createdAt: before?.createdAt ?? now,
     updatedAt: now,
+    ...(before?.state ? { state: before.state } : {}),
+    ...(before?.thread?.length ? { thread: before.thread } : {}),
   };
+}
+
+/**
+ * The note with one more entry in its thread: a reply (`text`), a change of
+ * state (`state`), or both. Null when it says nothing: no words, and the
+ * state it already has.
+ * @param {Note} note
+ * @param {{ by?: unknown, text?: unknown, state?: unknown }} body
+ * @returns {Note | null}
+ */
+export function said(note, body) {
+  const text = String(body?.text ?? '').trim().slice(0, MAX_TEXT);
+  const state = STATES.includes(body?.state) ? body.state : null;
+  const moves = state !== null && state !== stateOf(note);
+  if (!text && !moves) return null;
+  const at = new Date().toISOString();
+  const by = String(body?.by ?? '').trim().slice(0, MAX_BY) || 'page';
+  const entry = {
+    id: `t-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+    at,
+    by,
+    ...(text ? { text } : {}),
+    ...(moves ? { state } : {}),
+  };
+  const next = { ...note, thread: [...(note.thread ?? []), entry].slice(-MAX_THREAD) };
+  if (moves) {
+    if (state === 'open') delete next.state;
+    else next.state = state;
+  }
+  return next;
+}
+
+/** The run a note is in, by its id (unique across runs): its id and folder. */
+export function findNote(cockpitDir, noteId) {
+  for (const runId of runsWithNotes(cockpitDir)) {
+    const dir = path.join(cockpitDir, runId);
+    const note = readNotes(dir).find((n) => n.id === noteId);
+    if (note) return { runId, dir, note };
+  }
+  return null;
 }
 
 /** Each note's number on its photo: 1, 2, 3 in the order they were pinned. */
@@ -147,35 +225,63 @@ export function readRunFiles(dir) {
   return { meta, frames };
 }
 
-/** The runs under <out>/cockpit that have notes, newest first. */
-export function runsWithNotes(cockpitDir) {
+/** The runs under <out>/cockpit that have notes, newest first; `which`
+ *  (isOpen, isPending): those with one such note. */
+export function runsWithNotes(cockpitDir, which = isWritten) {
   if (!fs.existsSync(cockpitDir)) return [];
   return fs
     .readdirSync(cockpitDir, { withFileTypes: true })
-    .filter((e) => e.isDirectory() && readNotes(path.join(cockpitDir, e.name)).length > 0)
+    .filter((e) => e.isDirectory() && readNotes(path.join(cockpitDir, e.name)).some(which))
     .map((e) => e.name)
     .sort()
     .reverse();
 }
+
+/** How many notes a run has, by state: «3 notes: 1 open, 1 to verify, 1 closed». */
+export function notesTally(notes) {
+  const written = notes.filter(isWritten);
+  const open = written.filter(isOpen).length;
+  const verify = written.filter((n) => n.state === 'verify').length;
+  const closed = written.filter(isClosed).length;
+  const parts = [open && `${open} open`, verify && `${verify} to verify`, closed && `${closed} closed`].filter(Boolean);
+  return `${written.length} note${written.length === 1 ? '' : 's'}${parts.length ? `: ${parts.join(', ')}` : ''}`;
+}
+
+const STATE_WORDS = { open: 'open', verify: 'to verify', resolved: 'resolved', dismissed: 'dismissed' };
+const whoSaid = (by) => (by === 'page' ? 'the person, in the cockpit' : by);
+// A moment as a person reads it, on this machine's clock: 2026-11-21 16:02.
+const when = (iso) => {
+  const d = new Date(iso);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+const firstLine = (text) => {
+  const s = text.trim().split('\n')[0];
+  return s.length > 80 ? `${s.slice(0, 79)}…` : s;
+};
 
 const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
 /**
  * The notes of a run as Markdown, for a person or an agent to act on: one
  * section per photo, where it is and what was there, then each pin with
- * what it falls on and its text.
+ * what it falls on, its state, its text and its thread. A closed note is a
+ * line, unless `all`: a record, nothing left to do.
  *
  * @param {{ runId: string, dir: string, frames: any[], notes: Note[],
- *   out: string, project: string, level?: number }} o
+ *   out: string, project: string, level?: number, all?: boolean }} o
  *   `out` and `project` are the paths as shown to the reader.
  */
-export function notesMarkdown({ runId, dir, frames, notes, out, project, level = 2 }) {
-  const written = notes.filter((n) => n.text.trim());
+export function notesMarkdown({ runId, dir, frames, notes, out, project, level = 2, all = false }) {
+  const written = notes.filter(isWritten);
   if (!written.length) return '';
   const h = '#'.repeat(level);
   const num = numbered(written);
+  const full = (n) => all || !isClosed(n);
+  const tally = notesTally(written).replace(/^\d+ notes?/, '');
+  const closed = written.filter(isClosed).length;
   const lines = [
-    `${h} Notes (${written.length})`,
+    `${h} Notes (${written.length}${written.some((n) => n.state) ? tally : ''})`,
     '',
     'Left on the photos of this run by whoever reviewed it. Each is pinned to one point of one photo, and',
     'that point is what the note is about. A position is CSS pixels from the photo\'s top-left corner: a',
@@ -183,8 +289,20 @@ export function notesMarkdown({ runId, dir, frames, notes, out, project, level =
     'action. The copy «with the pins» shows each pin where it was dropped, numbered: look at it before',
     'acting on a note.',
     '',
+    'Each note has a state. Open: to act on. To verify: an agent fixed it, for the person to look at.',
+    `Resolved or dismissed: closed by the person, and kept as a record${closed && !all ? ', one line each' : ''}. Under a note,`,
+    'its thread: what was said about it since, oldest first. Its id (`n-…`) names it to `notes reply`.',
+    '',
   ];
-  const seqs = [...new Set(written.map((n) => n.seq))].sort((a, b) => a - b);
+  const thread = (n) =>
+    (n.thread ?? []).flatMap((s) => {
+      const head = `- ${cap(whoSaid(s.by))}, ${when(s.at)}${s.state ? ` · ${STATE_WORDS[s.state]}` : ''}`;
+      if (!s.text) return [head];
+      const [first, ...more] = s.text.split('\n');
+      return [`${head}: ${first}`, ...more.map((l) => `  ${l}`)];
+    });
+  const line = (n) => `**Pin ${num.get(n.id)}** (${STATE_WORDS[stateOf(n)]}, \`${n.id}\`): «${firstLine(n.text)}»`;
+  const seqs = [...new Set(written.filter(full).map((n) => n.seq))].sort((a, b) => a - b);
   for (const seq of seqs) {
     const f = frames.find((x) => x.seq === seq);
     if (!f) continue;
@@ -215,18 +333,34 @@ export function notesMarkdown({ runId, dir, frames, notes, out, project, level =
     lines.push('');
     const here = written.filter((n) => n.seq === seq).sort((a, b) => num.get(a.id) - num.get(b.id));
     for (const n of here) {
+      if (!full(n)) {
+        lines.push(line(n), '');
+        continue;
+      }
       const m = markAt(f, n.x, n.y);
       const what = m
         ? `, ${m.d <= ON_MARK ? 'on' : `${m.d} px from`} action ${m.n}: ${m.mark.kind} «${m.mark.label}»`
         : '';
       const screen = onScreen(f, n.y);
+      const talk = thread(n);
       lines.push(
-        `**Pin ${num.get(n.id)}** at x ${n.x}, y ${n.y}${screen ? ` (${screen})` : ''}${what}`,
+        `**Pin ${num.get(n.id)}** (${STATE_WORDS[stateOf(n)]}, \`${n.id}\`) at x ${n.x}, y ${n.y}${screen ? ` (${screen})` : ''}${what}`,
         '',
         ...n.text.trim().split('\n').map((l) => `> ${l}`),
         '',
+        ...(talk.length ? ['Thread:', '', ...talk, ''] : []),
       );
     }
+  }
+  // The closed notes on photos with nothing else to do: a line each.
+  const rest = written.filter((n) => !full(n) && !seqs.includes(n.seq));
+  if (rest.length) {
+    lines.push(`${h}# Closed (${rest.length})`, '');
+    for (const n of rest.sort((a, b) => a.seq - b.seq || num.get(a.id) - num.get(b.id))) {
+      const f = frames.find((x) => x.seq === n.seq);
+      lines.push(`- ${line(n)} on photo ${n.seq}${f ? ` (${cap(f.actor)} · ${f.test} › ${f.step})` : ''}`);
+    }
+    lines.push('');
   }
   return lines.join('\n');
 }

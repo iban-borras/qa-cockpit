@@ -63,6 +63,9 @@ const ICONS = {
   plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
   flag: '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/>',
   hourglass: '<path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/>',
+  // A note's thread: a reply sent; a note dismissed.
+  send: '<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/>',
+  ban: '<circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/>',
 };
 const icon = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
 const withIcon = (el, name, text = '') => (el.innerHTML = icon(name) + (text ? `<span>${esc(text)}</span>` : ''));
@@ -190,6 +193,8 @@ const S = {
   ins: null, // { actor, idx, live, fresh, timer, zoom, placed, placing, postitAt }
   notes: [], // the notes on the photos of the run shown (notes.mjs)
   note: null, // the id of the note whose post-it is open
+  saying: false, // a reply or a state on its way to the open note's thread
+  postitFresh: false, // the open post-it's note is being written for the first time
   dropped: null, // the note just pinned: its tack lands
   picker: { open: false, active: 0, query: '', hideNoSetup: false, sort: 'name' },
   runPick: { open: false, active: 0 },
@@ -1352,7 +1357,7 @@ function runTests(x) {
  */
 function runOption(x, { active, selected, prefix, ownChanges = true, deletable = false }) {
   const st = runStatus(x);
-  const pins = x.id === S.run?.id ? S.notes.filter(kept).length : (x.notes ?? 0);
+  const pins = x.id === S.run?.id ? S.notes.filter(pending).length : (x.notes ?? 0);
   const moved = ownChanges && x.changes ? x.changes.changed + x.changes.new + x.changes.gone : 0;
   const meta = [runDuration(x), runTests(x), esc(noteCount(pins)), moved ? `<span class="chg">${esc(tn('changes.n_short', moved))}</span>` : ''].filter(Boolean).join(' · ');
   return `<div class="run-item${active ? ' active' : ''}" role="option" id="${prefix}-${esc(x.id)}" data-run="${esc(x.id)}" data-st="${esc(st)}" aria-selected="${selected}">
@@ -1539,7 +1544,7 @@ function cardHtml(p, moment, running) {
       ${f ? `<img src="${esc(frameUrl(f))}" alt="" loading="lazy"${f.viewport ? ` class="vp" style="${viewportStyle(f)}"` : ''}>` : `<span class="empty">${esc(t('card.no_photos'))}</span>`}
       ${liveShot ? `<img class="live-shot" src="/api/live/${encodeURIComponent(p.id)}" alt="">` : ''}
       ${watching && !acting ? `<span class="chip accent live" style="position:absolute;top:8px;left:8px"><span class="dot"></span>${esc(t('card.live'))}</span>` : ''}
-      ${pinBadge(S.notes.filter((n) => n.actor === p.id && kept(n)).length)}
+      ${pinBadge(S.notes.filter((n) => n.actor === p.id && pending(n)).length)}
     </button>
     <div class="card-cap" title="${esc(f ? `${f.test} › ${f.step}` : '')}">${f ? `<span class="faint mono">${esc(frameLabel(f))}</span> ${esc(stepText(f))}` : `<span class="faint">${esc(t('card.nothing'))}</span>`}</div>
     <div class="card-meta"><span>${esc(f ? pathOf(f.url) : '')}</span><span>${esc(f ? hhmmss(f.time) : '')}</span></div>
@@ -1656,7 +1661,21 @@ function closeInspector() {
 }
 
 // Esc puts away what is open over the photo first: the tack about to be
-// placed, then the post-it; only then the inspector.
+// placed, then the post-it; only then the inspector. Taken on its keydown:
+// Chromium stops letting a page keep a dialog open through its `cancel`
+// after a few in a row with no click between, and the third Esc closed the
+// whole inspector instead of a post-it. `cancel` stays for a close that
+// comes some other way.
+dlg.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || e.defaultPrevented) return;
+  if (S.ins?.placing) {
+    e.preventDefault();
+    stopPlacing();
+  } else if (S.note) {
+    e.preventDefault();
+    closePostit();
+  }
+});
 dlg.addEventListener('cancel', (e) => {
   if (S.ins?.placing) {
     e.preventDefault();
@@ -1735,7 +1754,7 @@ function renderInspector(first = false) {
   if (S.note && (ins.live || openNote()?.seq !== f?.seq)) closePostit();
   if (ins.placing && (ins.live || !f)) stopPlacing();
   $('insTack').disabled = ins.live || !f || Boolean(langOf(f));
-  const pinsOf = (x) => notesOn(x.seq).filter(kept).length;
+  const pinsOf = (x) => notesOn(x.seq).filter(pending).length;
 
   // Header chip
   const chip = $('insChip');
@@ -3379,6 +3398,14 @@ const pinnedJobs = new Map(); // `${run} ${seq}` -> { run, seq, timer }
 const newNoteId = () => `n-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 const written = (n) => Boolean(n.text.trim());
 const kept = (n) => !n.draft && written(n);
+// A note's state (notes.mjs): open; fixed and waiting for a person to look
+// (verify); closed, resolved or dismissed, and kept on its photo as a
+// record. The badges count what is still to deal with: open and verify.
+const CLOSED_STATES = new Set(['resolved', 'dismissed']);
+const closed = (n) => CLOSED_STATES.has(n.state);
+const pending = (n) => kept(n) && !closed(n);
+const STATE_ICON = { verify: 'eye', resolved: 'check', dismissed: 'ban' };
+const stateWord = (s) => t(`note.state_${s ?? 'open'}`);
 const notesOn = (seq) => S.notes.filter((n) => n.seq === seq);
 const openNote = () => (S.note ? (S.notes.find((n) => n.id === S.note) ?? null) : null);
 const insFrame = () => (S.ins && !S.ins.live ? (insFrames()[S.ins.idx] ?? null) : null);
@@ -3440,11 +3467,14 @@ function renderTacks() {
   layer.innerHTML = notesOn(f.seq)
     .map((n) => {
       const k = num.get(n.id);
-      const cls = ['tack', n.id === S.note ? 'open' : '', written(n) ? '' : 'draft', n.id === S.dropped ? 'fresh' : ''].join(' ');
+      const st = n.state && STATE_ICON[n.state] ? n.state : null;
+      const cls = ['tack', n.id === S.note ? 'open' : '', written(n) ? '' : 'draft', n.id === S.dropped ? 'fresh' : '', st ? `st-${st}` : ''].join(' ');
       // No tooltip on the tack whose post-it is open: it would only cover
       // the same words, beside them.
-      const tip = written(n) && n.id !== S.note ? `${k}. ${noteExcerpt(n.text)}` : '';
-      return `<button class="${cls}" data-note="${esc(n.id)}" style="left:${(100 * n.x) / W}%;top:${(100 * n.y) / H}%" aria-label="${esc(t('note.tack', { n: k }))}"${tip ? ` data-tip="${esc(tip)}"` : ''}><b>${k}</b></button>`;
+      const excerpt = noteExcerpt(n.text);
+      const tip = written(n) && n.id !== S.note ? (st ? t('note.tip_state', { n: k, state: stateWord(st), text: excerpt }) : `${k}. ${excerpt}`) : '';
+      const label = t('note.tack', { n: k }) + (st ? ` (${stateWord(st)})` : '');
+      return `<button class="${cls}" data-note="${esc(n.id)}" style="left:${(100 * n.x) / W}%;top:${(100 * n.y) / H}%" aria-label="${esc(label)}"${tip ? ` data-tip="${esc(tip)}"` : ''}><b>${k}</b>${st ? `<i>${icon(STATE_ICON[st])}</i>` : ''}</button>`;
     })
     .join('');
   S.dropped = null;
@@ -3595,11 +3625,66 @@ function openPostit(n) {
   $('postitN').textContent = k;
   $('postitTitle').textContent = t('note.title', { n: k, who: cap(n.actor) });
   $('postitText').value = n.text;
+  $('postitReply').value = n.reply ?? '';
   postitFailed('');
+  // A note being written for the first time: nothing to answer or close.
+  S.postitFresh = Boolean(n.draft);
+  renderPostit(n);
   $('postit').hidden = false;
   renderTacks();
   placePostit(n);
   $('postitText').focus();
+}
+
+/** What the post-it shows of its note besides the words being typed: its
+ *  state, its thread, and what can be said next. Drawn again when the
+ *  server's notes change (another page, an agent). */
+function renderPostit(n) {
+  const st = n.state ?? null;
+  $('postit').classList.toggle('closed', closed(n));
+  const chip = $('postitChip');
+  chip.hidden = !st;
+  chip.className = `postit-chip st-${st ?? 'open'}`;
+  chip.textContent = st ? stateWord(st) : '';
+  const said = n.thread ?? [];
+  const list = $('postitThread');
+  const was = list.childElementCount;
+  list.hidden = !said.length;
+  $('postit').classList.toggle('threaded', said.length > 0);
+  list.innerHTML = said
+    .map((s) => {
+      const who = s.by === 'page' ? t('note.by_you') : s.by;
+      const chg = s.state ? `<span class="st st-${esc(s.state)}">${esc(stateWord(s.state))}</span>` : '';
+      return `<li${s.by === 'page' ? '' : ' class="agent"'}><span class="said-by"><b>${esc(who)}</b><span>${esc(when(s.at))}</span>${chg}</span>${s.text ? `<p>${esc(s.text)}</p>` : ''}</li>`;
+    })
+    .join('');
+  // Something new said: the newest in view.
+  if (said.length !== was) list.scrollTop = list.scrollHeight;
+  renderSay(n);
+}
+
+/** What can be said under the note, and when. Nothing while it is being
+ *  written for the first time: there is nothing to answer, nor to close
+ *  yet (shown there, it only got in the way). Its state's buttons once
+ *  it is opened again, or as soon as somebody says something under it, even
+ *  while it is open. The reply box only in a conversation, once somebody
+ *  (an agent) has said something: a person adds to their own note by
+ *  writing in it. Each state, its ways on: open, resolved or dismissed; to
+ *  verify, resolved or «not yet» (open again, for the agent, with what is
+ *  missing); closed, reopened. */
+function renderSay(n) {
+  const talk = Boolean(n.thread?.length);
+  const st = n.state ?? 'open';
+  $('postitSay').hidden = !written(n) || (S.postitFresh && !talk);
+  $('postitReply').hidden = !talk;
+  $('postitSend').hidden = !talk;
+  $('postitResolve').hidden = closed(n);
+  $('postitNotYet').hidden = st !== 'verify';
+  $('postitDismiss').hidden = st !== 'open';
+  $('postitReopen').hidden = !closed(n);
+  const busy = Boolean(S.saying);
+  for (const id of ['postitResolve', 'postitNotYet', 'postitDismiss', 'postitReopen']) $(id).disabled = busy;
+  $('postitSend').disabled = busy || !$('postitReply').value.trim();
 }
 
 /** Where the person left the post-it, else beside its tack without covering
@@ -3706,11 +3791,11 @@ async function dropNote(n) {
  *  and where its tack is: the server's copy may be a keystroke behind. */
 function mergeNotes(runId, notes) {
   const row = S.state?.runs?.find((r) => r.id === runId);
-  if (row) row.notes = notes.filter((n) => n.text.trim()).length;
+  if (row) row.notes = notes.filter((n) => n.text.trim() && !closed(n)).length;
   if (S.run?.id !== runId) return S.runPick.open && renderRunPop();
   const counted = () =>
     S.notes
-      .filter(kept)
+      .filter(pending)
       .map((n) => `${n.id}@${n.seq}`)
       .sort()
       .join();
@@ -3725,10 +3810,15 @@ function mergeNotes(runId, notes) {
   const mine = new Map(S.notes.map((n) => [n.id, n]));
   const next = notes.map((n) => {
     const m = mine.get(n.id);
-    if (m && (m.dirty || saving.has(m.id))) return Object.assign(m, { createdAt: n.createdAt, updatedAt: n.updatedAt, draft: false });
+    // Its state and thread are the server's alone (the page sends them as
+    // a thread, never with the words): always as it has them.
+    if (m && (m.dirty || saving.has(m.id))) return Object.assign(m, { createdAt: n.createdAt, updatedAt: n.updatedAt, state: n.state, thread: n.thread, draft: false });
     // The open post-it with nothing of its own on the way shows the
     // server's words: another page (or the API) changed them.
     if (n.id === S.note && $('postitText').value !== n.text) $('postitText').value = n.text;
+    // Object.assign keeps a key the server no longer has: a note opened
+    // again has no `state`.
+    if (m && !n.state) delete m.state;
     return m ? Object.assign(m, n, { draft: false }) : n;
   });
   const ids = new Set(next.map((n) => n.id));
@@ -3737,7 +3827,7 @@ function mergeNotes(runId, notes) {
   if (S.note && !openNote()) {
     S.note = null;
     $('postit').hidden = true;
-  }
+  } else if (S.note) renderPostit(openNote());
   // A change made elsewhere (another page, the API) left the server without
   // the copy of that photo (server.mjs): this page draws it again.
   const now = drawing();
@@ -3753,6 +3843,7 @@ $('postitText').addEventListener('input', () => {
   if (!n) return;
   n.text = $('postitText').value;
   n.dirty = true;
+  renderSay(n);
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     if (written(n)) void saveNote(n);
@@ -3762,6 +3853,61 @@ $('postitText').addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) closePostit();
 });
 $('postitClose').onclick = () => closePostit();
+
+/**
+ * Said under the open note (notes.mjs, said): the words in the reply box,
+ * a change of its state, or both (a note resolved with why). The note goes
+ * to the server first if it is not there yet: its thread goes with it.
+ * @param {string | null} state
+ */
+async function sayOnNote(state = null) {
+  const n = openNote();
+  const text = $('postitReply').value.trim();
+  if (!n || !S.run || !written(n) || S.saying || (!text && !state)) return;
+  const path = runPath('notes', n.id, 'thread');
+  const run = S.run.id;
+  S.saying = true;
+  renderSay(n);
+  try {
+    if (n.draft || n.dirty) {
+      clearTimeout(saveTimer);
+      await saveNote(n);
+    }
+    await saving.get(n.id)?.catch(() => {});
+    // Its save failed: the post-it says so, and the words stay to send again.
+    if (n.draft || n.dirty) return;
+    const r = await api(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, ...(state ? { state } : {}) }) });
+    n.reply = '';
+    if (S.note === n.id) $('postitReply').value = '';
+    postitFailed('');
+    mergeNotes(run, r.notes);
+  } catch (e) {
+    if (S.note === n.id) postitFailed(e.message);
+    else banner(t('note.failed', { error: e.message }), 'err');
+  } finally {
+    S.saying = false;
+    if (S.note === n.id) renderSay(n);
+  }
+}
+// What is typed there stays with its note while its post-it is closed.
+$('postitReply').addEventListener('input', () => {
+  const n = openNote();
+  if (!n) return;
+  n.reply = $('postitReply').value;
+  renderSay(n);
+});
+// Ctrl+Enter sends; Enter alone is a new line, as in the note.
+$('postitReply').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    void sayOnNote();
+  }
+});
+$('postitSend').onclick = () => void sayOnNote();
+$('postitResolve').onclick = () => void sayOnNote('resolved');
+$('postitNotYet').onclick = () => void sayOnNote('open');
+$('postitDismiss').onclick = () => void sayOnNote('dismissed');
+$('postitReopen').onclick = () => void sayOnNote('open');
 $('postitDel').onclick = async () => {
   const n = openNote();
   if (!n) return;
@@ -4182,6 +4328,17 @@ function labelButtons() {
   $('insCopyInfo').setAttribute('aria-label', t('ins.copy_info'));
   $('insCopyInfo').dataset.tip = t('ins.copy_info');
   withIcon($('logToggle'), 'chevron', t('log.toggle'));
+  // A note's ways on, under its reply box (sayOnNote).
+  withIcon($('postitResolve'), 'check', t('note.resolve'));
+  $('postitResolve').dataset.tip = t('note.resolve_tip');
+  withIcon($('postitNotYet'), 'alert', t('note.not_yet'));
+  $('postitNotYet').dataset.tip = t('note.not_yet_tip');
+  withIcon($('postitDismiss'), 'ban', t('note.dismiss'));
+  $('postitDismiss').dataset.tip = t('note.dismiss_tip');
+  withIcon($('postitReopen'), 'rotate', t('note.reopen'));
+  $('postitReopen').dataset.tip = t('note.reopen_tip');
+  $('postitSend').setAttribute('aria-label', t('note.send'));
+  $('postitSend').dataset.tip = t('note.send');
   withIcon($('logDownload'), 'download', t('log.download'));
   withIcon($('runReport'), 'fileText');
   $('runReport').setAttribute('aria-label', t('run.report'));
@@ -4281,6 +4438,7 @@ for (const [id, name] of [
   ['pLast', 'last'],
   ['insTack', 'pin'],
   ['postitDel', 'trash'],
+  ['postitSend', 'send'],
   ['postitClose', 'x'],
   ['insTrace', 'route'],
   ['insDownload', 'download'],

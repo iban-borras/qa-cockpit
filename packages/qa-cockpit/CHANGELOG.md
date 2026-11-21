@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.14.0 (unreleased)
+
+- A note pinned on a photo has a state and a thread. Deleting a note was
+  the only way to close one, and what it asked went with it. Now its
+  post-it closes it: **Resolved**, or **Dismiss** when it is not a fault
+  or is so by a decision, and **Reopen**. A closed note stays on its
+  photo, a grey tack with a tick, as a record. Under the note, a thread:
+  an agent answers there, with `notes reply <id> "<text>"` to ask what a
+  note means or `notes verify <id> "<what changed>"` to say it fixed it,
+  and the person replies under it. A fixed note waits, **to verify**,
+  with a blue eye on its tack, until the person looks: **Resolved**, or
+  **Not yet**, which opens it again for the agent with what is missing.
+  The cockpit shows what an agent says at once. An agent closes a note
+  only when the person tells it to (`notes resolve`, `notes dismiss`,
+  `notes reopen`).
+- The post-it shows these only when they mean something: nothing while a
+  note is being written; its state's buttons once it is opened again, or
+  as soon as somebody answers it; the reply box once there is a
+  conversation.
+- `notes` prints the newest run with open notes, each with its state, its
+  id and its thread; a closed note is one line (`--all`: whole). `notes
+  --list` counts each run's notes by state. The badges count the notes
+  still to deal with, and a run whose notes are all closed is no longer
+  kept past `keepRuns`.
+- Two changes to a run's notes at once, a page saving what is typed and an
+  agent replying, no longer write over each other.
+- Esc on a post-it no longer closes the whole inspector: Chromium let a
+  page keep its dialog open only a few times in a row, and the third Esc
+  closed it.
+
 ## 0.13.2 (2026-11-17)
 
 - When the cockpit, `doctor` or a run puts `node_modules` back as the

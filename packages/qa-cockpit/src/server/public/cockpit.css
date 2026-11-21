@@ -576,6 +576,19 @@ dialog.play-dialog { width: min(480px, 92vw); }
 @keyframes tackIn { from { translate: 0 -18px; opacity: 0; } }
 .tack.ghost { position: fixed; z-index: 30; pointer-events: none; }
 .tack.ghost.off { opacity: 0.45; }
+/* A note's state (notes.mjs) as a badge on its tack: fixed and waiting for
+   a person, a blue eye; closed, a grey tack, with a green tick (resolved)
+   or a grey bar (dismissed). It stays on its photo, a record. The copy
+   with the pins draws every tack the same: it says which thing each note
+   means, not where it stands. */
+.tack i { position: absolute; left: 15px; top: -6px; display: grid; place-items: center; width: 15px; height: 15px; border-radius: 50%; box-shadow: 0 0 0 1.5px #fff; color: #fff; pointer-events: none; }
+.tack i svg.i { width: 10px; height: 10px; stroke-width: 3; }
+.tack.st-verify i { background: #2563eb; }
+.tack.st-resolved i { background: #16a34a; }
+.tack.st-dismissed i { background: #78716c; }
+.tack.st-resolved b, .tack.st-dismissed b { background: #e7e5e4; border-color: #78716c; color: #57534e; }
+.tack.st-resolved::after, .tack.st-dismissed::after { background: #78716c; }
+.tack.st-resolved.open b, .tack.st-dismissed.open b { background: #d6d3d1; box-shadow: 0 0 0 2px #fff, 0 0 0 5px rgba(168, 162, 158, 0.5); }
 .sheet.placing > img { cursor: crosshair; }
 .tack-tool[aria-pressed='true'] { background: #fbbf24; border-color: #fbbf24; color: #1b1c22; }
 .chip.note-hint { background: #fde68a; border-color: #fbbf24; color: #1b1c22; }
@@ -596,6 +609,37 @@ dialog.play-dialog { width: min(480px, 92vw); }
 .postit textarea { min-height: 130px; max-height: 50vh; resize: vertical; border: 0; outline: none; background: transparent; color: #1b1c22; font: 13.5px/1.5 var(--sans); padding: 10px 12px; }
 .postit textarea::placeholder { color: rgba(146, 64, 14, 0.6); }
 .postit-foot { padding: 0 12px 8px; font-size: 11.5px; color: #b91c1c; }
+/* Its state, its thread and the box to say more (cockpit.js, renderPostit):
+   the person's words with an amber edge, an agent's with an indigo one. A
+   closed note's post-it goes grey, as its tack. */
+.postit-chip { flex: none; padding: 0 7px; border-radius: 999px; font: 650 10.5px/18px var(--sans); white-space: nowrap; }
+.postit .st-open { background: #fde68a; color: #92400e; }
+.postit .st-verify { background: #dbeafe; color: #1e40af; }
+.postit .st-resolved { background: #dcfce7; color: #166534; }
+.postit .st-dismissed { background: #d6d3d1; color: #44403c; }
+.postit.closed { background: #f5f5f4; border-color: #d6d3d1; }
+.postit.closed .postit-head { background: #e7e5e4; }
+.postit.closed .postit-n { background: #e7e5e4; border-color: #78716c; color: #57534e; }
+.postit.threaded #postitText { min-height: 64px; }
+.postit-thread { list-style: none; margin: 0; padding: 8px 12px; max-height: 32vh; overflow: auto; border-top: 1px solid rgba(0, 0, 0, 0.08); display: flex; flex-direction: column; gap: 8px; }
+.postit-thread[hidden] { display: none; }
+.postit-thread li { padding-left: 8px; border-left: 2px solid #f59e0b; font-size: 12.5px; line-height: 1.45; }
+.postit-thread li.agent { border-left-color: #6366f1; }
+.postit-thread .said-by { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 11px; color: #78716c; }
+.postit-thread .said-by b { color: #44403c; font-weight: 650; }
+.postit-thread .st { padding: 0 6px; border-radius: 999px; font: 650 10px/16px var(--sans); }
+.postit-thread p { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.postit-say { display: flex; flex-direction: column; gap: 6px; padding: 6px 8px 8px; border-top: 1px solid rgba(0, 0, 0, 0.08); }
+.postit-say[hidden] { display: none; }
+.postit .postit-say textarea { min-height: 0; max-height: 25vh; padding: 6px 8px; border-radius: 6px; background: rgba(255, 255, 255, 0.6); font-size: 13px; resize: none; field-sizing: content; }
+.postit-acts { display: flex; align-items: center; gap: 6px; }
+.postit-acts .grow { flex: 1; }
+.postit .btn.pill { height: 26px; padding: 0 9px; gap: 4px; background: rgba(255, 255, 255, 0.65); border-color: rgba(0, 0, 0, 0.16); color: #1b1c22; font-weight: 600; }
+.postit .btn.pill:hover { background: #fff; border-color: rgba(0, 0, 0, 0.3); }
+.postit .btn.pill.resolve { background: #16a34a; border-color: #16a34a; color: #fff; }
+.postit .btn.pill.resolve:hover { background: #15803d; border-color: #15803d; }
+.postit .btn.icon.pill { width: 30px; padding: 0; justify-content: center; }
+.postit .btn.pill svg.i { width: 14px; height: 14px; }
 dialog.ask { padding: 18px 18px 14px; border: 1px solid var(--line-2); border-radius: 12px; background: var(--panel); color: var(--text); width: min(380px, 92vw); box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55); }
 dialog.ask::backdrop { background: rgba(4, 4, 6, 0.45); }
 dialog.ask p { margin: 0 0 16px; font-size: 14px; line-height: 1.5; }

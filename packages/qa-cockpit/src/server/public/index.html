@@ -248,10 +248,23 @@
         <header class="postit-head" id="postitHead">
           <span class="postit-n" id="postitN"></span>
           <span class="postit-title" id="postitTitle"></span>
+          <span class="postit-chip" id="postitChip" hidden></span>
           <button class="btn icon ghost" id="postitDel" data-i18n-aria="note.delete" data-i18n-title="note.delete"></button>
           <button class="btn icon ghost" id="postitClose" data-i18n-aria="note.close" data-i18n-title="note.close"></button>
         </header>
         <textarea id="postitText" spellcheck="true" data-i18n-placeholder="note.placeholder"></textarea>
+        <ol class="postit-thread" id="postitThread" hidden></ol>
+        <div class="postit-say" id="postitSay" hidden>
+          <textarea id="postitReply" rows="1" spellcheck="true" data-i18n-placeholder="note.reply_placeholder"></textarea>
+          <div class="postit-acts">
+            <button class="btn pill resolve" id="postitResolve"></button>
+            <button class="btn pill" id="postitNotYet" hidden></button>
+            <button class="btn pill" id="postitDismiss"></button>
+            <button class="btn pill" id="postitReopen" hidden></button>
+            <span class="grow"></span>
+            <button class="btn icon pill" id="postitSend" disabled></button>
+          </div>
+        </div>
         <footer class="postit-foot" id="postitState" hidden></footer>
       </section>
     </div>

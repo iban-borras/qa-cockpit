@@ -62,7 +62,10 @@ to agents.
     in from just before it, the requests and their times;
   - notes pinned on the photos: a tack dropped on the very point a note is
     about, and a post-it to write it on; the report and `notes` hand them
-    to an agent, with a copy of the photo showing each tack;
+    to an agent, with a copy of the photo showing each tack. Under each
+    note, a thread where the agent asks or says what it fixed; a note is
+    open, to verify, resolved or dismissed, and a closed one stays on its
+    photo as a record;
   - Playwright's trace viewer;
   - a Markdown report of the whole run, written for a model to read;
   - in fourteen languages: Catalan, Chinese (simplified), English, French,
@@ -318,7 +321,9 @@ open <person>                     a browser window signed in as that person
 mcp                               .mcp.json: one Playwright MCP server per person
 cockpit [--port p] [--no-open]    the cockpit
 cockpit --detach | --restart      the cockpit for a person, outliving whoever asked
-notes [run] [--list]              the notes pinned on a run's photos, as Markdown
+notes [run] [--list] [--all]      the notes pinned on a run's photos, as Markdown
+notes reply|verify <id> [text]    an agent's answer under a note; verify: fixed, to look at
+notes resolve|dismiss|reopen <id> a note closed, or open again, on the person's word
 play [run] [--list]               a report a person made from «Play as»: note, steps, photos, errors
 video <suite> [--motion|--clips]  a demo video: reset, setup, recording, drawn
 video render [capture]            the last capture drawn again (a new narration)

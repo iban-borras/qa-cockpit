@@ -27,7 +27,7 @@ import { shown } from '../config.mjs';
 import { acquireLock, isAlive, lockFileOf, readLock, StackBusy } from '../lock.mjs';
 import { listSuites } from '../suites.mjs';
 import { deviceFor, deviceLabel } from '../devices.mjs';
-import { cleanNote, notesMarkdown, pinnedFileOf, pinnedSeqs, readNotes, readRunFiles, writeNotes } from '../notes.mjs';
+import { cleanNote, isPending, notesMarkdown, pinnedFileOf, pinnedSeqs, readNotes, readRunFiles, said, writeNotes } from '../notes.mjs';
 import { noteData, readData } from '../stackdata.mjs';
 import { desktopOf } from '../desktop.mjs';
 import { playRun } from '../play.mjs';
@@ -327,11 +327,14 @@ function listRuns() {
     .reverse();
 }
 
-// A note nobody has written yet (the page keeps it until then) is not one.
-const noteCount = (dir) => readNotes(dir).filter((n) => n.text.trim()).length;
+// The notes still to deal with: open, or fixed and waiting for a person. One
+// nobody has written yet (the page keeps it until then) is not one, and one
+// resolved or dismissed is a record: a run whose notes are all closed goes
+// like any other, past `keepRuns`.
+const noteCount = (dir) => readNotes(dir).filter(isPending).length;
 
 function pruneRuns() {
-  // The newest `keepRuns` runs stay, and those with notes. A search for
+  // The newest `keepRuns` runs stay, and those with notes to deal with. A search for
   // races (`replay --chaos`) counts as one, all its rounds together: its
   // failed round is what it is for, and the oldest of its rounds. A group
   // of suites (`replay --tag`) too, all its suites together.
@@ -1688,6 +1691,10 @@ async function handle(req, res) {
       }
       return send(res, 200, { ok: true });
     }
+    // The body first, the file after: read and written with no wait between,
+    // so two changes at once (a page typing, an agent replying) never write
+    // over each other.
+    const body = req.method === 'PUT' ? await readJson(req) : null;
     const notes = readNotes(r.dir);
     const at = notes.findIndex((n) => n.id === key);
     // A tack that comes, goes or moves leaves the copy of its photo out of
@@ -1696,7 +1703,7 @@ async function handle(req, res) {
     if (req.method === 'DELETE') {
       if (at >= 0) stale = notes.splice(at, 1)[0].seq;
     } else {
-      const note = cleanNote(key, await readJson(req), r.frames, notes[at]);
+      const note = cleanNote(key, body, r.frames, notes[at]);
       if (!note) return send(res, 400, { error: 'Not a note of this run' });
       if (at < 0 || notes[at].x !== note.x || notes[at].y !== note.y) stale = note.seq;
       if (at >= 0) notes[at] = note;
@@ -1706,6 +1713,25 @@ async function handle(req, res) {
     if (stale !== null) fs.rmSync(pinnedFileOf(r.dir, stale), { force: true });
     broadcast('notes', { run: id, notes });
     return send(res, 200, { ok: true, notes });
+  }
+  // A note's thread (notes.mjs, said): a reply, a change of state, or both,
+  // from a page ({ text, state }) or an agent (`notes reply`, with `by`).
+  // What it changes is not on the copy with the pins: nothing to draw again.
+  const threadPath = /^\/api\/runs\/([^/]+)\/notes\/([^/]+)\/thread$/.exec(p);
+  if (threadPath && req.method === 'POST') {
+    const [, id, key] = threadPath.map(decodeURIComponent);
+    const r = run && run.id === id ? run : loadRun(id);
+    if (!r) return send(res, 404, { error: 'No such run', code: 'no_run' });
+    const body = await readJson(req);
+    const notes = readNotes(r.dir);
+    const at = notes.findIndex((n) => n.id === key);
+    if (at < 0 || !notes[at].text.trim()) return send(res, 404, { error: 'No such note', code: 'no_note' });
+    const next = said(notes[at], body);
+    if (!next) return send(res, 200, { ok: true, notes, note: notes[at] });
+    notes[at] = next;
+    writeNotes(r.dir, notes);
+    broadcast('notes', { run: id, notes });
+    return send(res, 200, { ok: true, notes, note: next });
   }
   if (req.method === 'GET' && p.startsWith('/api/runs/') && p.endsWith('/notes.md')) {
     const id = decodeURIComponent(p.slice('/api/runs/'.length, -'/notes.md'.length));
