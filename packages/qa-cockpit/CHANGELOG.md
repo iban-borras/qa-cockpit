@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.15.0 (unreleased)
+## 0.15.0 (2026-11-23)
 
 - Less time getting ready, measured in one project's group of 26 suites,
   where it was nearly half of 133 minutes:
