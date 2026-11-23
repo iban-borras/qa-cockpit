@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.15.0 (unreleased)
+
+- `lock` says in its exit code whether the stack is free: 0 free, 3 in use.
+  It said so only in words, and always ended with 0, so an agent's
+  `lock && <save a file>` went on with «In use» and saved under somebody's
+  run: the hot reload broke it, in one project three times. **A script
+  with `set -e` that calls `lock` while the stack is in use now stops
+  there.** A command that takes the stack (reset, setup, replay…) and is
+  refused because somebody holds it ends with 3 too, and 1 still means it
+  broke. `lock --wait [--timeout <s>]` waits until it is free; `lock
+  --json` says `{ free, yours, who, command, since, pid }`. A command
+  handed the lock (QA_LOCK) finds it free: it is its own.
+- `hold [--wait] [--timeout <s>] [--who <name>] -- <command...>` runs a
+  command of yours with the stack held, as a run holds it: saving code a
+  hot reload serves, a script on the stack's data. A check first and a
+  write after left a gap a run could start in. The cockpit shows who holds
+  it and what for; the command is handed QA_LOCK, so the qa-cockpit
+  commands within go ahead; the lock goes when it ends, however it ends,
+  and hold ends with its exit code, or 3 when the stack stayed in use. The
+  skill tells agents to read the exit code and to hold the stack for what
+  they write.
+
 ## 0.14.0 (2026-11-21)
 
 - A note pinned on a photo has a state and a thread. Deleting a note was

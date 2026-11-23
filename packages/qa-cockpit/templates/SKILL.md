@@ -22,9 +22,12 @@ project names in the config's `cli` (for instance `node qa.mjs`).
 There is ONE stack and other agents may be using it; people watch the runs
 in the cockpit.
 
-1. **Who has the stack?** `npx qa-cockpit lock`. If somebody holds it, wait
-   for their run to end. Never `unlock` a lock whose holder is alive unless
-   the person you work for says so.
+1. **Who has the stack?** `npx qa-cockpit lock`. Its exit code says it: 0
+   free, 3 in use (`--json` for the holder; a refused command ends with 3
+   too, and 1 means it broke). Read the code, not the words. If somebody
+   holds it, wait for their run to end: `lock --wait --timeout 600`. Never
+   `unlock` a lock whose holder is alive unless the person you work for
+   says so.
 2. **Say who you are:** set `QA_WHO` (`Claude`, `ci`, ...) in the
    environment of every command, so a refusal or the cockpit names you.
 3. **Is the cockpit up?** `curl -s http://localhost:<port>/api/state` (the
@@ -63,7 +66,14 @@ in the cockpit.
    database, no restart of its services, while somebody else's run is
    going. If the stack runs your working tree with hot reload, **saving app
    code counts**: the server restarts or the page reloads under the running
-   suite, and its requests fail.
+   suite, and its requests fail. A check first (`lock && …`) leaves a gap a
+   run can start in: **hold the stack for what you do instead**,
+   `npx qa-cockpit hold --wait --timeout 600 -- <command>` (a script that
+   saves your patch, a migration, a write to its data). It takes the lock
+   as a run does, so the cockpit shows you holding it, hands the command
+   QA_LOCK (the qa-cockpit commands within go ahead), lets go when it ends
+   however it ends, and ends with its exit code; 3 when the stack stayed in
+   use.
 
 ## Opening the cockpit for a person
 
@@ -217,7 +227,8 @@ stack answers.
 ```bash
 npx qa-cockpit doctor           # what this machine and this config have and lack
 npx qa-cockpit cockpit --detach # the cockpit for a person (--restart; «Opening the cockpit»)
-npx qa-cockpit lock             # who holds the stack; unlock removes a hung lock
+npx qa-cockpit lock             # who holds the stack: exit 0 free, 3 in use (--wait [--timeout <s>], --json); unlock removes a hung lock
+npx qa-cockpit hold --wait -- <command...>   # your command with the stack held, as a run holds it (saving code a hot reload serves)
 npx qa-cockpit up               # start the stack and wait until it answers
 npx qa-cockpit status           # where it answers, saved sessions
 npx qa-cockpit suites           # every suite and what it needs next

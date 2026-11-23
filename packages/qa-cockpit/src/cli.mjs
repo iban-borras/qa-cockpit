@@ -25,6 +25,10 @@ function fail(message) {
   process.exit(1);
 }
 
+// The exit code of a command refused, or of `lock`, because somebody holds
+// the stack: apart from 1, so a script tells «in use» from «it broke».
+const BUSY = 3;
+
 /**
  * Wait until the stack answers: its API's health path, when it has one,
  * then the app itself; or the project's own `stack.health(urls)`.
@@ -78,16 +82,51 @@ export async function runCli(rawConfig, argv) {
   };
 
   // One run at a time on the stack (lock.mjs): a command that changes its
-  // state holds it until it exits, and hands it to what it starts.
+  // state holds it until it exits, and hands it to what it starts. Refused
+  // because somebody holds it, a command ends with BUSY, never 1: a script
+  // tells «in use» from «it broke».
   function holdStack(what) {
     try {
       const lock = acquireLock(LOCK, what, { cli: CLI });
       process.env.QA_LOCK = lock.token;
       return lock.who;
     } catch (e) {
-      if (e instanceof StackBusy) fail(e.message);
+      if (e instanceof StackBusy) {
+        console.error(e.message);
+        process.exit(BUSY);
+      }
       throw e;
     }
+  }
+
+  // The lock this process was handed (QA_LOCK, from `hold` or a sequence):
+  // the stack is in use, by this very command.
+  const ownLock = (held) => Boolean(held && process.env.QA_LOCK && held.token === process.env.QA_LOCK);
+
+  /** Until the stack is free or this command's own, checked each second;
+   *  then its lock (null: free). When `limit` seconds go by first, the
+   *  holder it still has. */
+  async function waitForStack(limit, quiet = false) {
+    const until = limit ? Date.now() + limit * 1000 : Infinity;
+    let told = null;
+    for (;;) {
+      const held = readLock(LOCK);
+      if (!held || ownLock(held) || Date.now() >= until) return held;
+      if (!quiet && told !== held.token) {
+        told = held.token;
+        console.error(`Waiting for the stack: ${held.who} runs «${held.command}» (pid ${held.pid})...`);
+      }
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+  }
+
+  /** `--timeout <s>` among `list`, or null. */
+  function secondsOf(list) {
+    const i = list.indexOf('--timeout');
+    if (i < 0) return null;
+    const s = Number(list[i + 1]);
+    if (!(s > 0)) fail('--timeout takes a number of seconds: --timeout 300');
+    return s;
   }
 
   // ── a run from this terminal, followed by the cockpit ──
@@ -1862,13 +1901,102 @@ export async function runCli(rawConfig, argv) {
     },
 
     // Who holds the stack (lock.mjs), and a way out when a holder hangs.
+    // The exit code says it too: 0 free (or this command's own, QA_LOCK),
+    // BUSY in use. Said only in words, a chain went on with «In use» (found
+    // in CritKeep: `lock && <save a file>` saved under somebody's run, and
+    // the hot reload broke it, three times). `--wait [--timeout <s>]`:
+    // until it is free. `--json`: { free, yours, who, command, since, pid }.
     async lock() {
-      const held = readLock(LOCK);
-      console.log(
-        held
-          ? `In use: ${held.who} runs «${held.command}» since ${new Date(held.since).toLocaleString()} (pid ${held.pid}).`
-          : 'The stack is free.',
-      );
+      const json = rest.includes('--json');
+      const wait = rest.includes('--wait');
+      const limit = secondsOf(rest);
+      let held = readLock(LOCK);
+      if (wait && held && !ownLock(held)) held = await waitForStack(limit, json);
+      const yours = ownLock(held);
+      if (json) {
+        console.log(JSON.stringify({ free: !held, yours, who: held?.who ?? null, command: held?.command ?? null, since: held?.since ?? null, pid: held?.pid ?? null }));
+      } else if (!held) console.log('The stack is free.');
+      else if (yours) console.log(`Yours: ${held.who} holds it for «${held.command}» (pid ${held.pid}), and QA_LOCK hands it to this command.`);
+      else {
+        console.log(
+          `In use: ${held.who} runs «${held.command}» since ${new Date(held.since).toLocaleString()} (pid ${held.pid}).` +
+            (wait ? ` Still, after ${limit} s.` : ''),
+        );
+      }
+      process.exitCode = held && !yours ? BUSY : 0;
+    },
+
+    // A command of your own run with the stack held (lock.mjs), as a run
+    // holds it: saving app code that a hot reload serves, a script on the
+    // stack's data. Checking first and then writing left a gap a run could
+    // start in. The command is handed QA_LOCK, so the qa-cockpit commands
+    // within go ahead; the lock goes when it ends, however it ends, and its
+    // exit code is hold's. Held by somebody else: BUSY, or `--wait`.
+    //   hold [--wait] [--timeout <s>] [--who <name>] [--] <command...>
+    async hold() {
+      // Its own options first; the command, whole, after them (its own
+      // --in-docker too, so `args` and not `rest`).
+      const opts = { wait: false, limit: null, who: null };
+      let i = 0;
+      for (; i < args.length; i++) {
+        const a = args[i];
+        if (a === '--wait') opts.wait = true;
+        else if (a === '--timeout') {
+          opts.limit = secondsOf(args.slice(i, i + 2));
+          i++;
+        } else if (a === '--who') opts.who = args[++i] ?? null;
+        else if (a === '--') {
+          i++;
+          break;
+        } else break;
+      }
+      const cmd = args.slice(i);
+      if (!cmd.length) fail(`Usage: ${CLI} hold [--wait] [--timeout <s>] [--who <name>] -- <command...>`);
+      // Through a shell on Windows, which starts npm, npx and the like
+      // through their .cmd shims: each word quoted unless it is plain, so a
+      // space, a | or a & in it stays the command's and not the shell's.
+      const quote = (a) => (/^[\w\-.:/\\=@+,]+$/.test(a) ? a : `"${a.replace(/"/g, '\\"')}"`);
+      const line = cmd.map(quote).join(' ');
+      const what = line.length > 100 ? `${line.slice(0, 99)}…` : line;
+      let lock = null;
+      const until = opts.limit ? Date.now() + opts.limit * 1000 : Infinity;
+      for (;;) {
+        try {
+          lock = acquireLock(LOCK, what, { cli: CLI, ...(opts.who ? { who: opts.who } : {}) });
+          break;
+        } catch (e) {
+          if (!(e instanceof StackBusy)) throw e;
+          if (!opts.wait || Date.now() >= until) {
+            console.error(e.message);
+            process.exitCode = BUSY;
+            return;
+          }
+          await waitForStack(opts.limit && Math.max(1, (until - Date.now()) / 1000));
+        }
+      }
+      const child = spawn(process.platform === 'win32' ? line : cmd[0], process.platform === 'win32' ? [] : cmd.slice(1), {
+        stdio: 'inherit',
+        shell: process.platform === 'win32',
+        env: { ...process.env, QA_LOCK: lock.token },
+      });
+      // Ctrl+C reaches the command too (the same console): this process
+      // waits for it to end, and then lets go. Stopped some other way, it
+      // stops the command first.
+      const onInt = () => {};
+      const onTerm = () => child.kill('SIGTERM');
+      process.on('SIGINT', onInt);
+      process.on('SIGTERM', onTerm);
+      const code = await new Promise((resolve) => {
+        child.on('error', (e) => {
+          console.error(`${cmd[0]}: ${e.message}`);
+          resolve(127);
+        });
+        child.on('exit', (c, signal) => resolve(c ?? (signal ? 128 + ({ SIGINT: 2, SIGTERM: 15, SIGKILL: 9 }[signal] ?? 1) : 1)));
+      });
+      process.off('SIGINT', onInt);
+      process.off('SIGTERM', onTerm);
+      lock.release();
+      process.exitCode = code;
     },
 
     async unlock() {
@@ -1948,7 +2076,10 @@ export async function runCli(rawConfig, argv) {
   video script <suite>              a first video script from the suite
   video voices <suite>              its narration spoken by this system's own voice (--list)
   video check      what a video needs from this machine (ffmpeg, Chromium)
-  lock             who holds the stack: one run at a time (QA_WHO names you)
+  lock             who holds the stack: one run at a time (QA_WHO names you); exit
+                   code 0 free, 3 in use (--wait [--timeout <s>]: until free; --json)
+  hold [--wait] -- <command...>   run a command of yours with the stack held, as a
+                   run holds it (saving code a hot reload serves); 3 when in use
   unlock           remove the lock by hand, when its holder hangs
 ${own ? `\n${own}\n` : ''}
   --in-docker      (setup, sessions, smoke, replay) Playwright in the official image

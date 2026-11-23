@@ -73,7 +73,10 @@ to agents.
 - **One run at a time.** A lock names who holds the stack («Claude runs
   replay chat since 10:42»). Runs launched from any terminal are followed
   live as if the cockpit had started them, and the page goes to their
-  suite while nobody is using it.
+  suite while nobody is using it. `lock` says it in its exit code too (0
+  free, 3 in use; `--wait`, `--json`), and `hold -- <command>` holds the
+  stack for a command of an agent's own, like saving code a hot reload
+  serves, so it never lands in the middle of somebody's run.
 - **Groups of suites.** Tags in `suites/tags.json` group suites (`smoke`,
   one piece of the app, `release`); `replay --tag smoke` plays them one
   after another, each from fresh data, and stops at the first that fails
@@ -329,7 +332,8 @@ video render [capture]            the last capture drawn again (a new narration)
 video script <suite>              a first video script, in the suite's words
 video voices <suite> [--list]     its narration in the system's own voice
 video check                       what a video needs from this machine
-lock | unlock                     who holds the stack
+lock [--wait] [--json] | unlock   who holds the stack; exit code 0 free, 3 in use
+hold [--wait] -- <command...>     a command of yours with the stack held, as a run holds it
 doctor                            what this machine and this config lack
 init [folder] [--claude]          a new project folder, from the templates
 ```

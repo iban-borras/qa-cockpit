@@ -12,6 +12,10 @@
 //
 // QA_WHO names the holder («Claude», «ci», a person); without it the name
 // comes from the program the command was launched from.
+//
+// A command of a person's or an agent's own takes it too, through `hold`
+// (cli.mjs): saving app code that a hot reload serves is a change to the
+// stack. `lock` tells who holds it in its exit code as well as in words.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
