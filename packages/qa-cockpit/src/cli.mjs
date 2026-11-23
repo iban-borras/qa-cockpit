@@ -1103,11 +1103,49 @@ export async function runCli(rawConfig, argv) {
             .sort()
             .reverse()
         : [];
+      const { readRunFiles, reportNote, reportSaid, stateWords, threadLines } = await import('./notes.mjs');
+      // What an agent says under a report's note, as under a pinned one
+      // (`notes reply`): `play reply <report> <text>`; `verify` when fixed,
+      // and `resolve`, `dismiss`, `reopen` when the person says so.
+      const SAY = { reply: null, verify: 'verify', resolve: 'resolved', dismiss: 'dismissed', reopen: 'open' };
+      if (rest[0] in SAY) {
+        const [verb, id] = rest;
+        const words = [];
+        let by = null;
+        for (let i = 2; i < rest.length; i++) {
+          if (rest[i] === '--by') by = rest[++i] ?? null;
+          else words.push(rest[i]);
+        }
+        const text = words.join(' ').trim();
+        if (!id || id.startsWith('--') || (verb === 'reply' && !text)) fail(`Usage: ${CLI} play ${verb} <report> ${verb === 'reply' ? '<text>' : '[text]'} [--by <who>]   (${CLI} play --list names them)`);
+        if (metaOf(id)?.kind !== 'play') fail(`No report from «Play as» "${id}" in ${shown(config, root)} (${CLI} play --list).`);
+        const { whoAmI } = await import('./lock.mjs');
+        const body = { by: by || whoAmI(), text, state: SAY[verb] };
+        const done = (play) => console.log(`The report ${id}: ${stateWords({ state: play?.state })}${text ? `, with «${text.length > 60 ? `${text.slice(0, 59)}…` : text}»` : ''}.`);
+        const COCKPIT = `http://127.0.0.1:${config.cockpit.port}`;
+        const r = await fetch(`${COCKPIT}/api/runs/${encodeURIComponent(id)}/report/thread`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(3_000),
+        }).catch(() => null);
+        if (r?.ok) {
+          done((await r.json()).play);
+          return console.log('The cockpit shows it.');
+        }
+        if (r && !(await r.json().then((b) => b.code).catch(() => null))) fail(`The cockpit at ${COCKPIT} is older than reports with a thread: restart it (${CLI} cockpit --restart), then again.`);
+        // No cockpit: the file itself.
+        const file = path.join(root, id, 'run.json');
+        const next = reportSaid(metaOf(id), body);
+        if (!next) return done(metaOf(id).play);
+        fs.writeFileSync(file, JSON.stringify(next, null, 1));
+        return done(next.play);
+      }
       if (rest.includes('--list')) {
         if (!reports.length) console.log('No report from «Play as» yet.');
         for (const d of reports) {
           const m = metaOf(d);
-          console.log(`${d}  ${(m.play?.people ?? []).join(', ')}, ${m.play?.acts ?? 0} actions: ${(m.play?.note || '(no note)').split(/\r?\n/)[0]}`);
+          console.log(`${d}  ${stateWords(reportNote(m))}  ${(m.play?.people ?? []).join(', ')}, ${m.play?.acts ?? 0} actions: ${(m.play?.note || '(no note)').split(/\r?\n/)[0]}`);
         }
         return;
       }
@@ -1115,7 +1153,6 @@ export async function runCli(rawConfig, argv) {
       if (!want) fail('No report from «Play as» yet: in the cockpit, «Play as» a person, play, then «Make a report».');
       if (!metaOf(want)) fail(`No run ${want} in ${shown(config, root)} (${CLI} play --list).`);
       if (metaOf(want).kind !== 'play') fail(`${want} is a run, not a report from «Play as»: ${CLI} notes ${want} says what was pinned on it.`);
-      const { readRunFiles } = await import('./notes.mjs');
       const { meta, frames } = readRunFiles(path.join(root, want));
       const photo = (f) => shown(config, path.join(P.out, f.file));
       const people = (meta.play?.people ?? []).map((id) => {
@@ -1127,6 +1164,12 @@ export async function runCli(rawConfig, argv) {
       console.log(`Made ${meta.endedAt}, playing as ${people.join(', ')}: ${meta.play?.acts ?? 0} actions${meta.play?.dropped ? ` (and ${meta.play.dropped} earlier ones left out)` : ''}.`);
       console.log('\nWhat went wrong, in the person\'s words:');
       for (const line of (meta.play?.note || '(no note)').split(/\r?\n/)) console.log(`> ${line}`);
+      // Its state and thread, as a pinned note's: what was said about it
+      // since, and whether it is still to deal with.
+      const note = reportNote(meta);
+      console.log(`\nState: ${stateWords(note)}. Answer under it: \`${CLI} play reply ${want} "<text>"\`; fixed: \`${CLI} play verify ${want} "<what changed>"\`.`);
+      const talk = threadLines(note);
+      if (talk.length) console.log(['', 'Thread:', '', ...talk].join('\n'));
       console.log('');
       for (const f of steps) {
         console.log(f.step);
@@ -1633,7 +1676,7 @@ export async function runCli(rawConfig, argv) {
     // `notes reply <id> <text>`; `verify` (fixed, for the person to look
     // at), and `resolve`, `dismiss`, `reopen` when the person says so.
     async notes() {
-      const { findNote, isOpen, isPending, notesMarkdown, notesTally, readNotes, readRunFiles, runsWithNotes, said, writeNotes } = await import(
+      const { carriedInto, carriedMarkdown, findNote, isOpen, isPending, notesMarkdown, notesTally, readNotes, readRunFiles, runsWithNotes, said, writeNotes } = await import(
         './notes.mjs'
       );
       const cockpitDir = path.join(P.out, 'cockpit');
@@ -1711,7 +1754,9 @@ export async function runCli(rawConfig, argv) {
         project: shown(config, P.project),
         all: rest.includes('--all'),
       });
-      if (!md) return console.log(`The run ${id} has no notes.`);
+      // The notes of earlier runs that are on its photos too, or missing.
+      const carriedMd = carriedMarkdown(carriedInto(cockpitDir, id));
+      if (!md && !carriedMd) return console.log(`The run ${id} has no notes.`);
       console.log(
         [
           `# Notes on the run ${id}`,
@@ -1720,7 +1765,8 @@ export async function runCli(rawConfig, argv) {
           `- The whole run, step by step: the cockpit's «Report» on this run`,
           `- To answer under a note: \`${CLI} notes reply <id> "<text>"\`; fixed: \`${CLI} notes verify <id> "<what changed>"\``,
           '',
-          md,
+          ...(md ? [md] : []),
+          ...(carriedMd ? [carriedMd] : []),
         ].join('\n'),
       );
     },
@@ -2068,7 +2114,8 @@ export async function runCli(rawConfig, argv) {
   notes resolve|dismiss|reopen <id> [text]   closed, or open again, when the person says so
   play [run]       a report a person made from «Play as» in the cockpit: their note, and what
                    they did as steps in a suite's words, with photos, requests and page errors
-                   (the newest; --list: every one kept)
+                   (the newest; --list: every one kept, with its state)
+  play reply|verify|resolve|dismiss|reopen <report> [text]   as under a note (notes reply…)
   video <suite>    a demo video: reset, setup, the recording captured, then drawn with a
                    cursor, subtitles, cards and sound (--motion: real time, animations on;
                    --clips: each step as it played, for an editor; --script <file>)

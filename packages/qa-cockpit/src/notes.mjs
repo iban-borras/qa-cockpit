@@ -247,6 +247,120 @@ export function notesTally(notes) {
   return `${written.length} note${written.length === 1 ? '' : 's'}${parts.length ? `: ${parts.join(', ')}` : ''}`;
 }
 
+// FOLLOWING A NOTE into the runs after its own. A note still to deal with
+// (open, to verify) is shown on the same photo of every later run of its
+// suite, where whoever reviews it sees whether it still holds, and closes
+// it from there. It stays one note, in its own run: what is said or done
+// from a later run goes there. Conservative, so that no note lands where it
+// does not belong: the same photo is the same test, step and person (the
+// nth time that step came, as changes.mjs aligns them) and, for an action's
+// photo, the same action (its place in the step, kind and label); nothing
+// else is taken for it, and a note with no such photo is said to be missing
+// rather than guessed at. A pin on or near one of the step's actions moves
+// with it: the page around a note moves between runs (in CritKeep a click
+// moved 41 px between a note's run and the latest, by the median).
+//
+// Only the notes pinned since FOLLOW_SINCE: before 0.14.0 nothing could
+// close a note but deleting it, so «open» told nothing, and a project's
+// earlier notes (hundreds, in CritKeep) would bury the runs after them.
+export const FOLLOW_SINCE = '2026-11-21';
+
+/** Each photo of a run by its place in the suite (see above): `keyOf`
+ *  seq -> key, `frameOf` key -> photo. */
+export function photoKeys(frames) {
+  const keyOf = new Map();
+  const frameOf = new Map();
+  const seen = new Map();
+  const steps = frames.filter((f) => f.kind !== 'action' && f.status !== 'context');
+  for (const f of steps) {
+    const base = `${f.test}\u0001${f.step}\u0001${f.actor}`;
+    const n = (seen.get(base) ?? 0) + 1;
+    seen.set(base, n);
+    const k = `${base}\u0001${n}`;
+    keyOf.set(f.seq, k);
+    frameOf.set(k, f);
+  }
+  for (const f of steps) {
+    frames
+      .filter((a) => a.kind === 'action' && a.of === f.seq)
+      .forEach((a, i) => {
+        const m = a.marks?.[0] ?? {};
+        const k = `${keyOf.get(f.seq)}\u0002${i + 1}\u0002${m.kind ?? ''}\u0002${m.label ?? ''}`;
+        keyOf.set(a.seq, k);
+        frameOf.set(k, a);
+      });
+  }
+  return { keyOf, frameOf };
+}
+
+/** Where a note of one run is in another: its photo there and its point,
+ *  moved with the action it sits on when that action is there too; or null
+ *  when the other run has no such photo. */
+export function followNote(note, fromFrames, toFrames, fromKeys = photoKeys(fromFrames), toKeys = photoKeys(toFrames)) {
+  const key = fromKeys.keyOf.get(note.seq);
+  const there = key ? toKeys.frameOf.get(key) : null;
+  if (!there) return null;
+  const here = fromFrames.find((f) => f.seq === note.seq);
+  const m = here ? markAt(here, note.x, note.y) : null;
+  const same = m ? drawnMarks(there).find((h, i) => (h.n ?? i + 1) === m.n && h.kind === m.mark.kind && h.label === m.mark.label) : null;
+  const dx = same ? same.x - m.mark.x : 0;
+  const dy = same ? same.y - m.mark.y : 0;
+  return { seq: there.seq, x: Math.max(0, Math.round(note.x + dx)), y: Math.max(0, Math.round(note.y + dy)), anchored: Boolean(same) };
+}
+
+// The runs a note follows into, as changes.mjs compares them: a recording
+// played (a replay, a full run), not a round of a race search nor a report.
+const followable = (meta) => Boolean(meta) && !meta.chaos && (!meta.kind || meta.kind === 'replay' || meta.kind === 'full');
+
+/**
+ * The notes of earlier runs of a run's suite that follow into it: `carried`,
+ * each with its own run and photo there (`from`) and its photo and point
+ * here; `missing`, those this run should have shown and has no photo for:
+ * their test was played here, or this is a full run, which plays every
+ * test (a replay of one test is no sign another is gone).
+ * @returns {{ carried: { note: Note, from: any, seq: number, x: number, y: number, anchored: boolean }[], missing: { note: Note, from: any }[] }}
+ */
+export function carriedInto(cockpitDir, runId) {
+  const none = { carried: [], missing: [] };
+  let here;
+  try {
+    here = readRunFiles(path.join(cockpitDir, runId));
+  } catch {
+    return none;
+  }
+  if (!followable(here.meta) || !fs.existsSync(cockpitDir)) return none;
+  const toKeys = photoKeys(here.frames);
+  const played = new Set([...Object.keys(here.meta.tests ?? {}), ...here.frames.map((f) => f.test)]);
+  const out = { carried: [], missing: [] };
+  const earlier = fs
+    .readdirSync(cockpitDir, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && /^\d{8}-\d{6}/.test(e.name) && e.name < runId)
+    .map((e) => e.name)
+    .sort();
+  for (const id of earlier) {
+    const dir = path.join(cockpitDir, id);
+    const notes = readNotes(dir).filter((n) => isPending(n) && String(n.createdAt ?? '') >= FOLLOW_SINCE);
+    if (!notes.length) continue;
+    let from;
+    try {
+      from = readRunFiles(dir);
+    } catch {
+      continue;
+    }
+    if (from.meta.suite !== here.meta.suite || !followable(from.meta)) continue;
+    const fromKeys = photoKeys(from.frames);
+    for (const note of notes) {
+      const f = from.frames.find((x) => x.seq === note.seq);
+      if (!f) continue;
+      const origin = { run: id, startedAt: from.meta.startedAt ?? null, seq: f.seq, test: f.test, step: f.step, actor: f.actor, kind: f.kind ?? 'step' };
+      const at = followNote(note, from.frames, here.frames, fromKeys, toKeys);
+      if (at) out.carried.push({ note, from: origin, ...at });
+      else if (played.has(f.test) || here.meta.kind === 'full') out.missing.push({ note, from: origin });
+    }
+  }
+  return out;
+}
+
 const STATE_WORDS = { open: 'open', verify: 'to verify', resolved: 'resolved', dismissed: 'dismissed' };
 const whoSaid = (by) => (by === 'page' ? 'the person, in the cockpit' : by);
 // A moment as a person reads it, on this machine's clock: 2026-11-21 16:02.
@@ -261,6 +375,43 @@ const firstLine = (text) => {
 };
 
 const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
+
+/** A note's thread as Markdown lines, oldest first: who, when, the state it
+ *  was given, and what was said. */
+export function threadLines(n) {
+  return (n.thread ?? []).flatMap((s) => {
+    const head = `- ${cap(whoSaid(s.by))}, ${when(s.at)}${s.state ? ` · ${STATE_WORDS[s.state]}` : ''}`;
+    if (!s.text) return [head];
+    const [first, ...more] = s.text.split('\n');
+    return [`${head}: ${first}`, ...more.map((l) => `  ${l}`)];
+  });
+}
+
+/** A note's state in words: open, to verify, resolved, dismissed. */
+export const stateWords = (n) => STATE_WORDS[stateOf(n)];
+
+// A REPORT FROM «PLAY AS» (play.mjs) is a run whose note is the person's
+// own, on what went wrong. It has a state and a thread as a pinned note has,
+// kept in its run.json beside that note (`play.state`, `play.thread`), and
+// is answered, fixed and closed the same way.
+/** A report's note, as a note: its words, state and thread. */
+export const reportNote = (meta) => ({
+  id: 'report',
+  text: meta?.play?.note || 'Reported from «Play as», with no note.',
+  ...(meta?.play?.state ? { state: meta.play.state } : {}),
+  ...(meta?.play?.thread?.length ? { thread: meta.play.thread } : {}),
+});
+
+/** A report's run.json with one more entry in its note's thread, or null
+ *  when it says nothing (said). */
+export function reportSaid(meta, body) {
+  const next = said(reportNote(meta), body);
+  if (!next) return null;
+  const play = { ...meta.play, thread: next.thread };
+  if (next.state) play.state = next.state;
+  else delete play.state;
+  return { ...meta, play };
+}
 
 /**
  * The notes of a run as Markdown, for a person or an agent to act on: one
@@ -294,13 +445,7 @@ export function notesMarkdown({ runId, dir, frames, notes, out, project, level =
     'its thread: what was said about it since, oldest first. Its id (`n-…`) names it to `notes reply`.',
     '',
   ];
-  const thread = (n) =>
-    (n.thread ?? []).flatMap((s) => {
-      const head = `- ${cap(whoSaid(s.by))}, ${when(s.at)}${s.state ? ` · ${STATE_WORDS[s.state]}` : ''}`;
-      if (!s.text) return [head];
-      const [first, ...more] = s.text.split('\n');
-      return [`${head}: ${first}`, ...more.map((l) => `  ${l}`)];
-    });
+  const thread = threadLines;
   const line = (n) => `**Pin ${num.get(n.id)}** (${STATE_WORDS[stateOf(n)]}, \`${n.id}\`): «${firstLine(n.text)}»`;
   const seqs = [...new Set(written.filter(full).map((n) => n.seq))].sort((a, b) => a - b);
   for (const seq of seqs) {
@@ -362,5 +507,42 @@ export function notesMarkdown({ runId, dir, frames, notes, out, project, level =
     }
     lines.push('');
   }
+  return lines.join('\n');
+}
+
+/**
+ * The notes that follow into a run from earlier ones (carriedInto), as
+ * Markdown: where each is in this run, and where it was pinned. Each is the
+ * note of its own run, printed whole there; what is said under it goes
+ * there too.
+ * @param {{ carried: any[], missing: any[], level?: number }} o
+ */
+export function carriedMarkdown({ carried, missing, level = 2 }) {
+  if (!carried.length && !missing.length) return '';
+  const h = '#'.repeat(level);
+  const where = (c) => `${cap(c.from.actor)} · ${c.from.test} › ${c.from.step}, photo ${c.from.seq} of the run ${c.from.run}`;
+  const lines = [
+    `${h} From earlier runs (${carried.length + missing.length})`,
+    '',
+    'Notes pinned on an earlier run of this suite and still to deal with (open, or to verify). Each is the',
+    'note of its own run (`notes <run>` prints it whole, with its photo and the copy with the pins), and',
+    'what you say under it goes there. Here it sits on the same photo: the same test, step and person',
+    '(and action). The page may have moved since: a pin on an action moves with it; any other stays where',
+    'it was on the old photo. Look at this run\'s photo before saying it holds or not.',
+    '',
+  ];
+  for (const c of carried) {
+    lines.push(
+      `- \`${c.note.id}\` (${STATE_WORDS[stateOf(c.note)]}): «${firstLine(c.note.text)}»`,
+      `  Here on photo ${c.seq}, at x ${c.x}, y ${c.y}${c.anchored ? ' (moved with the action it is on)' : ''}. Pinned on ${where(c)}.`,
+    );
+  }
+  for (const m of missing) {
+    lines.push(
+      `- \`${m.note.id}\` (${STATE_WORDS[stateOf(m.note)]}): «${firstLine(m.note.text)}»`,
+      `  **Not in this run:** it has no such photo (the step or the test changed, or is gone). Pinned on ${where(m)}.`,
+    );
+  }
+  lines.push('');
   return lines.join('\n');
 }

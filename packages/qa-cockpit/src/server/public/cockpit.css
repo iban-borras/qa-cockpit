@@ -531,6 +531,12 @@ button.chip.chg-tag:hover { background: rgba(251, 146, 60, 0.22); border-color: 
 /* REPORTS FROM «PLAY AS» (cockpit.js renderPlays): who plays in a window
    of their own, what they did since the last report, the window as it is
    now; and the report's button. */
+/* A REPORT FROM «PLAY AS» on screen: the person's note on what went
+   wrong, as a post-it with its state and thread (cockpit.js, renderReport). */
+.report-note { grid-column: 1 / -1; min-width: 0; padding-top: 10px; border-top: 1px solid var(--line); }
+.report-note[hidden] { display: none; }
+.report-note .postit.docked { width: auto; max-width: 640px; max-height: none; }
+.report-text { margin: 0; padding: 10px 12px; color: #1b1c22; font-size: 13.5px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
 .plays { grid-column: 1 / -1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
 .plays .pl { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
 .plays .pl img { height: 34px; width: auto; max-width: 64px; object-fit: cover; object-position: top; border-radius: 4px; border: 1px solid var(--line-2); }
@@ -576,6 +582,10 @@ dialog.play-dialog { width: min(480px, 92vw); }
 @keyframes tackIn { from { translate: 0 -18px; opacity: 0; } }
 .tack.ghost { position: fixed; z-index: 30; pointer-events: none; }
 .tack.ghost.off { opacity: 0.45; }
+.tack.old b { display: grid; place-items: center; background: #fef3c7; border-style: dashed; }
+.tack.old b svg.i { width: 13px; height: 13px; stroke-width: 2.5; }
+.tack.old { cursor: pointer; }
+.tack.old.open b { background: #fde68a; }
 /* A note's state (notes.mjs) as a badge on its tack: fixed and waiting for
    a person, a blue eye; closed, a grey tack, with a green tick (resolved)
    or a grey bar (dismissed). It stays on its photo, a record. The copy
@@ -595,8 +605,15 @@ dialog.play-dialog { width: min(480px, 92vw); }
 .nt { display: inline-flex; align-items: center; gap: 2px; flex: none; font-style: normal; padding: 0 5px 0 3px; border-radius: 999px; background: #fbbf24; color: #1b1c22; font: 700 10.5px/16px var(--sans); }
 .nt svg.i { width: 11px; height: 11px; }
 .step .nt { margin: 1px 0 0 6px; }
-.thumb .nt { position: absolute; top: 3px; right: 3px; }
-.shot .nt { position: absolute; top: 8px; right: 8px; font-size: 11.5px; line-height: 18px; padding: 0 7px 0 5px; }
+.nts { display: inline-flex; gap: 3px; }
+.nts:empty { display: none; }
+.thumb .nts { position: absolute; top: 3px; right: 3px; }
+.shot .nts { position: absolute; top: 8px; right: 8px; }
+.shot .nt { font-size: 11.5px; line-height: 18px; padding: 0 7px 0 5px; }
+/* The notes of earlier runs (cockpit.js, «notes from earlier runs»): the
+   same amber, outlined and dashed, with a clock: not this run's own. */
+.nt.old { background: rgba(251, 191, 36, 0.14); color: #fbbf24; box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.7); }
+.step .nt.old { margin-left: 4px; }
 .postit { position: fixed; z-index: 20; width: 300px; display: flex; flex-direction: column; background: #fef3c7; color: #1b1c22; border: 1px solid #f5d77a; border-radius: 6px; box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25), 0 14px 28px rgba(0, 0, 0, 0.4); animation: postitIn 0.16s ease-out; }
 .postit[hidden] { display: none; }
 @keyframes postitIn { from { transform: translateY(6px) scale(0.97); opacity: 0; } }
@@ -609,6 +626,37 @@ dialog.play-dialog { width: min(480px, 92vw); }
 .postit textarea { min-height: 130px; max-height: 50vh; resize: vertical; border: 0; outline: none; background: transparent; color: #1b1c22; font: 13.5px/1.5 var(--sans); padding: 10px 12px; }
 .postit textarea::placeholder { color: rgba(146, 64, 14, 0.6); }
 .postit-foot { padding: 0 12px 8px; font-size: 11.5px; color: #b91c1c; }
+/* A note of an earlier run, read here: where it comes from, and the way
+   there. Its words are its own run's to change. */
+.postit.old .postit-n { display: grid; place-items: center; background: #fef3c7; border-style: dashed; }
+.postit.old .postit-n svg.i { width: 12px; height: 12px; }
+.postit-from { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 7px 10px 8px 12px; background: rgba(251, 191, 36, 0.18); border-bottom: 1px solid rgba(0, 0, 0, 0.08); font-size: 11.5px; color: #78350f; }
+.postit-from[hidden] { display: none; }
+.postit-from #postitFromText { font-weight: 650; }
+.postit-from .where { color: #92400e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.postit-from .btn { margin-top: 5px; }
+.postit textarea[readonly] { color: #44403c; cursor: default; }
+/* The notes of earlier runs this run has no photo for, atop the steps. */
+.old-lost { margin: 8px 10px 4px; padding: 8px; border-radius: 8px; border: 1px dashed rgba(251, 191, 36, 0.6); background: rgba(251, 191, 36, 0.07); }
+.old-lost p { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; font-size: 11.5px; color: #fbbf24; }
+.old-lost .lost { display: block; width: 100%; margin: 2px 0 0; padding: 4px 6px; border: 0; border-radius: 6px; background: none; color: var(--text); font: 12px/1.4 var(--sans); text-align: left; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.old-lost .lost:hover { background: rgba(251, 191, 36, 0.14); }
+/* WHERE IT WAS PINNED: the note's own photo, its tack as there, and its
+   post-it docked beside it. */
+dialog.origin { padding: 0; border: 1px solid var(--line-2); border-radius: 14px; background: var(--panel); color: var(--text); width: min(1240px, 94vw); height: min(860px, 90vh); max-width: none; max-height: none; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6); }
+dialog.origin[open] { display: flex; flex-direction: column; }
+dialog.origin::backdrop { background: rgba(4, 4, 6, 0.6); }
+.origin-head { display: flex; align-items: center; gap: 12px; padding: 12px 14px 12px 18px; border-bottom: 1px solid var(--line); }
+.origin-what { flex: 1; min-width: 0; }
+.origin-what h3 { margin: 0; font-size: 14px; }
+.origin-what p { margin: 2px 0 0; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.origin-body { flex: 1; min-height: 0; display: flex; gap: 16px; padding: 16px; }
+.origin-view { flex: 1; min-width: 0; overflow: auto; border-radius: 10px; background: var(--panel-2); }
+.origin-sheet { position: relative; }
+.origin-sheet img { display: block; width: 100%; height: auto; }
+.postit.docked { position: static; flex: none; align-self: flex-start; width: 340px; max-height: 100%; overflow: auto; animation: none; box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25), 0 10px 24px rgba(0, 0, 0, 0.35); }
+.postit.docked .postit-head { cursor: default; }
+@media (max-width: 760px) { .origin-body { flex-direction: column; } .postit.docked { width: auto; align-self: stretch; } }
 /* Its state, its thread and the box to say more (cockpit.js, renderPostit):
    the person's words with an amber edge, an agent's with an indigo one. A
    closed note's post-it goes grey, as its tack. */

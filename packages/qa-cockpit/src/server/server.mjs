@@ -27,7 +27,7 @@ import { shown } from '../config.mjs';
 import { acquireLock, isAlive, lockFileOf, readLock, StackBusy } from '../lock.mjs';
 import { listSuites } from '../suites.mjs';
 import { deviceFor, deviceLabel } from '../devices.mjs';
-import { cleanNote, isPending, notesMarkdown, pinnedFileOf, pinnedSeqs, readNotes, readRunFiles, said, writeNotes } from '../notes.mjs';
+import { carriedInto, cleanNote, isPending, notesMarkdown, pinnedFileOf, pinnedSeqs, readNotes, readRunFiles, reportSaid, said, writeNotes } from '../notes.mjs';
 import { noteData, readData } from '../stackdata.mjs';
 import { desktopOf } from '../desktop.mjs';
 import { playRun } from '../play.mjs';
@@ -332,6 +332,15 @@ function listRuns() {
 // resolved or dismissed is a record: a run whose notes are all closed goes
 // like any other, past `keepRuns`.
 const noteCount = (dir) => readNotes(dir).filter(isPending).length;
+// A report from «Play as» still to deal with stays too, as a note does.
+const reportPending = (id) => {
+  try {
+    const meta = JSON.parse(fs.readFileSync(path.join(COCKPIT_DIR, id, 'run.json'), 'utf8'));
+    return meta.kind === 'play' && !['resolved', 'dismissed'].includes(meta.play?.state);
+  } catch {
+    return false;
+  }
+};
 
 function pruneRuns() {
   // The newest `keepRuns` runs stay, and those with notes to deal with. A search for
@@ -352,7 +361,7 @@ function pruneRuns() {
     const group = groupOf(id);
     if (!group || group !== last) kept += 1;
     last = group;
-    if (kept <= KEEP_RUNS || noteCount(path.join(COCKPIT_DIR, id))) continue;
+    if (kept <= KEEP_RUNS || noteCount(path.join(COCKPIT_DIR, id)) || reportPending(id)) continue;
     fs.rmSync(path.join(COCKPIT_DIR, id), { recursive: true, force: true });
   }
 }
@@ -399,6 +408,8 @@ function runsIndex() {
         tally: tallyOf(meta),
         notes,
         looks: meta.looks ?? null,
+        // A report from «Play as»: its note, state and thread, shown with it.
+        ...(meta.kind === 'play' ? { play: meta.play ?? null } : {}),
         // Compared with an earlier run: how much changed (changes.mjs).
         changes: changesCount(id),
         // A round of a search for races: its seed, and how many it found.
@@ -1714,6 +1725,29 @@ async function handle(req, res) {
     broadcast('notes', { run: id, notes });
     return send(res, 200, { ok: true, notes });
   }
+  // A report's note from «Play as» has a thread too (notes.mjs, reportSaid),
+  // kept in its run.json: a report is never the run going, so nothing else
+  // writes it meanwhile.
+  const reportPath = /^\/api\/runs\/([^/]+)\/report\/thread$/.exec(p);
+  if (reportPath && req.method === 'POST') {
+    const id = decodeURIComponent(reportPath[1]);
+    const dir = RUN_ID.test(id) ? inside(COCKPIT_DIR, id) : null;
+    const file = dir && path.join(dir, 'run.json');
+    // The body first, the file after, with no wait between (as a note's).
+    const body = await readJson(req);
+    const meta = file && fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : null;
+    if (!meta || meta.kind !== 'play') return send(res, 404, { error: 'No such report', code: 'no_report' });
+    const next = reportSaid(meta, body);
+    if (next) {
+      fs.writeFileSync(`${file}.tmp`, JSON.stringify(next, null, 1));
+      fs.renameSync(`${file}.tmp`, file);
+      // The run the cockpit holds, when it is this report (the newest, at
+      // its start): the same, or a later save of it would undo this.
+      if (run && run.id === id) run.play = next.play;
+      broadcast('report', { run: id, play: next.play });
+    }
+    return send(res, 200, { ok: true, play: (next ?? meta).play });
+  }
   // A note's thread (notes.mjs, said): a reply, a change of state, or both,
   // from a page ({ text, state }) or an agent (`notes reply`, with `by`).
   // What it changes is not on the copy with the pins: nothing to draw again.
@@ -1747,6 +1781,14 @@ async function handle(req, res) {
     });
     return send(res, 200, md, 'text/markdown; charset=utf-8');
   }
+  // The notes of earlier runs that follow into this one (notes.mjs,
+  // carriedInto), asked again by a page when one of them changes.
+  if (req.method === 'GET' && p.startsWith('/api/runs/') && p.endsWith('/carried')) {
+    const id = decodeURIComponent(p.slice('/api/runs/'.length, -'/carried'.length));
+    if (!RUN_ID.test(id) || !inside(COCKPIT_DIR, id)) return send(res, 404, { error: 'No such run' });
+    const { carried, missing } = carriedInto(COCKPIT_DIR, id);
+    return send(res, 200, { carried, missing });
+  }
   if (req.method === 'GET' && p.startsWith('/api/runs/') && p.endsWith('/log')) {
     const dir = inside(COCKPIT_DIR, decodeURIComponent(p.slice('/api/runs/'.length, -'/log'.length)));
     if (!dir || !fs.existsSync(path.join(dir, 'run.json'))) return send(res, 404, { error: 'No such run' });
@@ -1776,6 +1818,8 @@ async function handle(req, res) {
       frames: r.frames,
       notes: readNotes(r.dir),
       pinned: pinnedSeqs(r.dir),
+      // Notes of earlier runs of its suite, still open, on its photos.
+      ...(({ carried, missing }) => ({ carried, carriedMissing: missing }))(carriedInto(COCKPIT_DIR, id)),
       // Compared with an earlier run (changes.mjs), and the green ones it may be.
       changes: readChanges(COCKPIT_DIR, id),
       candidates: r.kind === 'play' || r.chaos ? [] : candidatesOf(COCKPIT_DIR, id).slice(0, 20),

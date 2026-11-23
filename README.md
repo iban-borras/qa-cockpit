@@ -65,7 +65,9 @@ to agents.
     to an agent, with a copy of the photo showing each tack. Under each
     note, a thread where the agent asks or says what it fixed; a note is
     open, to verify, resolved or dismissed, and a closed one stays on its
-    photo as a record;
+    photo as a record. An open note follows into the later runs of its
+    suite, on the same photo, where a fix is checked and the note opened
+    where it was pinned;
   - Playwright's trace viewer;
   - a Markdown report of the whole run, written for a model to read;
   - in fourteen languages: Catalan, Chinese (simplified), English, French,
@@ -328,6 +330,7 @@ notes [run] [--list] [--all]      the notes pinned on a run's photos, as Markdow
 notes reply|verify <id> [text]    an agent's answer under a note; verify: fixed, to look at
 notes resolve|dismiss|reopen <id> a note closed, or open again, on the person's word
 play [run] [--list]               a report a person made from «Play as»: note, steps, photos, errors
+play reply|verify|resolve|dismiss|reopen <report>   its note answered and closed, as a pinned one
 video <suite> [--motion|--clips]  a demo video: reset, setup, recording, drawn
 video render [capture]            the last capture drawn again (a new narration)
 video script <suite>              a first video script, in the suite's words

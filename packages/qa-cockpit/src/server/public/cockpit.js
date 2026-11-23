@@ -66,6 +66,8 @@ const ICONS = {
   // A note's thread: a reply sent; a note dismissed.
   send: '<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/>',
   ban: '<circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/>',
+  // A note that follows from an earlier run.
+  history: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>',
 };
 const icon = (name, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
 const withIcon = (el, name, text = '') => (el.innerHTML = icon(name) + (text ? `<span>${esc(text)}</span>` : ''));
@@ -195,6 +197,9 @@ const S = {
   note: null, // the id of the note whose post-it is open
   saying: false, // a reply or a state on its way to the open note's thread
   postitFresh: false, // the open post-it's note is being written for the first time
+  carried: [], // notes of earlier runs still open, on this run's photos (notes.mjs, carriedInto)
+  carriedMissing: [], // and those this run has no photo for
+  origin: null, // «where it was pinned»: { run, startedAt, frame, notes, note, dirty, timer }
   dropped: null, // the note just pinned: its tack lands
   picker: { open: false, active: 0, query: '', hideNoSetup: false, sort: 'name' },
   runPick: { open: false, active: 0 },
@@ -784,12 +789,16 @@ async function viewRun(id) {
     S.run = null;
     S.frames = [];
     S.notes = [];
+    S.carried = [];
+    S.carriedMissing = [];
   } else {
     const r = await api(`/api/runs/${encodeURIComponent(id)}`);
-    const { frames, notes, pinned, ...summary } = r;
+    const { frames, notes, pinned, carried, carriedMissing, ...summary } = r;
     S.run = summary;
     S.frames = frames;
     S.notes = notes ?? [];
+    S.carried = carried ?? [];
+    S.carriedMissing = carriedMissing ?? [];
     // A copy with the pins that nobody drew (the page that changed the notes
     // closed first): this page draws it.
     for (const seq of new Set(S.notes.filter(kept).map((n) => n.seq))) if (!pinned?.includes(seq)) schedulePinned(seq);
@@ -1310,6 +1319,7 @@ function renderStatus() {
   renderGroupStrip();
   renderPlays();
   renderChanges();
+  renderReport();
 }
 
 // ---------------------------------------------------------------- the run picker
@@ -1544,7 +1554,7 @@ function cardHtml(p, moment, running) {
       ${f ? `<img src="${esc(frameUrl(f))}" alt="" loading="lazy"${f.viewport ? ` class="vp" style="${viewportStyle(f)}"` : ''}>` : `<span class="empty">${esc(t('card.no_photos'))}</span>`}
       ${liveShot ? `<img class="live-shot" src="/api/live/${encodeURIComponent(p.id)}" alt="">` : ''}
       ${watching && !acting ? `<span class="chip accent live" style="position:absolute;top:8px;left:8px"><span class="dot"></span>${esc(t('card.live'))}</span>` : ''}
-      ${pinBadge(S.notes.filter((n) => n.actor === p.id && pending(n)).length)}
+      <span class="nts">${pinBadge(S.notes.filter((n) => n.actor === p.id && pending(n)).length)}${oldBadge(S.carried.filter((c) => c.note.actor === p.id && pending(c.note)).length)}</span>
     </button>
     <div class="card-cap" title="${esc(f ? `${f.test} › ${f.step}` : '')}">${f ? `<span class="faint mono">${esc(frameLabel(f))}</span> ${esc(stepText(f))}` : `<span class="faint">${esc(t('card.nothing'))}</span>`}</div>
     <div class="card-meta"><span>${esc(f ? pathOf(f.url) : '')}</span><span>${esc(f ? hhmmss(f.time) : '')}</span></div>
@@ -1641,6 +1651,9 @@ function insFrames() {
 function openInspector(actor) {
   const list = S.frames.filter((f) => f.actor === actor);
   S.ins = { actor, idx: Math.max(0, list.length - 1), live: isRunning(), fresh: 0, timer: null, zoom: false, placing: false, postitAt: null };
+  // The notes of earlier runs, as they are now: a run that was going when
+  // it was opened had no photos for them yet.
+  void loadCarried();
   const p = S.state.cast.find((c) => c.id === actor);
   $('insName').textContent = cap(actor);
   renderInsPlay();
@@ -1751,10 +1764,11 @@ function renderInspector(first = false) {
   const list = insFrames();
   const f = list[ins.idx];
   // A post-it belongs to its photo: another photo on screen closes it.
-  if (S.note && (ins.live || openNote()?.seq !== f?.seq)) closePostit();
+  if (S.note && (ins.live || (carriedOpen()?.seq ?? openNote()?.seq) !== f?.seq)) closePostit();
   if (ins.placing && (ins.live || !f)) stopPlacing();
   $('insTack').disabled = ins.live || !f || Boolean(langOf(f));
   const pinsOf = (x) => notesOn(x.seq).filter(pending).length;
+  const oldOf = (x) => carriedOn(x.seq).filter((c) => pending(c.note)).length;
 
   // Header chip
   const chip = $('insChip');
@@ -1781,8 +1795,20 @@ function renderInspector(first = false) {
   const open = shown ? (isAction(shown) ? shown.of : shown.seq) : null;
   // A step folded counts the notes on its actions' photos too.
   const actionPins = new Map();
-  for (const a of list) if (isAction(a)) actionPins.set(a.of, (actionPins.get(a.of) ?? 0) + pinsOf(a));
-  let html = '';
+  const actionOld = new Map();
+  for (const a of list) {
+    if (!isAction(a)) continue;
+    actionPins.set(a.of, (actionPins.get(a.of) ?? 0) + pinsOf(a));
+    actionOld.set(a.of, (actionOld.get(a.of) ?? 0) + oldOf(a));
+  }
+  // The notes of earlier runs that this run has no photo for: said first,
+  // each opening where it was pinned (openOrigin).
+  const lost = S.carriedMissing.filter((m) => m.note.actor === ins.actor && pending(m.note));
+  let html = lost.length
+    ? `<div class="old-lost"><p>${icon('history', 'sm')}${esc(t('note.lost', { n: lost.length }))}</p>${lost
+        .map((m) => `<button class="lost" data-origin="${esc(m.note.id)}" data-tip="${esc(`${m.from.test} › ${m.from.step}`)}">${esc(noteExcerpt(m.note.text))}</button>`)
+        .join('')}</div>`
+    : '';
   let lastTest = null;
   list.forEach((x, i) => {
     if (isAction(x)) return;
@@ -1799,16 +1825,17 @@ function renderInspector(first = false) {
     // What the step's own photo shows: on the step folded, on «When done» unfolded.
     const marks = `${handOffBadge(x.realtime)}${findBadges(x)}${settleBadge(x)}${reloadBadge(x)}${consoleBadge(x)}${changeOf(x) ? '<i class="cdot" aria-hidden="true"></i>' : ''}`;
     const pins = pinsOf(x) + (x.seq === open ? 0 : (actionPins.get(x.seq) ?? 0));
-    html += `<button class="step${sel}" data-i="${first === -1 ? i : first}"><span class="st ${st}">${icon(ic, 'sm')}</span><span class="sx">${esc(x.step)}</span>${unfolded ? '' : `${marks}${pinBadge(pins)}`}${dur}</button>`;
+    const olds = oldOf(x) + (x.seq === open ? 0 : (actionOld.get(x.seq) ?? 0));
+    html += `<button class="step${sel}" data-i="${first === -1 ? i : first}"><span class="st ${st}">${icon(ic, 'sm')}</span><span class="sx">${esc(x.step)}</span>${unfolded ? '' : `${marks}${pinBadge(pins)}${oldBadge(olds)}`}${dur}</button>`;
     if (!unfolded) return;
     list.forEach((a, j) => {
       if (a.of !== x.seq) return;
       const m = a.marks?.[0];
       const what = (a.marks ?? []).map((k) => `${verbOf(k)} ${quote(k.label)}`).join(' · ');
-      html += `<button class="action${a === shown ? ' sel' : ''}" data-i="${j}"><span class="n ${m?.kind === 'type' || m?.kind === 'key' ? 'type' : ''}">${esc(actionNo(a))}</span><span class="sx">${esc(what)}</span>${pinBadge(pinsOf(a))}<span class="at">${esc(sinceStep(a, m))}</span></button>`;
+      html += `<button class="action${a === shown ? ' sel' : ''}" data-i="${j}"><span class="n ${m?.kind === 'type' || m?.kind === 'key' ? 'type' : ''}">${esc(actionNo(a))}</span><span class="sx">${esc(what)}</span>${pinBadge(pinsOf(a))}${oldBadge(oldOf(a))}<span class="at">${esc(sinceStep(a, m))}</span></button>`;
     });
     const end = Number.isFinite(x.ms) ? `+${fmtDur(x.ms)}` : '';
-    html += `<button class="action end${x === shown ? ' sel' : ''}" data-i="${i}"><span class="n ${st}">${icon(ic, 'sm')}</span><span class="sx">${esc(t('ins.step_end'))}</span>${marks}${pinBadge(pinsOf(x))}<span class="at">${esc(end)}</span></button>`;
+    html += `<button class="action end${x === shown ? ' sel' : ''}" data-i="${i}"><span class="n ${st}">${icon(ic, 'sm')}</span><span class="sx">${esc(t('ins.step_end'))}</span>${marks}${pinBadge(pinsOf(x))}${oldBadge(oldOf(x))}<span class="at">${esc(end)}</span></button>`;
   });
   $('insSteps').innerHTML = html || `<p class="muted" style="margin:12px">${esc(t('ins.no_photos_long'))}</p>`;
   $('insSteps').querySelector('.action.sel, .step.sel')?.scrollIntoView({ block: 'nearest' });
@@ -1903,7 +1930,7 @@ function renderInspector(first = false) {
       const kinds = new Set(allFindings(x).map((y) => y.kind));
       const found = `${kinds.has('a11y') ? '<i class="fdot"></i>' : ''}${kinds.has('lang') ? '<i class="fdot lang"></i>' : ''}`;
       const changed = changeOf(x) ? '<i class="cdot"></i>' : '';
-      return `<button class="${cls}" data-i="${i}" title="${esc(title)}"><img src="${esc(frameUrl(x))}" alt="" loading="lazy"><span>${label}</span>${found}${changed}${pinBadge(pinsOf(x))}</button>`;
+      return `<button class="${cls}" data-i="${i}" title="${esc(title)}"><img src="${esc(frameUrl(x))}" alt="" loading="lazy"><span>${label}</span>${found}${changed}<span class="nts">${pinBadge(pinsOf(x))}${oldBadge(oldOf(x))}</span></button>`;
     })
     .join('');
   const selThumb = $('insStrip').querySelector('.thumb.sel') ?? $('insStrip').lastElementChild;
@@ -3255,6 +3282,8 @@ function goLiveOrEnd() {
 }
 
 $('insSteps').addEventListener('click', (e) => {
+  const lost = e.target.closest('[data-origin]');
+  if (lost) return void openOrigin(lost.dataset.origin);
   const b = e.target.closest('[data-i]');
   if (b) insGo(Number(b.dataset.i));
 });
@@ -3407,7 +3436,7 @@ const pending = (n) => kept(n) && !closed(n);
 const STATE_ICON = { verify: 'eye', resolved: 'check', dismissed: 'ban' };
 const stateWord = (s) => t(`note.state_${s ?? 'open'}`);
 const notesOn = (seq) => S.notes.filter((n) => n.seq === seq);
-const openNote = () => (S.note ? (S.notes.find((n) => n.id === S.note) ?? null) : null);
+const openNote = () => (S.note ? (S.notes.find((n) => n.id === S.note) ?? carriedOf(S.note)?.note ?? null) : null);
 const insFrame = () => (S.ins && !S.ins.live ? (insFrames()[S.ins.idx] ?? null) : null);
 const runPath = (...parts) => `/api/runs/${[S.run.id, ...parts].map((p) => encodeURIComponent(String(p))).join('/')}`;
 const clampNum = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -3423,6 +3452,19 @@ function noteExcerpt(text) {
   return `${(word > TIP_CHARS * 0.6 ? cut.slice(0, word) : cut).replace(/[\s,.;:]+$/, '')}…`;
 }
 const pinBadge = (n) => (n ? `<i class="nt">${icon('pin', 'sm')}${n}</i>` : '');
+
+// NOTES FROM EARLIER RUNS (notes.mjs, carriedInto): a note still to deal
+// with, pinned on an earlier run of the suite, shown on the same photo of
+// this one. It is not this run's: its tack has a style of its own (dashed,
+// with a clock), its post-it says where it comes from and opens it there
+// («where it was pinned», openOrigin), and what is said or done about it
+// goes to its own run. A note closed from here stays on screen, closed,
+// until the run is opened again.
+const carriedOn = (seq) => S.carried.filter((c) => c.seq === seq);
+const carriedOf = (id) => S.carried.find((c) => c.note.id === id) ?? null;
+/** The open post-it's note when it is one from an earlier run: its entry. */
+const carriedOpen = () => (S.note && !S.notes.some((n) => n.id === S.note) ? carriedOf(S.note) : null);
+const oldBadge = (n) => (n ? `<i class="nt old">${icon('history', 'sm')}${n}</i>` : '');
 
 /** Each note's number on its photo: 1, 2, 3 in the order they were pinned
  *  (notes.mjs numbers them the same way for the report). */
@@ -3475,6 +3517,19 @@ function renderTacks() {
       const tip = written(n) && n.id !== S.note ? (st ? t('note.tip_state', { n: k, state: stateWord(st), text: excerpt }) : `${k}. ${excerpt}`) : '';
       const label = t('note.tack', { n: k }) + (st ? ` (${stateWord(st)})` : '');
       return `<button class="${cls}" data-note="${esc(n.id)}" style="left:${(100 * n.x) / W}%;top:${(100 * n.y) / H}%" aria-label="${esc(label)}"${tip ? ` data-tip="${esc(tip)}"` : ''}><b>${k}</b>${st ? `<i>${icon(STATE_ICON[st])}</i>` : ''}</button>`;
+    })
+    .join('');
+  // Those of earlier runs: a clock for a number, and never dragged (their
+  // point is their own run's).
+  layer.innerHTML += carriedOn(f.seq)
+    .map((c) => {
+      const n = c.note;
+      const st = n.state && STATE_ICON[n.state] ? n.state : null;
+      const cls = ['tack', 'old', n.id === S.note ? 'open' : '', st ? `st-${st}` : ''].join(' ');
+      const tip = n.id !== S.note ? t('note.tip_old', { when: when(c.from.startedAt), text: noteExcerpt(n.text) }) : '';
+      const x = clampNum(c.x, 0, W - 1);
+      const y = clampNum(c.y, 0, H - 1);
+      return `<button class="${cls}" data-carried="${esc(n.id)}" style="left:${(100 * x) / W}%;top:${(100 * y) / H}%" aria-label="${esc(t('note.tack_old'))}"${tip ? ` data-tip="${esc(tip)}"` : ''}><b>${icon('history')}</b>${st ? `<i>${icon(STATE_ICON[st])}</i>` : ''}</button>`;
     })
     .join('');
   S.dropped = null;
@@ -3613,44 +3668,85 @@ $('insTacks').addEventListener('pointerdown', (e) => {
 });
 $('insTacks').addEventListener('click', (e) => {
   const el = e.target.closest('.tack');
+  // One of an earlier run: opened by any click (it is never dragged).
+  const c = el?.dataset.carried ? carriedOf(el.dataset.carried) : null;
+  if (c) return openPostit(c.note);
   const n = el && e.detail === 0 && S.notes.find((x) => x.id === el.dataset.note);
   if (n) openPostit(n);
 });
+
+// The two post-its: the inspector's, on the photo on screen (a note of this
+// run, or one of an earlier run that follows into it), and the one docked
+// in «where it was pinned» (openOrigin), on the note's own photo. The same
+// parts, each with its own ids (`postit…`, `opost…`), and the same ways to
+// answer and close a note.
+const POSTIT = {
+  pre: 'postit',
+  note: () => openNote(),
+  run: () => carriedOpen()?.from.run ?? S.run?.id ?? null,
+  fresh: () => S.postitFresh,
+};
+const ORIGIN = {
+  pre: 'opost',
+  note: () => originNote(),
+  run: () => S.origin?.run ?? null,
+  fresh: () => false,
+};
+// A report from «Play as» (play.mjs): its note, on the run on screen when
+// that run is the report, answered and closed as a pinned one is.
+const REPORT = {
+  pre: 'rpost',
+  note: () => reportNoteOf(S.run),
+  run: () => (S.run?.kind === 'play' ? S.run.id : null),
+  fresh: () => false,
+};
+const part = (v, name) => $(`${v.pre}${name}`);
 
 function openPostit(n) {
   if (S.note && S.note !== n.id) closePostit();
   S.note = n.id;
   hideTip();
-  const k = noteNumbers().get(n.id);
-  $('postitN').textContent = k;
-  $('postitTitle').textContent = t('note.title', { n: k, who: cap(n.actor) });
+  // One of an earlier run: read here, changed where it was pinned.
+  const c = carriedOpen();
+  const k = c ? null : noteNumbers().get(n.id);
+  if (c) $('postitN').innerHTML = icon('history', 'sm');
+  else $('postitN').textContent = k;
+  $('postitTitle').textContent = c ? t('note.title_old', { who: cap(n.actor) }) : t('note.title', { n: k, who: cap(n.actor) });
+  $('postit').classList.toggle('old', Boolean(c));
+  $('postitFrom').hidden = !c;
+  if (c) {
+    $('postitFromText').textContent = t('note.from_run', { when: when(c.from.startedAt) });
+    $('postitFromWhere').textContent = $('postitFromWhere').title = `${c.from.test} › ${c.from.step}`;
+  }
   $('postitText').value = n.text;
+  $('postitText').readOnly = Boolean(c);
+  $('postitDel').hidden = Boolean(c);
   $('postitReply').value = n.reply ?? '';
-  postitFailed('');
+  failedOn(POSTIT, '');
   // A note being written for the first time: nothing to answer or close.
   S.postitFresh = Boolean(n.draft);
   renderPostit(n);
   $('postit').hidden = false;
   renderTacks();
   placePostit(n);
-  $('postitText').focus();
+  (c ? $('postitOrigin') : $('postitText')).focus();
 }
 
-/** What the post-it shows of its note besides the words being typed: its
+/** What a post-it shows of its note besides the words being typed: its
  *  state, its thread, and what can be said next. Drawn again when the
  *  server's notes change (another page, an agent). */
-function renderPostit(n) {
+function renderPostit(n, v = POSTIT) {
   const st = n.state ?? null;
-  $('postit').classList.toggle('closed', closed(n));
-  const chip = $('postitChip');
+  part(v, '').classList.toggle('closed', closed(n));
+  const chip = part(v, 'Chip');
   chip.hidden = !st;
   chip.className = `postit-chip st-${st ?? 'open'}`;
   chip.textContent = st ? stateWord(st) : '';
   const said = n.thread ?? [];
-  const list = $('postitThread');
+  const list = part(v, 'Thread');
   const was = list.childElementCount;
   list.hidden = !said.length;
-  $('postit').classList.toggle('threaded', said.length > 0);
+  part(v, '').classList.toggle('threaded', said.length > 0);
   list.innerHTML = said
     .map((s) => {
       const who = s.by === 'page' ? t('note.by_you') : s.by;
@@ -3660,7 +3756,7 @@ function renderPostit(n) {
     .join('');
   // Something new said: the newest in view.
   if (said.length !== was) list.scrollTop = list.scrollHeight;
-  renderSay(n);
+  renderSay(n, v);
 }
 
 /** What can be said under the note, and when. Nothing while it is being
@@ -3672,19 +3768,19 @@ function renderPostit(n) {
  *  writing in it. Each state, its ways on: open, resolved or dismissed; to
  *  verify, resolved or «not yet» (open again, for the agent, with what is
  *  missing); closed, reopened. */
-function renderSay(n) {
+function renderSay(n, v = POSTIT) {
   const talk = Boolean(n.thread?.length);
   const st = n.state ?? 'open';
-  $('postitSay').hidden = !written(n) || (S.postitFresh && !talk);
-  $('postitReply').hidden = !talk;
-  $('postitSend').hidden = !talk;
-  $('postitResolve').hidden = closed(n);
-  $('postitNotYet').hidden = st !== 'verify';
-  $('postitDismiss').hidden = st !== 'open';
-  $('postitReopen').hidden = !closed(n);
+  part(v, 'Say').hidden = !written(n) || (v.fresh() && !talk);
+  part(v, 'Reply').hidden = !talk;
+  part(v, 'Send').hidden = !talk;
+  part(v, 'Resolve').hidden = closed(n);
+  part(v, 'NotYet').hidden = st !== 'verify';
+  part(v, 'Dismiss').hidden = st !== 'open';
+  part(v, 'Reopen').hidden = !closed(n);
   const busy = Boolean(S.saying);
-  for (const id of ['postitResolve', 'postitNotYet', 'postitDismiss', 'postitReopen']) $(id).disabled = busy;
-  $('postitSend').disabled = busy || !$('postitReply').value.trim();
+  for (const name of ['Resolve', 'NotYet', 'Dismiss', 'Reopen']) part(v, name).disabled = busy;
+  part(v, 'Send').disabled = busy || !part(v, 'Reply').value.trim();
 }
 
 /** Where the person left the post-it, else beside its tack without covering
@@ -3697,7 +3793,7 @@ function placePostit(n) {
   const h = box.offsetHeight;
   let at = S.ins?.postitAt;
   if (!at) {
-    const tack = $('insTacks').querySelector(`[data-note="${CSS.escape(n.id)}"]`);
+    const tack = $('insTacks').querySelector(`[data-note="${CSS.escape(n.id)}"], [data-carried="${CSS.escape(n.id)}"]`);
     const r = (tack ?? $('insView')).getBoundingClientRect();
     const gap = 14;
     const sides = [
@@ -3729,11 +3825,11 @@ function closePostit() {
   renderTacks();
 }
 
-/** The post-it says nothing about saving while saving works: a strip on
+/** A post-it says nothing about saving while saving works: a strip on
  *  every note was noise. Only a save that failed shows, in red. */
-function postitFailed(error) {
-  $('postitState').hidden = !error;
-  $('postitState').textContent = error ? t('note.failed', { error }) : '';
+function failedOn(v, error) {
+  part(v, 'State').hidden = !error;
+  part(v, 'State').textContent = error ? t('note.failed', { error }) : '';
 }
 
 /** `moved`: its tack changed place, so the copy with the pins is drawn again
@@ -3750,13 +3846,13 @@ async function saveNote(n, { moved = false } = {}) {
     .then((r) => {
       const saved = r.notes.find((x) => x.id === n.id);
       if (saved) Object.assign(n, { createdAt: saved.createdAt, updatedAt: saved.updatedAt });
-      if (S.note === n.id) postitFailed('');
+      if (S.note === n.id) failedOn(POSTIT, '');
       if (S.run?.id === run && (first || moved)) schedulePinned(n.seq);
       if (first) renderNoteCounts();
     })
     .catch((e) => {
       n.dirty = true;
-      if (S.note === n.id) postitFailed(e.message);
+      if (S.note === n.id) failedOn(POSTIT, e.message);
       else banner(t('note.failed', { error: e.message }), 'err');
     })
     .finally(() => {
@@ -3855,59 +3951,316 @@ $('postitText').addEventListener('keydown', (e) => {
 $('postitClose').onclick = () => closePostit();
 
 /**
- * Said under the open note (notes.mjs, said): the words in the reply box,
- * a change of its state, or both (a note resolved with why). The note goes
- * to the server first if it is not there yet: its thread goes with it.
+ * Said under a post-it's note (notes.mjs, said): the words in its reply
+ * box, a change of its state, or both (a note resolved with why), sent to
+ * the run the note lives in. A note of this run goes to the server first if
+ * it is not there yet: its thread goes with it.
  * @param {string | null} state
+ * @param {typeof POSTIT} v
  */
-async function sayOnNote(state = null) {
-  const n = openNote();
-  const text = $('postitReply').value.trim();
-  if (!n || !S.run || !written(n) || S.saying || (!text && !state)) return;
-  const path = runPath('notes', n.id, 'thread');
-  const run = S.run.id;
+async function sayOnNote(state = null, v = POSTIT) {
+  const n = v.note();
+  const run = v.run();
+  const text = part(v, 'Reply').value.trim();
+  if (!n || !run || !written(n) || S.saying || (!text && !state)) return;
+  const path = v === REPORT ? `/api/runs/${encodeURIComponent(run)}/report/thread` : `/api/runs/${encodeURIComponent(run)}/notes/${encodeURIComponent(n.id)}/thread`;
+  const same = () => v.note()?.id === n.id;
   S.saying = true;
-  renderSay(n);
+  renderSay(n, v);
   try {
-    if (n.draft || n.dirty) {
+    if (v === POSTIT && S.notes.includes(n) && (n.draft || n.dirty)) {
       clearTimeout(saveTimer);
       await saveNote(n);
     }
+    if (v === ORIGIN && S.origin?.dirty) await saveOrigin();
     await saving.get(n.id)?.catch(() => {});
     // Its save failed: the post-it says so, and the words stay to send again.
-    if (n.draft || n.dirty) return;
+    if (n.draft || n.dirty || (v === ORIGIN && S.origin?.dirty)) return;
     const r = await api(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, ...(state ? { state } : {}) }) });
     n.reply = '';
-    if (S.note === n.id) $('postitReply').value = '';
-    postitFailed('');
-    mergeNotes(run, r.notes);
+    if (same()) part(v, 'Reply').value = '';
+    failedOn(v, '');
+    if (v === REPORT) reportChanged(run, r.play);
+    else notesChanged(run, r.notes);
   } catch (e) {
-    if (S.note === n.id) postitFailed(e.message);
+    if (same()) failedOn(v, e.message);
     else banner(t('note.failed', { error: e.message }), 'err');
   } finally {
     S.saying = false;
-    if (S.note === n.id) renderSay(n);
+    // Both: the inspector's post-it may show the same note, from a later run.
+    for (const w of [POSTIT, ORIGIN, REPORT]) if (w.note()) renderSay(w.note(), w);
   }
 }
-// What is typed there stays with its note while its post-it is closed.
-$('postitReply').addEventListener('input', () => {
-  const n = openNote();
-  if (!n) return;
-  n.reply = $('postitReply').value;
-  renderSay(n);
-});
-// Ctrl+Enter sends; Enter alone is a new line, as in the note.
-$('postitReply').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-    e.preventDefault();
-    void sayOnNote();
+for (const v of [POSTIT, ORIGIN, REPORT]) {
+  // What is typed there stays with its note while its post-it is closed.
+  part(v, 'Reply').addEventListener('input', () => {
+    const n = v.note();
+    if (!n) return;
+    n.reply = part(v, 'Reply').value;
+    renderSay(n, v);
+  });
+  // Ctrl+Enter sends; Enter alone is a new line, as in the note.
+  part(v, 'Reply').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      void sayOnNote(null, v);
+    }
+  });
+  part(v, 'Send').onclick = () => void sayOnNote(null, v);
+  part(v, 'Resolve').onclick = () => void sayOnNote('resolved', v);
+  part(v, 'NotYet').onclick = () => void sayOnNote('open', v);
+  part(v, 'Dismiss').onclick = () => void sayOnNote('dismissed', v);
+  part(v, 'Reopen').onclick = () => void sayOnNote('open', v);
+}
+
+/** A run's notes as the server has them now (this page, another one, an
+ *  agent): the run on screen's own, those that follow from it into the run
+ *  on screen, and the one open where it was pinned. */
+function notesChanged(runId, notes) {
+  mergeNotes(runId, notes);
+  mergeCarried(runId, notes);
+  mergeOrigin(runId, notes);
+}
+
+/** The notes of an earlier run changed: those that follow from it take the
+ *  server's words and state; one deleted goes; one pinned there just now is
+ *  looked for here. */
+function mergeCarried(runId, notes) {
+  if (!S.run || runId === S.run.id) return;
+  const byId = new Map(notes.map((n) => [n.id, n]));
+  const mine = (c) => c.from.run === runId;
+  const before = S.carried.length + S.carriedMissing.length;
+  S.carried = S.carried.filter((c) => !mine(c) || byId.has(c.note.id));
+  S.carriedMissing = S.carriedMissing.filter((c) => !mine(c) || byId.has(c.note.id));
+  let changed = S.carried.length + S.carriedMissing.length !== before;
+  for (const c of [...S.carried, ...S.carriedMissing]) {
+    if (!mine(c)) continue;
+    const n = byId.get(c.note.id);
+    if (n === c.note) continue;
+    // What is typed in its reply box stays.
+    c.note = { ...n, ...(c.note.reply ? { reply: c.note.reply } : {}) };
+    changed = true;
   }
+  const known = new Set([...S.carried, ...S.carriedMissing].map((c) => c.note.id));
+  if (runId < S.run.id && notes.some((n) => written(n) && !closed(n) && !known.has(n.id))) void loadCarried();
+  if (changed) renderCarried();
+}
+
+/** The notes of earlier runs that follow into the run on screen, asked
+ *  again (another run's notes changed, the inspector opened). One closed
+ *  from here stays, closed, until the run is opened again: the person sees
+ *  what they did. */
+async function loadCarried() {
+  const id = S.run?.id;
+  if (!id) return;
+  const r = await api(`/api/runs/${encodeURIComponent(id)}/carried`).catch(() => null);
+  if (!r || S.run?.id !== id) return;
+  const fresh = new Set([...r.carried, ...r.missing].map((c) => c.note.id));
+  const keep = (list) => list.filter((c) => closed(c.note) && !fresh.has(c.note.id));
+  S.carried = [...r.carried, ...keep(S.carried)];
+  S.carriedMissing = [...r.missing, ...keep(S.carriedMissing)];
+  renderCarried();
+}
+
+function renderCarried() {
+  if (S.note && !openNote()) closePostit();
+  else if (carriedOpen()) {
+    // Its words too: they are changed where it was pinned, never here.
+    $('postitText').value = openNote().text;
+    renderPostit(openNote());
+  }
+  renderNoteCounts();
+  renderTacks();
+}
+
+// WHERE IT WAS PINNED: a note that follows from an earlier run, on its own
+// photo of its own run, as it was pinned there: its tack as it was, among
+// that photo's, and its post-it open beside it, to read it in the context it
+// was written in, and to change, answer or close it there. A modal over the
+// inspector: closing it is back to the run on screen.
+const originNote = () => (S.origin ? (S.origin.notes.find((n) => n.id === S.origin.note) ?? null) : null);
+
+async function openOrigin(id) {
+  const c = carriedOf(id) ?? S.carriedMissing.find((m) => m.note.id === id);
+  if (!c) return;
+  let r;
+  try {
+    r = await api(`/api/runs/${encodeURIComponent(c.from.run)}`);
+  } catch (e) {
+    return banner(t('note.failed', { error: e.message }), 'err');
+  }
+  const frame = r.frames.find((f) => f.seq === c.from.seq);
+  if (!frame) return banner(t('note.origin_gone'), 'err');
+  S.origin = { run: c.from.run, startedAt: r.startedAt, frame, notes: r.notes ?? [], note: id, dirty: false, timer: null };
+  $('originTitle').textContent = t('note.origin_title', { who: cap(frame.actor) });
+  $('originWhere').textContent = `${when(r.startedAt)} · ${frame.test} › ${isAction(frame) ? `${frame.step} · ${actionNo(frame)}` : frame.step}`;
+  $('opostReply').value = c.note.reply ?? '';
+  fillOrigin();
+  const img = $('originImg');
+  img.onload = () => {
+    renderOriginTacks();
+    // The note in view: the photo scrolled to it.
+    const n = originNote();
+    const view = $('originView');
+    if (n && img.naturalHeight) view.scrollTop = Math.max(0, (n.y / img.naturalHeight) * img.clientHeight - view.clientHeight / 2);
+  };
+  img.src = frameUrl(frame);
+  $('origin').showModal();
+  $('opostText').focus();
+}
+
+/** Each note's number on the origin's photo, as there. */
+function originNumbers() {
+  const k = new Map();
+  const out = new Map();
+  for (const n of [...S.origin.notes].sort((a, b) => a.createdAt.localeCompare(b.createdAt))) {
+    k.set(n.seq, (k.get(n.seq) ?? 0) + 1);
+    out.set(n.id, k.get(n.seq));
+  }
+  return out;
+}
+
+function renderOriginTacks() {
+  const o = S.origin;
+  const img = $('originImg');
+  const W = img.naturalWidth;
+  const H = img.naturalHeight;
+  if (!o || !W || !H) return;
+  const num = originNumbers();
+  $('originTacks').innerHTML = o.notes
+    .filter((n) => n.seq === o.frame.seq && written(n))
+    .map((n) => {
+      const k = num.get(n.id);
+      const st = n.state && STATE_ICON[n.state] ? n.state : null;
+      const cls = ['tack', n.id === o.note ? 'open' : '', st ? `st-${st}` : ''].join(' ');
+      const tip = n.id !== o.note ? `${k}. ${noteExcerpt(n.text)}` : '';
+      return `<button class="${cls}" data-onote="${esc(n.id)}" style="left:${(100 * n.x) / W}%;top:${(100 * n.y) / H}%" aria-label="${esc(t('note.tack', { n: k }))}"${tip ? ` data-tip="${esc(tip)}"` : ''}><b>${k}</b>${st ? `<i>${icon(STATE_ICON[st])}</i>` : ''}</button>`;
+    })
+    .join('');
+}
+
+/** The docked post-it, on the origin's note. */
+function fillOrigin() {
+  const n = originNote();
+  if (!n) return closeOrigin();
+  const k = originNumbers().get(n.id);
+  $('opostN').textContent = k;
+  $('opostTitle').textContent = t('note.title', { n: k, who: cap(n.actor) });
+  if (!S.origin.dirty) $('opostText').value = n.text;
+  failedOn(ORIGIN, '');
+  renderPostit(n, ORIGIN);
+}
+
+/** The origin's note as typed there, saved where it lives. */
+async function saveOrigin() {
+  const o = S.origin;
+  const n = originNote();
+  if (!o || !n) return;
+  clearTimeout(o.timer);
+  const text = $('opostText').value;
+  if (!text.trim()) return;
+  o.dirty = false;
+  try {
+    const r = await api(`/api/runs/${encodeURIComponent(o.run)}/notes/${encodeURIComponent(n.id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ seq: n.seq, x: n.x, y: n.y, text }),
+    });
+    failedOn(ORIGIN, '');
+    notesChanged(o.run, r.notes);
+  } catch (e) {
+    if (S.origin === o) {
+      o.dirty = true;
+      failedOn(ORIGIN, e.message);
+    }
+  }
+}
+
+/** The origin run's notes changed (from here, another page, an agent). */
+function mergeOrigin(runId, notes) {
+  const o = S.origin;
+  if (!o || o.run !== runId) return;
+  const reply = originNote()?.reply;
+  o.notes = notes;
+  if (!originNote()) return closeOrigin();
+  if (reply) originNote().reply = reply;
+  fillOrigin();
+  renderOriginTacks();
+}
+
+function closeOrigin() {
+  if ($('origin').open) $('origin').close();
+}
+$('origin').addEventListener('close', () => {
+  const o = S.origin;
+  if (o?.dirty) void saveOrigin();
+  S.origin = null;
+  $('originImg').removeAttribute('src');
+  $('originTacks').innerHTML = '';
 });
-$('postitSend').onclick = () => void sayOnNote();
-$('postitResolve').onclick = () => void sayOnNote('resolved');
-$('postitNotYet').onclick = () => void sayOnNote('open');
-$('postitDismiss').onclick = () => void sayOnNote('dismissed');
-$('postitReopen').onclick = () => void sayOnNote('open');
+$('originClose').onclick = () => closeOrigin();
+$('opostText').addEventListener('input', () => {
+  const o = S.origin;
+  if (!o) return;
+  o.dirty = true;
+  clearTimeout(o.timer);
+  o.timer = setTimeout(() => void saveOrigin(), NOTE_SAVE_MS);
+});
+// Another note of that photo: its post-it, in place of this one.
+$('originTacks').addEventListener('click', (e) => {
+  const el = e.target.closest('[data-onote]');
+  if (!el || !S.origin || el.dataset.onote === S.origin.note) return;
+  if (S.origin.dirty) void saveOrigin();
+  S.origin.note = el.dataset.onote;
+  $('opostReply').value = originNote()?.reply ?? '';
+  fillOrigin();
+  renderOriginTacks();
+});
+$('opostDel').onclick = async () => {
+  const o = S.origin;
+  const n = originNote();
+  if (!o || !n) return;
+  if (!(await ask(t('note.delete_q', { n: originNumbers().get(n.id) }), t('note.delete_yes')))) return $('opostText').focus();
+  try {
+    const r = await api(`/api/runs/${encodeURIComponent(o.run)}/notes/${encodeURIComponent(n.id)}`, { method: 'DELETE' });
+    closeOrigin();
+    notesChanged(o.run, r.notes);
+  } catch (e) {
+    failedOn(ORIGIN, e.message);
+  }
+};
+$('postitOrigin').onclick = () => {
+  if (S.note) void openOrigin(S.note);
+};
+
+// A REPORT'S NOTE (play.mjs, notes.mjs reportNote): on the run on screen when
+// it is a report from «Play as», the person's words on what went wrong, as
+// a post-it of its own, with its state and thread.
+function reportNoteOf(run) {
+  if (run?.kind !== 'play') return null;
+  const p = run.play ?? {};
+  return { id: 'report', text: p.note || t('report.no_note'), ...(p.state ? { state: p.state } : {}), ...(p.thread?.length ? { thread: p.thread } : {}) };
+}
+
+function renderReport() {
+  const n = REPORT.note();
+  $('reportNote').hidden = !n;
+  if (!n) return;
+  $('rpostN').innerHTML = icon('flag', 'sm');
+  $('rpostTitle').textContent = [t('kind.play'), listOf((S.run.play?.people ?? []).map(cap))].filter(Boolean).join(' · ');
+  $('rpostText').textContent = n.text;
+  renderPostit(n, REPORT);
+}
+
+/** A report's note changed (this page, another one, an agent). */
+function reportChanged(runId, play) {
+  if (!play) return;
+  const row = S.state?.runs?.find((r) => r.id === runId);
+  if (row) row.play = play;
+  if (S.run?.id !== runId) return;
+  S.run.play = play;
+  renderReport();
+}
 $('postitDel').onclick = async () => {
   const n = openNote();
   if (!n) return;
@@ -4218,6 +4571,8 @@ function connect() {
         S.run = r;
         S.frames = [];
         S.notes = [];
+        S.carried = [];
+        S.carriedMissing = [];
         buildMoments();
         S.acting.clear();
         if (S.ins) closeInspector();
@@ -4286,7 +4641,11 @@ function connect() {
   es.addEventListener('log', (e) => onLogLine(JSON.parse(e.data)));
   es.addEventListener('notes', (e) => {
     const d = JSON.parse(e.data);
-    mergeNotes(d.run, d.notes);
+    notesChanged(d.run, d.notes);
+  });
+  es.addEventListener('report', (e) => {
+    const d = JSON.parse(e.data);
+    reportChanged(d.run, d.play);
   });
 }
 
@@ -4339,6 +4698,21 @@ function labelButtons() {
   $('postitReopen').dataset.tip = t('note.reopen_tip');
   $('postitSend').setAttribute('aria-label', t('note.send'));
   $('postitSend').dataset.tip = t('note.send');
+  // The same in «where it was pinned», and in a report's note.
+  for (const pre of ['opost', 'rpost']) {
+    withIcon($(`${pre}Resolve`), 'check', t('note.resolve'));
+    $(`${pre}Resolve`).dataset.tip = t('note.resolve_tip');
+    withIcon($(`${pre}NotYet`), 'alert', t('note.not_yet'));
+    $(`${pre}NotYet`).dataset.tip = t('note.not_yet_tip');
+    withIcon($(`${pre}Dismiss`), 'ban', t('note.dismiss'));
+    $(`${pre}Dismiss`).dataset.tip = t('note.dismiss_tip');
+    withIcon($(`${pre}Reopen`), 'rotate', t('note.reopen'));
+    $(`${pre}Reopen`).dataset.tip = t('note.reopen_tip');
+    $(`${pre}Send`).setAttribute('aria-label', t('note.send'));
+    $(`${pre}Send`).dataset.tip = t('note.send');
+  }
+  renderReport();
+  withIcon($('postitOrigin'), 'external', t('note.see_origin'));
   withIcon($('logDownload'), 'download', t('log.download'));
   withIcon($('runReport'), 'fileText');
   $('runReport').setAttribute('aria-label', t('run.report'));
@@ -4439,6 +4813,10 @@ for (const [id, name] of [
   ['insTack', 'pin'],
   ['postitDel', 'trash'],
   ['postitSend', 'send'],
+  ['opostSend', 'send'],
+  ['rpostSend', 'send'],
+  ['opostDel', 'trash'],
+  ['originClose', 'x'],
   ['postitClose', 'x'],
   ['insTrace', 'route'],
   ['insDownload', 'download'],

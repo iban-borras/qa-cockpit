@@ -2,6 +2,30 @@
 
 ## 0.15.0 (unreleased)
 
+- A note follows into the later runs of its suite while it is open or to
+  verify, so a fix is checked on the run that should show it. It sits on
+  the same photo, the same test, step and person, and the same action:
+  nothing else is taken for it, and a pin on an action moves with it. Its
+  tack is dashed, with a clock, and its post-it says the run it comes
+  from; **See where it was pinned** opens its own photo of its own run
+  over the inspector, its tack and post-it as they were, to read, change,
+  answer or close it in the context it was written in. It stays one note:
+  what is done from a later run goes to its own. A note whose photo a run
+  does not have, though the run played its test, is listed atop that
+  person's steps as not in this run, and opens where it was pinned too.
+  `notes <run>` ends with the notes from earlier runs, where each is now
+  and where it was pinned. Only the notes pinned since 0.14.0 follow:
+  before it nothing could close a note, and a project's earlier ones would
+  bury its new runs.
+- A report from «Play as» has a state and a thread as a pinned note has.
+  On screen with it, the person's note on what went wrong is a post-it of
+  its own, with the same ways on (Resolved, Not yet, Dismiss, Reopen) and
+  the same reply box. An agent answers under it with `play reply <report>
+  "<text>"`, says it fixed it with `play verify`, and closes it only on the
+  person's word (`play resolve`, `dismiss`, `reopen`). `play` prints its
+  state and thread, `play --list` each report's state, and a report still
+  to deal with is kept past `keepRuns`.
+
 - `lock` says in its exit code whether the stack is free: 0 free, 3 in use.
   It said so only in words, and always ended with 0, so an agent's
   `lock && <save a file>` went on with «In use» and saved under somebody's

@@ -393,6 +393,20 @@ since, and each change of state. When you are asked to act on them:
 6. Notes stay until a person deletes them in the cockpit: never delete one
    yourself. A run whose notes are all closed goes like any other run,
    once newer ones push it out.
+7. **A note follows into the later runs of its suite** while it is open or
+   to verify: on the same photo (the same test, step and person, and the
+   same action), with a tack of its own and the run it comes from, and the
+   person can open it where it was pinned. `notes <run>` ends with «From
+   earlier runs»: each one, its id, where it is in this run, and where it
+   was pinned (`notes <that run>` prints it whole). It is still one note:
+   what you say under it goes to its own run. Look at this run's photo
+   before answering: what it asked may already hold (`notes verify <id>
+   "Holds in the run <run>: <what you see>"`). A pin on an action moved
+   with it; any other stays where it was, and the page may have moved
+   under it. **Not in this run** means the run played its test without
+   that photo: the step changed or is gone; say so under the note, and ask
+   the person whether it still applies. Notes pinned before 0.14.0 do not
+   follow: nothing could close a note then.
 
 ## Reports from «Play as» (when a person says they made one)
 
@@ -406,9 +420,16 @@ and turns what every window did since the last report into a run of kind
 then each window as it was when reported, with the person's note.
 
 ```bash
-npx qa-cockpit play          # the newest report: the note, the steps, their photos, requests and page errors
-npx qa-cockpit play --list   # every report kept
+npx qa-cockpit play          # the newest report: the note, its state and thread, the steps, their photos, requests and page errors
+npx qa-cockpit play --list   # every report kept, with its state
+npx qa-cockpit play reply <report> "<text>" --by "<you> (<model>)"   # as under a pinned note: verify, resolve, dismiss, reopen too
 ```
+
+A report's note has a state and a thread as a pinned note has («Notes
+pinned on the photos»), and the same rules: answer or ask under it with
+`play reply`, say you fixed it with `play verify <report> "<what
+changed>"`, and close it (`resolve`, `dismiss`, `reopen`) only on the
+person's word. A report still open or to verify is kept past `keepRuns`.
 
 1. **Read the note first**, then the photos of the steps around what it
    says: each action's photo is the window just before it, its mark on what

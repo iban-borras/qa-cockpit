@@ -141,6 +141,29 @@
     </div>
     <div class="group-strip" id="groupStrip" hidden></div>
     <div class="races" id="races" hidden></div>
+    <div class="report-note" id="reportNote" hidden>
+      <section class="postit docked" id="rpost" data-i18n-aria="note.label">
+        <header class="postit-head">
+          <span class="postit-n" id="rpostN"></span>
+          <span class="postit-title" id="rpostTitle"></span>
+          <span class="postit-chip" id="rpostChip" hidden></span>
+        </header>
+        <p class="report-text" id="rpostText"></p>
+        <ol class="postit-thread" id="rpostThread" hidden></ol>
+        <div class="postit-say" id="rpostSay" hidden>
+          <textarea id="rpostReply" rows="1" spellcheck="true" data-i18n-placeholder="note.reply_placeholder"></textarea>
+          <div class="postit-acts">
+            <button class="btn pill resolve" id="rpostResolve"></button>
+            <button class="btn pill" id="rpostNotYet" hidden></button>
+            <button class="btn pill" id="rpostDismiss"></button>
+            <button class="btn pill" id="rpostReopen" hidden></button>
+            <span class="grow"></span>
+            <button class="btn icon pill" id="rpostSend" disabled></button>
+          </div>
+        </div>
+        <footer class="postit-foot" id="rpostState" hidden></footer>
+      </section>
+    </div>
     <div class="plays" id="plays" hidden></div>
     <div class="changes" id="changesStrip" hidden>
       <span id="chgIcon"></span>
@@ -252,6 +275,11 @@
           <button class="btn icon ghost" id="postitDel" data-i18n-aria="note.delete" data-i18n-title="note.delete"></button>
           <button class="btn icon ghost" id="postitClose" data-i18n-aria="note.close" data-i18n-title="note.close"></button>
         </header>
+        <div class="postit-from" id="postitFrom" hidden>
+          <span id="postitFromText"></span>
+          <span class="where" id="postitFromWhere"></span>
+          <button class="btn pill" id="postitOrigin"></button>
+        </div>
         <textarea id="postitText" spellcheck="true" data-i18n-placeholder="note.placeholder"></textarea>
         <ol class="postit-thread" id="postitThread" hidden></ol>
         <div class="postit-say" id="postitSay" hidden>
@@ -266,6 +294,46 @@
           </div>
         </div>
         <footer class="postit-foot" id="postitState" hidden></footer>
+      </section>
+    </div>
+  </dialog>
+
+  <dialog id="origin" class="origin" aria-labelledby="originTitle">
+    <header class="origin-head">
+      <div class="origin-what">
+        <h3 id="originTitle"></h3>
+        <p id="originWhere"></p>
+      </div>
+      <button class="btn icon ghost" id="originClose" data-i18n-aria="note.close" data-i18n-title="note.close"></button>
+    </header>
+    <div class="origin-body">
+      <div class="origin-view" id="originView">
+        <div class="origin-sheet">
+          <img id="originImg" alt="">
+          <div class="tacks" id="originTacks"></div>
+        </div>
+      </div>
+      <section class="postit docked" id="opost" data-i18n-aria="note.label">
+        <header class="postit-head">
+          <span class="postit-n" id="opostN"></span>
+          <span class="postit-title" id="opostTitle"></span>
+          <span class="postit-chip" id="opostChip" hidden></span>
+          <button class="btn icon ghost" id="opostDel" data-i18n-aria="note.delete" data-i18n-title="note.delete"></button>
+        </header>
+        <textarea id="opostText" spellcheck="true" data-i18n-placeholder="note.placeholder"></textarea>
+        <ol class="postit-thread" id="opostThread" hidden></ol>
+        <div class="postit-say" id="opostSay" hidden>
+          <textarea id="opostReply" rows="1" spellcheck="true" data-i18n-placeholder="note.reply_placeholder"></textarea>
+          <div class="postit-acts">
+            <button class="btn pill resolve" id="opostResolve"></button>
+            <button class="btn pill" id="opostNotYet" hidden></button>
+            <button class="btn pill" id="opostDismiss"></button>
+            <button class="btn pill" id="opostReopen" hidden></button>
+            <span class="grow"></span>
+            <button class="btn icon pill" id="opostSend" disabled></button>
+          </div>
+        </div>
+        <footer class="postit-foot" id="opostState" hidden></footer>
       </section>
     </div>
   </dialog>
