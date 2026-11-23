@@ -57,11 +57,18 @@ export async function saveSession(browser, rawConfig, id, override = {}) {
 
 /**
  * Save the sessions of several people: `ids`, or whoever
- * config.sessions.who() says has an account, or the whole cast.
+ * config.sessions.who() says has an account, or the whole cast. Side by
+ * side when config.sessions.parallel says how many may (each in a context
+ * of its own, in the one browser): a sign-in is mostly waiting, and one by
+ * one the cast's took 18 to 22 s a suite in CritKeep.
  */
 export async function saveSessions(browser, rawConfig, ids) {
   const config = resolveConfig(rawConfig);
   const who = ids ?? (config.sessions.who ? await config.sessions.who({ config }) : config.people);
-  for (const id of who) await saveSession(browser, config.raw, id);
+  const queue = [...who];
+  const worker = async () => {
+    for (let id = queue.shift(); id !== undefined; id = queue.shift()) await saveSession(browser, config.raw, id);
+  };
+  await Promise.all(Array.from({ length: Math.min(config.sessions.parallel, Math.max(1, queue.length)) }, worker));
   return who;
 }

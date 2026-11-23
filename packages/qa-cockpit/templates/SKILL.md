@@ -128,7 +128,12 @@ everything says ok:
    (its README, `docker-compose.yml`, `package.json` scripts):
    - Docker Compose: `composeStack({ project: '<app>-qa', files: [...], app: { service, port }, api: { service, port, health } })`.
      Give the QA copy its own compose project (and, with an override file,
-     its own ports and volumes): that is what keeps it apart.
+     its own ports and volumes): that is what keeps it apart. A helper of
+     the project's that needs a service's address (an API client, a guard)
+     asks the stack for it, `stack.compose.url('<service>', <port>)` or
+     `stack.urls()`, never `docker compose port` of its own: the stack
+     remembers the ports (asking compose takes half a second a time on
+     Windows), and forgets them when it starts or stops a container.
    - One process (`npm run dev`, `node server.mjs`): `processStack({ command, args, env, app, health })`.
    - Anything else: write `urls()` (throws when it is down), `up`, `down`
      and `reset` yourself.
@@ -1110,7 +1115,10 @@ videos/                 <suite>.json: video scripts, and their narration's audio
   never point the stack at it.
 - Saved sessions may go stale (short-lived tokens, rotated refresh tokens):
   `replay` renews them unless every one is younger than
-  `sessions.freshFor`.
+  `sessions.freshFor`. They are saved one by one; when the app's sign-in
+  can run side by side (it reads no mail and no code that another one could
+  take), `sessions: { parallel: true }` (or a number) signs the cast in at
+  once, each in a context of its own: a few seconds a suite.
 - The whole cast browses from one machine, so from one IP: a rate limit per
   IP (on sign-in, or 60 requests a minute) counts everybody together, where
   production counts each person. A setup followed by a replay also signs

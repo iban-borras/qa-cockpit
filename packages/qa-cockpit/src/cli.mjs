@@ -76,9 +76,25 @@ export async function runCli(rawConfig, argv) {
   // Playwright takes it.
   const IN_DOCKER = args.includes('--in-docker') || process.env.QA_IN_DOCKER === '1';
   const rest = args.filter((a) => a !== '--in-docker');
+  // CHECKED ONCE IN A SEQUENCE. A group of suites (`replay --tag`) plays a
+  // reset, a setup and a replay of each suite as this CLI again, and each
+  // checked the dependencies, the browser and the stack's guard anew (found
+  // in CritKeep: 52 checks of the dependencies and 78 guards in a group of
+  // 26, some 5 minutes). The group checks them once and tells its steps so
+  // (QA_READY, QA_GUARDED), each set to the token of the lock it hands them
+  // (QA_LOCK): nothing outside that sequence skips a check by setting a
+  // variable. Within one process, each is checked once too.
+  const handed = (name) => {
+    const token = process.env.QA_LOCK;
+    return Boolean(token && process.env[name] === token && readLock(LOCK)?.token === token);
+  };
+  const ready = { deps: handed('QA_READY'), browser: handed('QA_READY') };
+  let guarded = handed('QA_GUARDED');
   const guard = () => {
+    if (guarded) return;
     config.stack.urls();
     config.stack.guard?.();
+    guarded = true;
   };
 
   // One run at a time on the stack (lock.mjs): a command that changes its
@@ -289,9 +305,15 @@ export async function runCli(rawConfig, argv) {
 
   /** For anything that runs here: the dependencies and the browser. */
   function ensureReady({ browser = true } = {}) {
-    const stale = checkDepsStale();
-    if (stale) healDeps(stale);
-    if (browser && !chromiumInstalled()) healChromium();
+    if (!ready.deps) {
+      const stale = checkDepsStale();
+      if (stale) healDeps(stale);
+      ready.deps = true;
+    }
+    if (browser && !ready.browser) {
+      if (!chromiumInstalled()) healChromium();
+      ready.browser = true;
+    }
   }
 
   // Playwright through its own entry point with this very node: no npx, no
@@ -678,6 +700,10 @@ export async function runCli(rawConfig, argv) {
     }
     guard();
     await takeStack('full', playing[0].suite, ['replay', '--tag', tag, ...args].join(' '));
+    // Checked here once for every step of the group (see `handed`).
+    if (!IN_DOCKER) ensureReady();
+    process.env.QA_GUARDED = process.env.QA_LOCK;
+    if (!IN_DOCKER) process.env.QA_READY = process.env.QA_LOCK;
     const stamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15);
     const id = `${tag}-${stamp}`;
     const startedAt = new Date().toISOString();
@@ -887,6 +913,8 @@ export async function runCli(rawConfig, argv) {
       fs.mkdirSync(P.out, { recursive: true });
       await config.stack.up(ctx);
       const urls = await waitHealthy(config);
+      // A stack started anew is guarded anew.
+      guarded = false;
       guard();
       console.log(`\nThe stack "${STACK}" is up: ${where(urls)}`);
     },
@@ -895,6 +923,7 @@ export async function runCli(rawConfig, argv) {
       if (!config.stack.down) fail(`The stack "${STACK}" has no \`down\`.`);
       holdStack('down');
       await config.stack.down(ctx);
+      guarded = false;
       console.log(`The stack "${STACK}" stopped; its data is kept.`);
     },
 
@@ -904,6 +933,7 @@ export async function runCli(rawConfig, argv) {
       if (!config.stack.purge) fail(`The stack "${STACK}" has no \`purge\`.`);
       holdStack('purge');
       await config.stack.purge(ctx);
+      guarded = false;
       // Its next `up` starts from nothing: as after a reset, no setup yet.
       noteData(config, { state: 'reset' });
       clearSavedSessions();

@@ -136,7 +136,7 @@ The config is the whole contract between your app and the cockpit:
 | `cast` | the people of every suite: `{ alice: { name, email, password, badge, device, context } }`, `context` being Playwright's browser options for that person alone (a locale, a time zone, headers) |
 | `stack` | a copy of the app that tests may break: `composeStack(...)`, `processStack(...)`, or your own `urls()`, `up`, `down`, `reset`, `guard` |
 | `signIn({ page, person })` | the app's real sign-in; the package saves the session |
-| `sessions` | how long a saved session stays fresh; who has an account |
+| `sessions` | how long a saved session stays fresh; who has an account; how many sign in at once (`parallel`, one by one unless the sign-in can run side by side) |
 | `helpers` | more fixtures for the recordings: a `db`, a `mail` reader... |
 | `browser` | everybody's default device, locale, time zone, reduced motion, the page «Play as» opens |
 | `suites` | the headings the documents use, if not English (`Cast`, `Runs`) |

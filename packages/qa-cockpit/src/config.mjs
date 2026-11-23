@@ -104,6 +104,10 @@ export function resolveConfig(raw, file) {
     sessions: {
       freshFor: raw.sessions?.freshFor ?? 5 * 60_000,
       who: raw.sessions?.who ?? null,
+      // How many sign in at once when the sessions are saved again: one by
+      // one unless the project says its sign-in may run side by side (one
+      // that reads a mail or a code may not); true for all of them.
+      parallel: raw.sessions?.parallel === true ? Infinity : Math.max(1, Math.floor(Number(raw.sessions?.parallel) || 1)),
     },
     helpers: raw.helpers ?? {},
     browser: {

@@ -2,6 +2,27 @@
 
 ## 0.15.0 (unreleased)
 
+- Less time getting ready, measured in one project's group of 26 suites,
+  where it was nearly half of 133 minutes:
+  - **`composeStack` remembers the ports** compose publishes. Each ask
+    took half a second and more on Windows, and a project's API helper
+    asked for every request: 18 to 24 minutes of the group. A port is
+    forgotten when the stack starts, stops or makes containers anew
+    through it (`up`, `down`, `run(['restart', …])`), and after 30
+    seconds in any case, for a cockpit that lives long while another
+    process may restart a stack whose ports a compose file leaves to
+    Docker. `stack.compose.url(service, port)` gives one service's
+    address, for a helper that wants the backend alone.
+  - **A group (`replay --tag`) checks the dependencies, the browser and
+    the stack's guard once**, not again in the reset, setup and replay of
+    each suite: it tells its steps so, with the token of the lock it hands
+    them, which nothing outside the group has. Within one command, each is
+    checked once too.
+  - **`sessions: { parallel: true }`** (or a number) saves the cast's
+    sessions side by side, each in a context of its own, when the app's
+    sign-in can run so; one by one is still the default, since a sign-in
+    that reads a mail or a code may not.
+
 - A note follows into the later runs of its suite while it is open or to
   verify, so a fix is checked on the run that should show it. It sits on
   the same photo, the same test, step and person, and the same action:
